@@ -8,7 +8,7 @@ A cozy molt logbook and reminder center for tarantula keepers. Keep every shed, 
 - Twelve-month timeline breaks down molt streaks with stage counts so you can spot quiet months fast.
 - Reminder center lets you snooze or clear follow-ups without leaving the page.
 - Full CRUD for molt entries with search, stage filtering, and asc/desc sorting.
-- Inline attachment support for quick photo drops (base64 in dev, swap to real storage when you scale up).
+- Inline attachment support for quick photo drops.
 - Auth powered by NextAuth with classic email/password flow and an optional Discord provider.
 
 ## Environment
