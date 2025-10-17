@@ -28,3 +28,16 @@ NEXTAUTH_URL=http://localhost:5777
 ```bash
 docker compose up --build
 ```
+
+## Discord Authentication
+
+1. Head to the Applications section in the Discord Developer Portal, and click on “New Application” (https://discord.com/developers/applications)
+
+2. In the settings menu, go to “OAuth2 => General”
+* Copy the Client ID and paste it in DISCORD_CLIENT_ID in .env.
+
+* Under Client Secret, click “Reset Secret” and copy that string to DISCORD_CLIENT_SECRET in .env. Be careful as you won’t be able to see this secret again, and resetting it will cause the existing one to expire.
+
+* Click “Add Redirect” and paste in <app url>/api/auth/callback/discord (example for local development: http://localhost:5777/api/auth/callback/discord↗)
+
+* Save your changes
