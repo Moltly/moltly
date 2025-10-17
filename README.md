@@ -38,6 +38,6 @@ docker compose up --build
 
 * Under Client Secret, click “Reset Secret” and copy that string to DISCORD_CLIENT_SECRET in .env. Be careful as you won’t be able to see this secret again, and resetting it will cause the existing one to expire.
 
-* Click “Add Redirect” and paste in <app url>/api/auth/callback/discord (example for local development: http://localhost:5777/api/auth/callback/discord↗)
+* Click “Add Redirect” and paste in appurl/api/auth/callback/discord (example for local development: http://localhost:5777/api/auth/callback/discord)
 
 * Save your changes
