@@ -1,0 +1,9 @@
+.next
+.env
+node_modules
+.DS_Store
+npm-debug.log
+yarn-error.log
+.vscode
+.idea
+dist

@@ -1,0 +1,29 @@
+services:
+  web:
+    build: .
+    container_name: molt-log-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:5777}
+      - PORT=5777
+    ports:
+      - "5777:5777"
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:8
+    container_name: molt-log-mongo
+    restart: unless-stopped
+    command: ["mongod", "--port", "13777", "--bind_ip_all"]
+    environment:
+      - MONGO_INITDB_DATABASE=molt-log
+    ports:
+      - "13777:13777"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
