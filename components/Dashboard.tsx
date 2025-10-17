@@ -713,6 +713,9 @@ export default function Dashboard() {
           <ul className="log-list">
             {filteredEntries.map((entry) => {
               const diff = reminderDescriptor(entry.reminderDate);
+              const attachments = entry.attachments ?? [];
+              const previewAttachments = attachments.slice(0, 3);
+              const remainingAttachments = attachments.length - previewAttachments.length;
               return (
                 <li className="log-card" key={entry.id}>
                   <div className="log-card__inner">
@@ -737,6 +740,29 @@ export default function Dashboard() {
                       )}
                     </div>
                     {entry.notes && <p className="log-card__notes">{entry.notes}</p>}
+                    {previewAttachments.length > 0 && (
+                      <div className="log-card__attachments" aria-label="Entry photos">
+                        {previewAttachments.map((attachment) => (
+                          <a
+                            key={attachment.id}
+                            className="log-card__attachment"
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Open ${attachment.name ?? "photo"} in a new tab`}
+                          >
+                            <Image
+                              src={attachment.url}
+                              alt={attachment.name || "Molt attachment"}
+                              width={96}
+                              height={96}
+                              unoptimized
+                            />
+                          </a>
+                        ))}
+                        {remainingAttachments > 0 && <span className="log-card__attachment-more">+{remainingAttachments}</span>}
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 8 }}>
                       <button type="button" className="btn btn--ghost" onClick={() => handleEdit(entry)}>
                         Edit

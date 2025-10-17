@@ -776,6 +776,50 @@ textarea {
   overflow: hidden;
 }
 
+.log-card__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.log-card__attachment {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+
+.log-card__attachment:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: var(--shadow-soft);
+}
+
+.log-card__attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.log-card__attachment-more {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 600;
+  color: rgba(245, 246, 249, 0.8);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
 .empty-state {
   text-align: center;
   padding: 36px 18px;
