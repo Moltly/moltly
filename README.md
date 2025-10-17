@@ -16,11 +16,11 @@ A cozy molt logbook and reminder center for tarantula keepers. Keep every shed, 
 Create a `.env` file with:
 
 ```
-MONGODB_URI=mongodb://localhost:13777/molt-log
-NEXTAUTH_SECRET=replace-with-a-long-random-string
-NEXTAUTH_URL=http://localhost:5777
+MONGODB_URI=mongodb://mongo:13777/molt-log
+NEXTAUTH_SECRET=replace-with-strong-secret
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
+NEXTAUTH_URL=http://localhost:5777
 ```
 
 ## Docker
