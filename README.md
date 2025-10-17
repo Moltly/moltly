@@ -9,11 +9,11 @@ A cozy molt logbook and reminder center for tarantula keepers. Keep every shed, 
 - Reminder center lets you snooze or clear follow-ups without leaving the page.
 - Full CRUD for molt entries with search, stage filtering, and asc/desc sorting.
 - Inline attachment support for quick photo drops.
-- Auth powered by NextAuth with classic email/password flow and an optional Discord provider.
+- Auth powered by NextAuth with classic email/password and Discord.
 
 ## Environment
 
-Create a `.env` file with at least:
+Create a `.env` file with:
 
 ```
 MONGODB_URI=mongodb://localhost:13777/molt-log
