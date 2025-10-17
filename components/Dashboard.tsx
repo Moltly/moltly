@@ -391,15 +391,6 @@ export default function Dashboard() {
           </button>
         </div>
       </header>
-      <section className="support-links" aria-label="Project links">
-        <a className="support-links__item" href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">
-          View the project on GitHub
-        </a>
-        <a className="support-links__item support-links__item--accent" href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">
-          Support the project on Ko-fi
-        </a>
-      </section>
-
       <section className="stats" aria-live="polite">
         <div className="stat-card">
           <span className="stat-card__label">Active Tarantulas</span>
@@ -767,6 +758,16 @@ export default function Dashboard() {
           +
         </button>
       )}
+      <footer className="support-footer" aria-label="Project links">
+        <span>Like Moltly?</span>
+        <a href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+        <span aria-hidden="true">•</span>
+        <a href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">
+          Ko-fi
+        </a>
+      </footer>
     </div>
   );
 }

@@ -182,45 +182,30 @@ a {
   box-shadow: none;
 }
 
-.support-links {
+.support-footer {
+  margin-top: auto;
+  padding: 18px 0 8px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 0 16px;
-}
-
-.support-links__item {
-  flex: 1 1 220px;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 16px;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  color: var(--fg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
-  text-align: center;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--muted);
 }
 
-.support-links__item:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-soft);
-  background: var(--surface-strong);
+.support-footer a {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.18);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: color var(--transition), text-decoration-color var(--transition);
 }
 
-.support-links__item--accent {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  color: #fff;
-  border: none;
-  box-shadow: var(--shadow);
-}
-
-.support-links__item--accent:hover {
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
-  box-shadow: 0 20px 34px rgba(0, 0, 0, 0.45);
+.support-footer a:hover {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
 }
 
 .stats {
