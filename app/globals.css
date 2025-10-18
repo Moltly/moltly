@@ -534,6 +534,218 @@ a {
   padding: 18px;
 }
 
+.specimens {
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), var(--shadow-soft);
+  backdrop-filter: blur(16px);
+  display: grid;
+  gap: 18px;
+}
+
+.specimens__empty {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.specimens__controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.specimens__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+
+.specimen-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.specimen-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.specimen-card__name {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.specimen-card__species {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.specimen-card__meta {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.specimen-card__totals {
+  display: grid;
+  gap: 4px;
+  font-size: 0.85rem;
+  text-align: right;
+  color: var(--muted);
+}
+
+.specimen-card__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.specimen-card__toggle {
+  border: 1px solid var(--field-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.specimen-card__toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.specimen-card__details {
+  display: grid;
+  gap: 16px;
+}
+
+.specimen-card__details[aria-hidden="true"] {
+  display: none;
+}
+
+.specimen-card--collapsed {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.specimen-card__stats {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.specimen-card__stat {
+  display: grid;
+  gap: 6px;
+}
+
+.specimen-card__stat span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.specimen-card__stat strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.specimen-card__stat strong[data-tone="overdue"] {
+  color: #ff9a9a;
+}
+
+.specimen-card__stat strong[data-tone="soon"] {
+  color: #ffcf73;
+}
+
+.specimen-card__stat strong[data-tone="due"] {
+  color: #ffc571;
+}
+
+.specimen-card__stat strong[data-tone="upcoming"] {
+  color: #75d7c2;
+}
+
+.specimen-card__stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.specimen-card__stage {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.8rem;
+}
+
+.specimen-card__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.specimen-card__timeline li {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.specimen-card__timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.specimen-card__timeline-header time {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.specimen-card__timeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.specimen-card__timeline-notes {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.specimen-card__footnote {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .fab {
   position: fixed;
   bottom: 32px;

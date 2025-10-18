@@ -59,6 +59,23 @@ const defaultForm = (): FormState => ({
   reminderDate: ""
 });
 
+type SpecimenDashboard = {
+  key: string;
+  specimen: string;
+  species?: string;
+  totalMolts: number;
+  stageCounts: Record<Stage, number>;
+  lastMoltDate: string | null;
+  firstMoltDate: string | null;
+  averageIntervalDays: number | null;
+  lastIntervalDays: number | null;
+  yearMolts: number;
+  attachmentsCount: number;
+  reminder: { tone: string; label: string; date?: string } | null;
+  recentEntries: MoltEntry[];
+  latestEntry: MoltEntry | null;
+};
+
 function formatDate(iso: string | undefined) {
   if (!iso) return "—";
   const date = new Date(iso);
@@ -91,6 +108,25 @@ function reminderDescriptor(iso?: string) {
   return { tone: "overdue", label: `Overdue ${Math.abs(diff)}d` };
 }
 
+function differenceInDays(startIso: string | undefined, endIso: string | undefined): number | null {
+  if (!startIso || !endIso) {
+    return null;
+  }
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return null;
+  }
+  const diff = end.getTime() - start.getTime();
+  return Math.max(0, Math.round(diff / (1000 * 60 * 60 * 24)));
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
 async function fileToAttachment(file: File): Promise<Attachment> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -120,6 +156,7 @@ export default function Dashboard() {
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [expandedSpecimenKeys, setExpandedSpecimenKeys] = useState<string[]>([]);
 
   const fetchEntries = async () => {
     try {
@@ -167,7 +204,7 @@ export default function Dashboard() {
     }
 
     window.localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
-  }, [APP_VERSION]);
+  }, []);
 
   const resetForm = () => {
     setFormState(defaultForm());
@@ -330,6 +367,163 @@ export default function Dashboard() {
         return (a.diff ?? 0) - (b.diff ?? 0);
       }) as { entry: MoltEntry; diff: number }[];
   }, [entries]);
+
+  const specimenDashboards = useMemo(() => {
+    if (entries.length === 0) {
+      return [];
+    }
+
+    const groups = new Map<string, { key: string; displayName: string; entries: MoltEntry[] }>();
+
+    entries.forEach((entry) => {
+      const normalizedName = entry.specimen.trim();
+      const key = normalizedName.toLowerCase() || entry.specimen.toLowerCase();
+      const existing = groups.get(key);
+      if (existing) {
+        existing.entries.push(entry);
+      } else {
+        groups.set(key, {
+          key,
+          displayName: normalizedName || entry.specimen,
+          entries: [entry]
+        });
+      }
+    });
+
+    const query = filters.search.trim().toLowerCase();
+    const currentYear = new Date().getFullYear();
+
+    const summaries = Array.from(groups.values()).map((group) => {
+      const stageCounts: Record<Stage, number> = {
+        "Pre-molt": 0,
+        Molt: 0,
+        "Post-molt": 0
+      };
+
+      group.entries.forEach((entry) => {
+        stageCounts[entry.stage] += 1;
+      });
+
+      const sortedByDateDesc = [...group.entries].sort((a, b) => b.date.localeCompare(a.date));
+      const sortedByDateAsc = [...sortedByDateDesc].reverse();
+      const latestEntry = sortedByDateDesc[0] ?? null;
+      const firstEntry = sortedByDateAsc[0] ?? null;
+
+      let species: string | undefined;
+      for (const entry of sortedByDateDesc) {
+        if (entry.species) {
+          species = entry.species;
+          break;
+        }
+      }
+
+      const intervals: number[] = [];
+      for (let index = 1; index < sortedByDateAsc.length; index += 1) {
+        const previous = sortedByDateAsc[index - 1];
+        const current = sortedByDateAsc[index];
+        const diff = differenceInDays(previous.date, current.date);
+        if (diff !== null) {
+          intervals.push(diff);
+        }
+      }
+
+      const averageIntervalDays =
+        intervals.length > 0
+          ? Math.round(intervals.reduce((sum, value) => sum + value, 0) / intervals.length)
+          : null;
+      const lastIntervalDays = intervals.length > 0 ? intervals[intervals.length - 1] : null;
+
+      const reminderCandidates = sortedByDateDesc
+        .map((entry) => {
+          const diff = reminderDiff(entry.reminderDate);
+          if (diff === null) {
+            return null;
+          }
+          const descriptor = reminderDescriptor(entry.reminderDate);
+          if (!descriptor) {
+            return null;
+          }
+          return {
+            tone: descriptor.tone,
+            label: descriptor.label,
+            diff,
+            date: entry.reminderDate
+          };
+        })
+        .filter(
+          (item): item is { tone: string; label: string; diff: number; date: string | undefined } => item !== null
+        )
+        .sort((a, b) => a.diff - b.diff);
+
+      const reminder = reminderCandidates[0] ?? null;
+
+      const attachmentsCount = group.entries.reduce(
+        (total, entry) => total + (entry.attachments?.length ?? 0),
+        0
+      );
+
+      const yearMolts = group.entries.filter(
+        (entry) => new Date(entry.date).getFullYear() === currentYear
+      ).length;
+
+      return {
+        key: group.key,
+        specimen: latestEntry?.specimen ?? group.displayName,
+        species,
+        totalMolts: group.entries.length,
+        stageCounts,
+        lastMoltDate: latestEntry?.date ?? null,
+        firstMoltDate: firstEntry?.date ?? null,
+        averageIntervalDays,
+        lastIntervalDays,
+        yearMolts,
+        attachmentsCount,
+        reminder,
+        recentEntries: sortedByDateDesc.slice(0, 5),
+        latestEntry: latestEntry ?? null
+      } as SpecimenDashboard;
+    });
+
+    const filteredSummaries = summaries.filter((summary) => {
+      if (!query) {
+        return true;
+      }
+      const nameMatch = summary.specimen.toLowerCase().includes(query);
+      const speciesMatch = summary.species ? summary.species.toLowerCase().includes(query) : false;
+      return nameMatch || speciesMatch;
+    });
+
+    filteredSummaries.sort((a, b) => {
+      if (a.lastMoltDate && b.lastMoltDate) {
+        return b.lastMoltDate.localeCompare(a.lastMoltDate);
+      }
+      if (a.lastMoltDate) return -1;
+      if (b.lastMoltDate) return 1;
+      return a.specimen.localeCompare(b.specimen);
+    });
+
+    return filteredSummaries;
+  }, [entries, filters.search]);
+
+  useEffect(() => {
+    setExpandedSpecimenKeys((prev) => {
+      if (specimenDashboards.length === 0) {
+        return prev.length === 0 ? prev : [];
+      }
+
+      const allowedKeys = specimenDashboards.map((spec) => spec.key);
+      const validKeys = prev.filter((key) => allowedKeys.includes(key));
+
+      if (validKeys.length > 0) {
+        return arraysEqual(validKeys, prev) ? prev : validKeys;
+      }
+
+      const defaultKeys =
+        specimenDashboards.length <= 3 ? allowedKeys : [specimenDashboards[0].key];
+
+      return arraysEqual(prev, defaultKeys) ? prev : defaultKeys;
+    });
+  }, [specimenDashboards]);
 
   const timelineBuckets = useMemo(() => {
     const now = new Date();
@@ -576,6 +770,181 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="specimens" aria-labelledby="specimens-title">
+        <header className="section-header">
+          <h2 id="specimens-title">Specimen Dashboards</h2>
+          <span className="section-subtitle">
+            Keep tabs on each tarantula&apos;s pace, molt streak, and reminders.
+          </span>
+        </header>
+        {specimenDashboards.length > 1 && (
+          <div className="specimens__controls" aria-label="Specimen dashboard controls">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setExpandedSpecimenKeys(specimenDashboards.map((spec) => spec.key))}
+              disabled={expandedSpecimenKeys.length === specimenDashboards.length && specimenDashboards.length > 0}
+            >
+              Expand all
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setExpandedSpecimenKeys([])}
+              disabled={expandedSpecimenKeys.length === 0}
+            >
+              Collapse all
+            </button>
+          </div>
+        )}
+        {specimenDashboards.length === 0 ? (
+          <p className="specimens__empty">
+            {entries.length === 0
+              ? "Add molt entries to unlock specimen dashboards and growth insights."
+              : filters.search.trim()
+              ? "No specimens match your current search."
+              : "Add molt entries to unlock specimen dashboards and growth insights."}
+          </p>
+        ) : (
+          <ul className="specimens__list">
+            {specimenDashboards.map((specimen) => {
+              const isExpanded = expandedSpecimenKeys.includes(specimen.key);
+              const safeIdSuffix = specimen.key.replace(/[^a-z0-9]+/gi, "-") || "specimen";
+              const detailsId = `specimen-${safeIdSuffix}-details`;
+
+              return (
+                <li className={`specimen-card${isExpanded ? "" : " specimen-card--collapsed"}`} key={specimen.key}>
+                  <header className="specimen-card__header">
+                    <div>
+                      <p className="specimen-card__name">{specimen.specimen}</p>
+                      {specimen.species && <p className="specimen-card__species">{specimen.species}</p>}
+                      {specimen.firstMoltDate && (
+                        <p className="specimen-card__meta">Tracking since {formatDate(specimen.firstMoltDate)}</p>
+                      )}
+                    </div>
+                    <div className="specimen-card__controls">
+                      <div className="specimen-card__totals">
+                        <span>
+                          {specimen.totalMolts} molt{specimen.totalMolts === 1 ? "" : "s"}
+                        </span>
+                        <span>
+                          {specimen.attachmentsCount} photo{specimen.attachmentsCount === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="specimen-card__toggle"
+                        onClick={() => {
+                          setExpandedSpecimenKeys((prev) => {
+                            if (prev.includes(specimen.key)) {
+                              return prev.filter((key) => key !== specimen.key);
+                            }
+                            return [...prev, specimen.key];
+                          });
+                        }}
+                        aria-expanded={isExpanded}
+                        aria-controls={detailsId}
+                      >
+                        {isExpanded ? "Collapse" : "Expand"}
+                      </button>
+                    </div>
+                  </header>
+                  <div className="specimen-card__details" id={detailsId} aria-hidden={!isExpanded}>
+                    <div className="specimen-card__stats">
+                      <div className="specimen-card__stat">
+                        <span>Last molt</span>
+                        <strong>{formatDate(specimen.lastMoltDate ?? undefined)}</strong>
+                      </div>
+                      <div className="specimen-card__stat">
+                        <span>Avg interval</span>
+                        <strong>
+                          {specimen.averageIntervalDays !== null ? `${specimen.averageIntervalDays}d` : "—"}
+                        </strong>
+                      </div>
+                      <div className="specimen-card__stat">
+                        <span>Last gap</span>
+                        <strong>{specimen.lastIntervalDays !== null ? `${specimen.lastIntervalDays}d` : "—"}</strong>
+                      </div>
+                      <div className="specimen-card__stat">
+                        <span>Molts this year</span>
+                        <strong>{specimen.yearMolts}</strong>
+                      </div>
+                      <div className="specimen-card__stat">
+                        <span>Next reminder</span>
+                        {specimen.reminder ? (
+                          <strong data-tone={specimen.reminder.tone}>
+                            {specimen.reminder.label}
+                            {specimen.reminder.date ? ` · ${formatDate(specimen.reminder.date)}` : ""}
+                          </strong>
+                        ) : (
+                          <strong>—</strong>
+                        )}
+                      </div>
+                    </div>
+                    {Object.values(specimen.stageCounts).some((count) => count > 0) && (
+                      <div className="specimen-card__stages" aria-label="Stage breakdown">
+                        {Object.entries(specimen.stageCounts)
+                          .filter(([, count]) => count > 0)
+                          .map(([stage, count]) => (
+                            <span key={stage} className="specimen-card__stage">
+                              {stage.split(" ")[0]}×{count}
+                            </span>
+                          ))}
+                      </div>
+                    )}
+                    <ol className="specimen-card__timeline">
+                      {specimen.recentEntries.map((entry, index) => {
+                        const hasOldSize = entry.oldSize !== undefined && entry.oldSize !== null;
+                        const hasNewSize = entry.newSize !== undefined && entry.newSize !== null;
+                        const sizeLabel =
+                          hasOldSize && hasNewSize
+                            ? `${entry.oldSize} → ${entry.newSize}cm`
+                            : hasNewSize
+                            ? `${entry.newSize}cm`
+                            : null;
+                        const note =
+                          entry.notes && entry.notes.length > 160
+                            ? `${entry.notes.slice(0, 157)}…`
+                            : entry.notes;
+                        const attachmentsCount = entry.attachments?.length ?? 0;
+                        const previous = specimen.recentEntries[index + 1];
+                        const gapDays =
+                          previous && entry.date ? differenceInDays(previous.date, entry.date) : null;
+                        const gapLabel = gapDays !== null ? `${gapDays}d gap` : null;
+                        return (
+                          <li key={entry.id}>
+                            <div className="specimen-card__timeline-header">
+                              <span className="chip chip--stage">{entry.stage}</span>
+                              <time dateTime={entry.date}>{formatDate(entry.date)}</time>
+                            </div>
+                            <div className="specimen-card__timeline-meta">
+                              {sizeLabel && <span>{sizeLabel}</span>}
+                              {gapLabel && <span>{gapLabel}</span>}
+                              {attachmentsCount > 0 && (
+                                <span>
+                                  {attachmentsCount} photo{attachmentsCount === 1 ? "" : "s"}
+                                </span>
+                              )}
+                            </div>
+                            {note && <p className="specimen-card__timeline-notes">{note}</p>}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    {specimen.totalMolts > specimen.recentEntries.length && (
+                      <p className="specimen-card__footnote">
+                        +{specimen.totalMolts - specimen.recentEntries.length} earlier molt
+                        {specimen.totalMolts - specimen.recentEntries.length === 1 ? "" : "s"} logged
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <section className="entry-panel" aria-hidden={!formOpen}>
