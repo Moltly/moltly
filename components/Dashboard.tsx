@@ -457,7 +457,10 @@ export default function Dashboard() {
       )}
       <header className="hero">
         <div className="hero__text">
-          <h1>Moltly</h1>
+          <div className="hero__title">
+            <Image src="/moltly-logo.svg" alt="Moltly logo" width={60} height={60} className="hero__logo" priority />
+            <h1>Moltly</h1>
+          </div>
           <p>Track every molt, reminder, and enclosure tweak across moltly.xyz with confidence.</p>
         </div>
         <div className="hero__actions">

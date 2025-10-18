@@ -149,12 +149,34 @@ a {
   padding: 12px 16px 0;
 }
 
+.hero__text {
+  display: grid;
+  gap: 12px;
+}
+
 .hero__actions {
   display: flex;
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.hero__logo {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.hero__title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.hero__title h1 {
+  margin: 0;
 }
 
 .hero__text h1 {
