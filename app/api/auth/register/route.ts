@@ -12,11 +12,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
     }
 
+    if (typeof password !== "string" || password.length < 8 || !/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters and include both letters and numbers." },
+        { status: 400 }
+      );
+    }
+
     await connectMongoose();
 
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) {
-      return NextResponse.json({ error: "Email is already registered." }, { status: 409 });
+      return NextResponse.json(
+        {
+          success: true,
+          message: "If that email is already registered, you can sign in with your existing credentials."
+        },
+        { status: 200 }
+      );
     }
 
     const hashed = await bcrypt.hash(password, 12);
@@ -26,7 +39,13 @@ export async function POST(request: Request) {
       password: hashed
     });
 
-    return NextResponse.json({ success: true }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Your account has been created. You can sign in now."
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Unable to register." }, { status: 500 });

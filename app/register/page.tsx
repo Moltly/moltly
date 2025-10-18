@@ -32,7 +32,11 @@ export default function RegisterPage() {
       if (!res.ok) {
         throw new Error(data.error || "Registration failed.");
       }
-      setSuccess("Account created for Moltly. Redirecting to sign in…");
+      const message =
+        typeof data.message === "string"
+          ? data.message
+          : "If the email is eligible, you can sign in with your credentials.";
+      setSuccess(message);
       setTimeout(() => router.push("/login"), 1200);
     } catch (err) {
       console.error(err);

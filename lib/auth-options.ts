@@ -7,6 +7,7 @@ import DiscordProvider from "next-auth/providers/discord";
 import getMongoClientPromise from "./mongodb";
 import { connectMongoose } from "./mongoose";
 import User from "../models/User";
+import { clearLoginAttempts, evaluateLoginRateLimit, recordFailedLoginAttempt } from "./login-rate-limit";
 
 type UserRecord = {
   _id: Types.ObjectId;
@@ -36,21 +37,32 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials.password) {
           throw new Error("Missing email or password.");
         }
+
+        const rateLimitKey = buildRateLimitKey(credentials.email, req);
+        const rateLimitState = evaluateLoginRateLimit(rateLimitKey);
+
+        if (!rateLimitState.allowed) {
+          throw new Error(rateLimitState.message);
+        }
+
         await connectMongoose();
         const user = await User.findOne({ email: credentials.email.toLowerCase() })
           .select("+password")
           .lean<UserRecord | null>();
         if (!user?.password) {
+          recordFailedLoginAttempt(rateLimitKey);
           throw new Error("Invalid credentials.");
         }
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {
+          recordFailedLoginAttempt(rateLimitKey);
           throw new Error("Invalid credentials.");
         }
+        clearLoginAttempts(rateLimitKey);
         return {
           id: user._id.toString(),
           email: user.email,
@@ -90,3 +102,32 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET
 };
+
+type HeadersLike = Headers | Record<string, string | string[] | undefined> | undefined;
+
+function readHeader(headers: HeadersLike, name: string): string | undefined {
+  if (!headers) {
+    return undefined;
+  }
+
+  if (headers instanceof Headers) {
+    return headers.get(name) ?? undefined;
+  }
+
+  const lowerName = name.toLowerCase();
+  const direct = headers[name] ?? headers[lowerName];
+  if (Array.isArray(direct)) {
+    return direct[0];
+  }
+  return direct;
+}
+
+function buildRateLimitKey(email: string, req?: { headers?: HeadersLike }): string {
+  const normalizedEmail = email.trim().toLowerCase() || "unknown";
+  const headers = req?.headers;
+  const forwarded = readHeader(headers, "x-forwarded-for");
+  const realIp = readHeader(headers, "x-real-ip");
+  const ipCandidate = forwarded?.split(",")[0]?.trim() || realIp?.trim() || "unknown";
+
+  return `${normalizedEmail}|${ipCandidate}`;
+}

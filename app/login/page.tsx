@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -21,10 +21,41 @@ export default function LoginPage() {
   );
 }
 
+function sanitizeCallbackPath(raw: string | null): string {
+  if (!raw) {
+    return "/";
+  }
+
+  if (/^\/(?!\/)/.test(raw)) {
+    return raw;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return "/";
+    }
+    const origin = window.location.origin;
+    const url = new URL(raw, origin);
+    if (url.origin !== origin) {
+      return "/";
+    }
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const callbackParam = searchParams.get("callbackUrl");
+  const callbackPath = useMemo(() => sanitizeCallbackPath(callbackParam), [callbackParam]);
+  const callbackUrl = useMemo(() => {
+    if (typeof window === "undefined") {
+      return callbackPath;
+    }
+    return new URL(callbackPath, window.location.origin).toString();
+  }, [callbackPath]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +76,7 @@ function LoginForm() {
       setError(result.error);
       return;
     }
-    router.push(callbackUrl);
+    router.push(callbackPath);
   };
 
   return (
@@ -77,7 +108,11 @@ function LoginForm() {
           {loading ? "Signing in…" : "Sign In"}
         </button>
       </form>
-      <button type="button" className="btn btn--ghost" onClick={() => signIn("discord", { callbackUrl })}>
+      <button
+        type="button"
+        className="btn btn--ghost"
+        onClick={() => signIn("discord", { callbackUrl })}
+      >
         Continue with Discord
       </button>
       <p className="auth-switch">
