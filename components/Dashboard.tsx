@@ -382,7 +382,7 @@ export default function Dashboard() {
           <h1>Moltly</h1>
           <p>Track every molt, reminder, and enclosure tweak across moltly.xyz with confidence.</p>
         </div>
-        <div style={{ display: "flex", gap: 12 }}>
+        <div className="hero__actions">
           <button type="button" className="hero__action" onClick={() => (formOpen ? setFormOpen(false) : openNewEntryForm())}>
             {formOpen ? "Close Form" : "New Entry"}
           </button>
@@ -763,7 +763,7 @@ export default function Dashboard() {
                         {remainingAttachments > 0 && <span className="log-card__attachment-more">+{remainingAttachments}</span>}
                       </div>
                     )}
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div className="log-card__actions">
                       <button type="button" className="btn btn--ghost" onClick={() => handleEdit(entry)}>
                         Edit
                       </button>
