@@ -1,0 +1,48 @@
+export type ChangelogEntry = {
+  version: string;
+  date: string;
+  highlights: string[];
+};
+
+const entries: ChangelogEntry[] = [
+  {
+    version: "1.0.1",
+    date: "2025-10-18",
+    highlights: [
+      "Fixed bugs and improved the UI.",
+      "Fixed an issue where larger phones such as the iPhone Pro Max would use the desktop layout instead of the mobile layout."
+    ]
+  },
+  {
+    version: "1.0.0",
+    date: "2025-10-17",
+    highlights: [
+      "Initial public testing release."
+    ]
+  }
+];
+
+function compareVersions(a: string, b: string) {
+  const aParts = a.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const bParts = b.split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const maxLength = Math.max(aParts.length, bParts.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const aValue = aParts[index] ?? 0;
+    const bValue = bParts[index] ?? 0;
+    if (aValue > bValue) return 1;
+    if (aValue < bValue) return -1;
+  }
+
+  return 0;
+}
+
+export const CHANGELOG = [...entries].sort((a, b) => compareVersions(b.version, a.version));
+
+export function getUpdatesSince(lastSeenVersion?: string | null) {
+  if (!lastSeenVersion) {
+    return CHANGELOG;
+  }
+
+  return CHANGELOG.filter((entry) => compareVersions(entry.version, lastSeenVersion) === 1);
+}

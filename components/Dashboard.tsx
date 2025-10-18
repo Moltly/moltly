@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
+import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "../lib/app-version";
+import { getUpdatesSince, type ChangelogEntry } from "../lib/changelog";
 
 type Stage = "Pre-molt" | "Molt" | "Post-molt";
 
@@ -116,6 +118,8 @@ export default function Dashboard() {
   const [attachmentDraft, setAttachmentDraft] = useState<Attachment[]>([]);
   const [filters, setFilters] = useState({ search: "", stage: "all", order: "desc" as "asc" | "desc" });
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
+  const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
+  const [showChangelog, setShowChangelog] = useState(false);
 
   const fetchEntries = async () => {
     try {
@@ -139,6 +143,32 @@ export default function Dashboard() {
     fetchEntries();
   }, []);
 
+  useEffect(() => {
+    const lastSeenVersion = window.localStorage.getItem(LAST_SEEN_VERSION_KEY);
+
+    if (!lastSeenVersion) {
+      const updates = getUpdatesSince(null);
+      if (updates.length > 0) {
+        setPendingUpdates(updates);
+        setShowChangelog(true);
+      }
+      return;
+    }
+
+    if (lastSeenVersion === APP_VERSION) {
+      return;
+    }
+
+    const updates = getUpdatesSince(lastSeenVersion);
+    if (updates.length > 0) {
+      setPendingUpdates(updates);
+      setShowChangelog(true);
+      return;
+    }
+
+    window.localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
+  }, [APP_VERSION]);
+
   const resetForm = () => {
     setFormState(defaultForm());
     setAttachmentDraft([]);
@@ -148,6 +178,12 @@ export default function Dashboard() {
   const openNewEntryForm = () => {
     resetForm();
     setFormOpen(true);
+  };
+
+  const dismissChangelog = () => {
+    window.localStorage.setItem(LAST_SEEN_VERSION_KEY, APP_VERSION);
+    setPendingUpdates([]);
+    setShowChangelog(false);
   };
 
   const handleEdit = (entry: MoltEntry) => {
@@ -377,6 +413,48 @@ export default function Dashboard() {
 
   return (
     <div className="app">
+      {showChangelog && pendingUpdates.length > 0 && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
+          <div className="modal">
+            <header className="modal__header">
+              <div>
+                <p className="modal__eyebrow">What&apos;s new</p>
+                <h2 id="changelog-title">Moltly {pendingUpdates[0].version}</h2>
+                {pendingUpdates.length > 1 ? (
+                  <p className="modal__subtitle">
+                    Catch up on everything since version {pendingUpdates[pendingUpdates.length - 1].version}.
+                  </p>
+                ) : (
+                  <p className="modal__subtitle">Released {formatDate(pendingUpdates[0].date)}</p>
+                )}
+              </div>
+              <button type="button" className="modal__close" onClick={dismissChangelog} aria-label="Close changelog">
+                Close
+              </button>
+            </header>
+            <div className="changelog">
+              {pendingUpdates.map((entry) => (
+                <article className="changelog-entry" key={entry.version}>
+                  <header className="changelog-entry__header">
+                    <h3>Version {entry.version}</h3>
+                    <time dateTime={entry.date}>{formatDate(entry.date)}</time>
+                  </header>
+                  <ul className="changelog-entry__list">
+                    {entry.highlights.map((item, index) => (
+                      <li key={`${entry.version}-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+            <footer className="modal__footer">
+              <button type="button" className="modal__confirm" onClick={dismissChangelog}>
+                Thanks, got it
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
       <header className="hero">
         <div className="hero__text">
           <h1>Moltly</h1>
