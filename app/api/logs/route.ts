@@ -56,12 +56,22 @@ export async function POST(request: Request) {
       attachments = []
     } = payload;
 
-    if (!specimen || !date) {
-      return NextResponse.json({ error: "Specimen and date are required." }, { status: 400 });
+    if (!date) {
+      return NextResponse.json({ error: "Date is required." }, { status: 400 });
     }
 
     const allowedEntryTypes = new Set(["molt", "feeding"]);
     const entryType: "molt" | "feeding" = allowedEntryTypes.has(rawEntryType) ? rawEntryType : "molt";
+
+    const trimmedSpecimen = typeof specimen === "string" ? specimen.trim() : "";
+    const normalizedSpecimen = trimmedSpecimen.length > 0 ? trimmedSpecimen : undefined;
+
+    const trimmedSpecies = typeof species === "string" ? species.trim() : "";
+    const normalizedSpecies = trimmedSpecies.length > 0 ? trimmedSpecies : undefined;
+
+    if (entryType === "molt" && !normalizedSpecies) {
+      return NextResponse.json({ error: "Species is required for molt entries." }, { status: 400 });
+    }
 
     const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
     const normalizedStage =
@@ -78,8 +88,8 @@ export async function POST(request: Request) {
     await connectMongoose();
     const entry = await MoltEntry.create({
       userId: session.user.id,
-      specimen,
-      species,
+      specimen: normalizedSpecimen,
+      species: normalizedSpecies,
       date,
       entryType,
       stage: normalizedStage,

@@ -51,8 +51,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     entry.entryType = effectiveEntryType;
 
-    if (typeof updates.specimen === "string") {
-      entry.specimen = updates.specimen.trim();
+    if ("specimen" in updates) {
+      if (typeof updates.specimen === "string") {
+        const trimmedSpecimen = updates.specimen.trim();
+        entry.specimen = trimmedSpecimen.length > 0 ? trimmedSpecimen : undefined;
+      } else if (updates.specimen === null) {
+        entry.specimen = undefined;
+      }
     }
 
     if ("species" in updates) {
@@ -137,6 +142,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       entry.feedingPrey = undefined;
       entry.feedingOutcome = undefined;
       entry.feedingAmount = undefined;
+      if (!entry.species) {
+        return NextResponse.json({ error: "Species is required for molt entries." }, { status: 400 });
+      }
     }
 
     await entry.save();

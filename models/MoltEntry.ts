@@ -13,8 +13,8 @@ const AttachmentSchema = new Schema(
 const MoltEntrySchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
-    specimen: { type: String, required: true },
-    species: { type: String },
+    specimen: { type: String, trim: true },
+    species: { type: String, trim: true },
     date: { type: Date, required: true },
     entryType: {
       type: String,

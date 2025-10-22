@@ -7,8 +7,9 @@ A cozy molt logbook and reminder center for tarantula keepers. Keep every shed, 
 - Home dashboard shows active spiders, molt pace this year, the most recent shed, and the next reminder at a glance.
 - Twelve-month timeline breaks down molt streaks with stage counts so you can spot quiet months fast.
 - Reminder center lets you snooze or clear follow-ups without leaving the page.
-- Full CRUD for molt entries with search, stage filtering, and asc/desc sorting.
+- Full CRUD for molt and feeding entries with search, stage filtering, and asc/desc sorting.
 - Inline attachment support for quick photo drops.
+- Research notebook keeps reusable note stacks for species, individuals, or projects—with duplication, tags, and filtering.
 - Auth powered by NextAuth with classic email/password and Discord.
 
 ## Environment

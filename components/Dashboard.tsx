@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "../lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "../lib/changelog";
+import ResearchNotebook from "./ResearchNotebook";
 
 type EntryType = "molt" | "feeding";
 type Stage = "Pre-molt" | "Molt" | "Post-molt";
@@ -412,10 +413,18 @@ export default function Dashboard() {
   const submitForm = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const isFeeding = formState.entryType === "feeding";
+    const trimmedSpecimen = formState.specimen.trim();
+    const trimmedSpecies = formState.species.trim();
+
+    if (!isFeeding && trimmedSpecies.length === 0) {
+      alert("Species is required for molt entries.");
+      return;
+    }
+
     const payload = {
       entryType: formState.entryType,
-      specimen: formState.specimen.trim(),
-      species: formState.species.trim() || undefined,
+      specimen: trimmedSpecimen || undefined,
+      species: trimmedSpecies || undefined,
       date: formState.date,
       stage: isFeeding ? undefined : formState.stage,
       oldSize: !isFeeding && formState.oldSize ? Number(formState.oldSize) : undefined,
@@ -1135,16 +1144,16 @@ export default function Dashboard() {
               <input
                 type="text"
                 name="specimen"
-                required
                 value={formState.specimen}
                 onChange={(event) => setFormState((prev) => ({ ...prev, specimen: event.target.value }))}
               />
             </label>
             <label className="field">
-              <span>Species</span>
+              <span>Species{formState.entryType === "molt" ? " *" : ""}</span>
               <input
                 type="text"
                 name="species"
+                required={formState.entryType === "molt"}
                 value={formState.species}
                 onChange={(event) => setFormState((prev) => ({ ...prev, species: event.target.value }))}
               />
@@ -1492,6 +1501,8 @@ export default function Dashboard() {
           </ul>
         )}
       </section>
+
+      <ResearchNotebook />
 
       {!formOpen && (
         <button className="fab" type="button" aria-label="Add log entry" onClick={openNewEntryForm}>
