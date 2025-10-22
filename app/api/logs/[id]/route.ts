@@ -35,15 +35,111 @@ export async function PATCH(request: Request, context: RouteContext) {
     const id = assertId(params.id);
     const updates = await request.json();
     await connectMongoose();
-    const entry = await MoltEntry.findOneAndUpdate(
-      { _id: ensureObjectId(id), userId: session.user.id },
-      updates,
-      { new: true }
-    );
+    const entry = await MoltEntry.findOne({ _id: ensureObjectId(id), userId: session.user.id });
 
     if (!entry) {
       return NextResponse.json({ error: "Entry not found." }, { status: 404 });
     }
+
+    const allowedEntryTypes = new Set(["molt", "feeding"]);
+    const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
+    const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
+
+    let effectiveEntryType: "molt" | "feeding" = entry.entryType ?? "molt";
+    if (typeof updates.entryType === "string" && allowedEntryTypes.has(updates.entryType)) {
+      effectiveEntryType = updates.entryType as "molt" | "feeding";
+    }
+    entry.entryType = effectiveEntryType;
+
+    if (typeof updates.specimen === "string") {
+      entry.specimen = updates.specimen.trim();
+    }
+
+    if ("species" in updates) {
+      entry.species = typeof updates.species === "string" && updates.species.trim().length > 0 ? updates.species.trim() : undefined;
+    }
+
+    if (updates.date) {
+      const nextDate = new Date(updates.date);
+      if (!Number.isNaN(nextDate.getTime())) {
+        entry.date = nextDate;
+      }
+    }
+
+    if ("stage" in updates || effectiveEntryType === "feeding") {
+      if (effectiveEntryType === "feeding") {
+        entry.stage = undefined;
+      } else if (typeof updates.stage === "string" && allowedStages.has(updates.stage)) {
+        entry.stage = updates.stage;
+      } else if (updates.stage !== undefined) {
+        entry.stage = "Molt";
+      }
+    }
+
+    if ("oldSize" in updates) {
+      entry.oldSize = typeof updates.oldSize === "number" && Number.isFinite(updates.oldSize) ? updates.oldSize : undefined;
+    }
+
+    if ("newSize" in updates) {
+      entry.newSize = typeof updates.newSize === "number" && Number.isFinite(updates.newSize) ? updates.newSize : undefined;
+    }
+
+    if ("humidity" in updates) {
+      entry.humidity = typeof updates.humidity === "number" && Number.isFinite(updates.humidity) ? updates.humidity : undefined;
+    }
+
+    if ("temperature" in updates) {
+      entry.temperature =
+        typeof updates.temperature === "number" && Number.isFinite(updates.temperature) ? updates.temperature : undefined;
+    }
+
+    if ("notes" in updates) {
+      entry.notes = typeof updates.notes === "string" && updates.notes.trim().length > 0 ? updates.notes.trim() : undefined;
+    }
+
+    if ("reminderDate" in updates) {
+      if (typeof updates.reminderDate === "string" && updates.reminderDate.length > 0) {
+        const reminder = new Date(updates.reminderDate);
+        entry.reminderDate = Number.isNaN(reminder.getTime()) ? undefined : reminder;
+      } else {
+        entry.reminderDate = undefined;
+      }
+    }
+
+    if ("feedingPrey" in updates) {
+      entry.feedingPrey =
+        effectiveEntryType === "feeding" && typeof updates.feedingPrey === "string" && updates.feedingPrey.trim().length > 0
+          ? updates.feedingPrey.trim()
+          : undefined;
+    }
+
+    if ("feedingAmount" in updates) {
+      entry.feedingAmount =
+        effectiveEntryType === "feeding" && typeof updates.feedingAmount === "string" && updates.feedingAmount.trim().length > 0
+          ? updates.feedingAmount.trim()
+          : undefined;
+    }
+
+    if ("feedingOutcome" in updates) {
+      entry.feedingOutcome =
+        effectiveEntryType === "feeding" &&
+        typeof updates.feedingOutcome === "string" &&
+        allowedOutcomes.has(updates.feedingOutcome)
+          ? updates.feedingOutcome
+          : undefined;
+    }
+
+    if (Array.isArray(updates.attachments)) {
+      entry.attachments = updates.attachments;
+    }
+
+    if (effectiveEntryType === "molt") {
+      entry.feedingPrey = undefined;
+      entry.feedingOutcome = undefined;
+      entry.feedingAmount = undefined;
+    }
+
+    await entry.save();
 
     return NextResponse.json({
       ...entry.toObject(),

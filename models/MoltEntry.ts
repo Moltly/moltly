@@ -16,13 +16,34 @@ const MoltEntrySchema = new Schema(
     specimen: { type: String, required: true },
     species: { type: String },
     date: { type: Date, required: true },
-    stage: { type: String, enum: ["Pre-molt", "Molt", "Post-molt"], default: "Molt" },
+    entryType: {
+      type: String,
+      enum: ["molt", "feeding"],
+      default: "molt",
+      index: true
+    },
+    stage: {
+      type: String,
+      enum: ["Pre-molt", "Molt", "Post-molt"],
+      default: function () {
+        return (this as { entryType?: string }).entryType === "feeding" ? undefined : "Molt";
+      },
+      required: function () {
+        return (this as { entryType?: string }).entryType !== "feeding";
+      }
+    },
     oldSize: Number,
     newSize: Number,
     humidity: Number,
     temperature: Number,
     reminderDate: Date,
     notes: String,
+    feedingPrey: String,
+    feedingOutcome: {
+      type: String,
+      enum: ["Offered", "Ate", "Refused", "Not Observed"]
+    },
+    feedingAmount: String,
     attachments: [AttachmentSchema]
   },
   { timestamps: true, collection: "moltEntries" }

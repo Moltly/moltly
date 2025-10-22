@@ -17,8 +17,11 @@ export async function GET() {
 
   const normalized = documents.map((document) => {
     const entry = document.toObject();
+    const entryType = entry.entryType === "feeding" ? "feeding" : "molt";
     return {
       ...entry,
+      entryType,
+      stage: entryType === "molt" ? entry.stage : undefined,
       id: document._id.toString(),
       userId: document.userId.toString()
     };
@@ -39,6 +42,7 @@ export async function POST(request: Request) {
       specimen,
       species,
       date,
+      entryType: rawEntryType,
       stage,
       oldSize,
       newSize,
@@ -46,6 +50,9 @@ export async function POST(request: Request) {
       temperature,
       notes,
       reminderDate,
+      feedingPrey,
+      feedingOutcome,
+      feedingAmount,
       attachments = []
     } = payload;
 
@@ -53,19 +60,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Specimen and date are required." }, { status: 400 });
     }
 
+    const allowedEntryTypes = new Set(["molt", "feeding"]);
+    const entryType: "molt" | "feeding" = allowedEntryTypes.has(rawEntryType) ? rawEntryType : "molt";
+
+    const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
+    const normalizedStage =
+      entryType === "molt"
+        ? allowedStages.has(stage) ? stage : "Molt"
+        : undefined;
+
+    const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
+    const normalizedOutcome =
+      entryType === "feeding" && typeof feedingOutcome === "string" && allowedOutcomes.has(feedingOutcome)
+        ? feedingOutcome
+        : undefined;
+
     await connectMongoose();
     const entry = await MoltEntry.create({
       userId: session.user.id,
       specimen,
       species,
       date,
-      stage,
+      entryType,
+      stage: normalizedStage,
       oldSize,
       newSize,
       humidity,
       temperature,
       notes,
       reminderDate,
+      feedingPrey: entryType === "feeding" ? feedingPrey : undefined,
+      feedingOutcome: normalizedOutcome,
+      feedingAmount: entryType === "feeding" ? feedingAmount : undefined,
       attachments
     });
 

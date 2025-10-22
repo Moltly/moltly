@@ -6,7 +6,10 @@ import { signOut } from "next-auth/react";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "../lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "../lib/changelog";
 
+type EntryType = "molt" | "feeding";
 type Stage = "Pre-molt" | "Molt" | "Post-molt";
+type FeedingOutcome = "Offered" | "Ate" | "Refused" | "Not Observed";
+type UnknownRecord = Record<string, unknown>;
 
 type Attachment = {
   id: string;
@@ -18,22 +21,27 @@ type Attachment = {
 
 export type MoltEntry = {
   id: string;
+  entryType: EntryType;
   specimen: string;
   species?: string;
   date: string;
-  stage: Stage;
+  stage?: Stage;
   oldSize?: number;
   newSize?: number;
   humidity?: number;
   temperature?: number;
   notes?: string;
   reminderDate?: string;
+  feedingPrey?: string;
+  feedingOutcome?: FeedingOutcome;
+  feedingAmount?: string;
   attachments?: Attachment[];
   createdAt: string;
   updatedAt: string;
 };
 
 type FormState = {
+  entryType: EntryType;
   specimen: string;
   species: string;
   date: string;
@@ -44,9 +52,13 @@ type FormState = {
   temperature: string;
   notes: string;
   reminderDate: string;
+  feedingPrey: string;
+  feedingOutcome: "" | FeedingOutcome;
+  feedingAmount: string;
 };
 
 const defaultForm = (): FormState => ({
+  entryType: "molt",
   specimen: "",
   species: "",
   date: new Date().toISOString().slice(0, 10),
@@ -56,7 +68,10 @@ const defaultForm = (): FormState => ({
   humidity: "",
   temperature: "",
   notes: "",
-  reminderDate: ""
+  reminderDate: "",
+  feedingPrey: "",
+  feedingOutcome: "",
+  feedingAmount: ""
 });
 
 type SpecimenDashboard = {
@@ -64,6 +79,7 @@ type SpecimenDashboard = {
   specimen: string;
   species?: string;
   totalMolts: number;
+  totalFeedings: number;
   stageCounts: Record<Stage, number>;
   lastMoltDate: string | null;
   firstMoltDate: string | null;
@@ -144,6 +160,124 @@ async function fileToAttachment(file: File): Promise<Attachment> {
   };
 }
 
+function normalizeEntry(raw: unknown): MoltEntry {
+  const record: UnknownRecord = typeof raw === "object" && raw !== null ? (raw as UnknownRecord) : {};
+
+  const stageOptions: Stage[] = ["Pre-molt", "Molt", "Post-molt"];
+  const feedingOptions: FeedingOutcome[] = ["Offered", "Ate", "Refused", "Not Observed"];
+
+  const resolveId = (value: unknown): string | undefined => {
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+    if (value && typeof value === "object" && "toString" in value) {
+      const toString = (value as { toString?: () => string }).toString;
+      if (typeof toString === "function") {
+        return toString.call(value);
+      }
+    }
+    return undefined;
+  };
+
+  const entryType: EntryType = record.entryType === "feeding" ? "feeding" : "molt";
+
+  const stageValue = record.stage;
+  const stage =
+    entryType === "molt" && typeof stageValue === "string" && stageOptions.includes(stageValue as Stage)
+      ? (stageValue as Stage)
+      : undefined;
+
+  const feedingOutcomeValue = record.feedingOutcome;
+  const feedingOutcome =
+    entryType === "feeding" &&
+    typeof feedingOutcomeValue === "string" &&
+    feedingOptions.includes(feedingOutcomeValue as FeedingOutcome)
+      ? (feedingOutcomeValue as FeedingOutcome)
+      : undefined;
+
+  const entryId = resolveId(record.id) ?? resolveId(record["_id"]) ?? crypto.randomUUID();
+
+  const attachmentsSource = Array.isArray(record["attachments"]) ? (record["attachments"] as unknown[]) : [];
+  const attachments = attachmentsSource.map((value, index) => {
+    const attachment = typeof value === "object" && value !== null ? (value as UnknownRecord) : {};
+    const idValue = attachment.id;
+    const nameValue = attachment.name;
+    const urlValue = attachment.url;
+    const typeValue = attachment.type;
+    const addedAtValue = attachment.addedAt;
+
+    return {
+      id: typeof idValue === "string" && idValue.length > 0 ? idValue : `${entryId}-attachment-${index}`,
+      name:
+        typeof nameValue === "string" && nameValue.length > 0 ? nameValue : `Attachment ${index + 1}`,
+      url: typeof urlValue === "string" ? urlValue : "",
+      type: typeof typeValue === "string" ? typeValue : "image/*",
+      addedAt:
+        typeof addedAtValue === "string"
+          ? addedAtValue
+          : addedAtValue instanceof Date
+          ? addedAtValue.toISOString()
+          : new Date().toISOString()
+    };
+  });
+
+  const toIsoString = (value: unknown, fallback: string) => {
+    if (typeof value === "string" && value.length > 0) {
+      return value;
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString();
+    }
+    if (typeof value === "number") {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString();
+      }
+    }
+    const parsed = new Date(fallback);
+    return parsed.toISOString();
+  };
+
+  const baseDate = new Date().toISOString();
+
+  return {
+    id: entryId,
+    entryType,
+    specimen:
+      typeof record.specimen === "string" && record.specimen.trim().length > 0 ? record.specimen : "Unnamed",
+    species:
+      typeof record.species === "string" && record.species.trim().length > 0 ? record.species : undefined,
+    date: toIsoString(record.date, baseDate),
+    stage: entryType === "molt" ? stage ?? "Molt" : undefined,
+    oldSize: typeof record.oldSize === "number" ? record.oldSize : undefined,
+    newSize: typeof record.newSize === "number" ? record.newSize : undefined,
+    humidity: typeof record.humidity === "number" ? record.humidity : undefined,
+    temperature: typeof record.temperature === "number" ? record.temperature : undefined,
+    notes:
+      typeof record.notes === "string" && record.notes.trim().length > 0 ? record.notes : undefined,
+    reminderDate:
+      typeof record.reminderDate === "string" && record.reminderDate.length > 0
+        ? record.reminderDate
+        : undefined,
+    feedingPrey:
+      entryType === "feeding" &&
+      typeof record.feedingPrey === "string" &&
+      record.feedingPrey.trim().length > 0
+        ? record.feedingPrey
+        : undefined,
+    feedingOutcome,
+    feedingAmount:
+      entryType === "feeding" &&
+      typeof record.feedingAmount === "string" &&
+      record.feedingAmount.trim().length > 0
+        ? record.feedingAmount
+        : undefined,
+    attachments,
+    createdAt: toIsoString(record.createdAt, baseDate),
+    updatedAt: toIsoString(record.updatedAt, baseDate)
+  };
+}
+
 export default function Dashboard() {
   const [entries, setEntries] = useState<MoltEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +286,12 @@ export default function Dashboard() {
   const [formState, setFormState] = useState<FormState>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [attachmentDraft, setAttachmentDraft] = useState<Attachment[]>([]);
-  const [filters, setFilters] = useState({ search: "", stage: "all", order: "desc" as "asc" | "desc" });
+  const [filters, setFilters] = useState({
+    search: "",
+    stage: "all" as "all" | Stage,
+    type: "all" as "all" | EntryType,
+    order: "desc" as "asc" | "desc"
+  });
   const [timelineCollapsed, setTimelineCollapsed] = useState(false);
   const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -163,10 +302,11 @@ export default function Dashboard() {
       setLoading(true);
       const res = await fetch("/api/logs", { credentials: "include" });
       if (!res.ok) {
-        throw new Error("Failed to load molt entries.");
+        throw new Error("Failed to load log entries.");
       }
       const data = await res.json();
-      setEntries(data);
+      const normalized = Array.isArray(data) ? data.map((item: unknown) => normalizeEntry(item)) : [];
+      setEntries(normalized);
       setError(null);
     } catch (err) {
       console.error(err);
@@ -226,16 +366,20 @@ export default function Dashboard() {
   const handleEdit = (entry: MoltEntry) => {
     setEditingId(entry.id);
     setFormState({
+      entryType: entry.entryType ?? "molt",
       specimen: entry.specimen,
       species: entry.species ?? "",
       date: entry.date.slice(0, 10),
-      stage: entry.stage,
+      stage: entry.stage ?? "Molt",
       oldSize: entry.oldSize?.toString() ?? "",
       newSize: entry.newSize?.toString() ?? "",
       humidity: entry.humidity?.toString() ?? "",
       temperature: entry.temperature?.toString() ?? "",
       notes: entry.notes ?? "",
-      reminderDate: entry.reminderDate ? entry.reminderDate.slice(0, 10) : ""
+      reminderDate: entry.reminderDate ? entry.reminderDate.slice(0, 10) : "",
+      feedingPrey: entry.feedingPrey ?? "",
+      feedingOutcome: entry.feedingOutcome ?? "",
+      feedingAmount: entry.feedingAmount ?? ""
     });
     setAttachmentDraft(entry.attachments ?? []);
     setFormOpen(true);
@@ -267,17 +411,22 @@ export default function Dashboard() {
 
   const submitForm = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const isFeeding = formState.entryType === "feeding";
     const payload = {
+      entryType: formState.entryType,
       specimen: formState.specimen.trim(),
       species: formState.species.trim() || undefined,
       date: formState.date,
-      stage: formState.stage,
-      oldSize: formState.oldSize ? Number(formState.oldSize) : undefined,
-      newSize: formState.newSize ? Number(formState.newSize) : undefined,
+      stage: isFeeding ? undefined : formState.stage,
+      oldSize: !isFeeding && formState.oldSize ? Number(formState.oldSize) : undefined,
+      newSize: !isFeeding && formState.newSize ? Number(formState.newSize) : undefined,
       humidity: formState.humidity ? Number(formState.humidity) : undefined,
       temperature: formState.temperature ? Number(formState.temperature) : undefined,
       notes: formState.notes.trim() || undefined,
       reminderDate: formState.reminderDate || undefined,
+      feedingPrey: isFeeding ? formState.feedingPrey.trim() || undefined : undefined,
+      feedingOutcome: isFeeding && formState.feedingOutcome ? formState.feedingOutcome : undefined,
+      feedingAmount: isFeeding ? formState.feedingAmount.trim() || undefined : undefined,
       attachments: attachmentDraft
     };
 
@@ -291,7 +440,8 @@ export default function Dashboard() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Unable to save entry.");
       }
-      const saved = await res.json();
+      const raw = await res.json();
+      const saved = normalizeEntry(raw);
       if (editingId) {
         setEntries((prev) => prev.map((entry) => (entry.id === saved.id ? saved : entry)));
       } else {
@@ -307,13 +457,19 @@ export default function Dashboard() {
 
   const filteredEntries = useMemo(() => {
     const query = filters.search.toLowerCase();
-    const stage = filters.stage;
+    const stageFilter = filters.stage;
+    const typeFilter = filters.type;
     const sorted = [...entries].filter((entry) => {
       const matchesSearch =
         entry.specimen.toLowerCase().includes(query) ||
         (entry.species && entry.species.toLowerCase().includes(query));
-      const matchesStage = stage === "all" || entry.stage === stage;
-      return matchesSearch && matchesStage;
+      const matchesType = typeFilter === "all" || entry.entryType === typeFilter;
+      const matchesStage =
+        typeFilter === "feeding"
+          ? true
+          : stageFilter === "all" ||
+            (entry.entryType === "molt" && entry.stage === stageFilter);
+      return matchesSearch && matchesType && matchesStage;
     });
     sorted.sort((a, b) => {
       if (filters.order === "asc") {
@@ -327,8 +483,9 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const uniqueSpecimens = new Set(entries.map((entry) => entry.specimen));
     const currentYear = new Date().getFullYear();
-    const yearCount = entries.filter((entry) => new Date(entry.date).getFullYear() === currentYear).length;
-    const lastDate = entries.reduce<string | null>((acc, entry) => {
+    const moltEntries = entries.filter((entry) => entry.entryType === "molt");
+    const yearCount = moltEntries.filter((entry) => new Date(entry.date).getFullYear() === currentYear).length;
+    const lastDate = moltEntries.reduce<string | null>((acc, entry) => {
       if (!acc || entry.date > acc) return entry.date;
       return acc;
     }, null);
@@ -400,17 +557,25 @@ export default function Dashboard() {
         "Post-molt": 0
       };
 
-      group.entries.forEach((entry) => {
-        stageCounts[entry.stage] += 1;
+      const moltEntries = group.entries
+        .filter((entry) => entry.entryType === "molt")
+        .sort((a, b) => b.date.localeCompare(a.date));
+      const feedingEntries = group.entries.filter((entry) => entry.entryType === "feeding");
+
+      moltEntries.forEach((entry) => {
+        if (entry.stage && stageCounts[entry.stage] !== undefined) {
+          stageCounts[entry.stage] += 1;
+        }
       });
 
-      const sortedByDateDesc = [...group.entries].sort((a, b) => b.date.localeCompare(a.date));
-      const sortedByDateAsc = [...sortedByDateDesc].reverse();
-      const latestEntry = sortedByDateDesc[0] ?? null;
-      const firstEntry = sortedByDateAsc[0] ?? null;
+      const sortedMoltsAsc = [...moltEntries].reverse();
+      const sortedAllDesc = [...group.entries].sort((a, b) => b.date.localeCompare(a.date));
+      const latestEntry = sortedAllDesc[0] ?? null;
+      const latestMolt = moltEntries[0] ?? null;
+      const firstMolt = sortedMoltsAsc[0] ?? null;
 
       let species: string | undefined;
-      for (const entry of sortedByDateDesc) {
+      for (const entry of sortedAllDesc) {
         if (entry.species) {
           species = entry.species;
           break;
@@ -418,9 +583,9 @@ export default function Dashboard() {
       }
 
       const intervals: number[] = [];
-      for (let index = 1; index < sortedByDateAsc.length; index += 1) {
-        const previous = sortedByDateAsc[index - 1];
-        const current = sortedByDateAsc[index];
+      for (let index = 1; index < sortedMoltsAsc.length; index += 1) {
+        const previous = sortedMoltsAsc[index - 1];
+        const current = sortedMoltsAsc[index];
         const diff = differenceInDays(previous.date, current.date);
         if (diff !== null) {
           intervals.push(diff);
@@ -433,7 +598,7 @@ export default function Dashboard() {
           : null;
       const lastIntervalDays = intervals.length > 0 ? intervals[intervals.length - 1] : null;
 
-      const reminderCandidates = sortedByDateDesc
+      const reminderCandidates = sortedAllDesc
         .map((entry) => {
           const diff = reminderDiff(entry.reminderDate);
           if (diff === null) {
@@ -462,24 +627,25 @@ export default function Dashboard() {
         0
       );
 
-      const yearMolts = group.entries.filter(
+      const yearMolts = moltEntries.filter(
         (entry) => new Date(entry.date).getFullYear() === currentYear
       ).length;
 
       return {
         key: group.key,
-        specimen: latestEntry?.specimen ?? group.displayName,
+        specimen: latestEntry?.specimen ?? latestMolt?.specimen ?? group.displayName,
         species,
-        totalMolts: group.entries.length,
+        totalMolts: moltEntries.length,
+        totalFeedings: feedingEntries.length,
         stageCounts,
-        lastMoltDate: latestEntry?.date ?? null,
-        firstMoltDate: firstEntry?.date ?? null,
+        lastMoltDate: latestMolt?.date ?? null,
+        firstMoltDate: firstMolt?.date ?? null,
         averageIntervalDays,
         lastIntervalDays,
         yearMolts,
         attachmentsCount,
         reminder,
-        recentEntries: sortedByDateDesc.slice(0, 5),
+        recentEntries: moltEntries.slice(0, 5),
         latestEntry: latestEntry ?? null
       } as SpecimenDashboard;
     });
@@ -551,13 +717,16 @@ export default function Dashboard() {
     const lookup = new Map(buckets.map((bucket) => [bucket.key, bucket]));
 
     entries.forEach((entry) => {
+      if (entry.entryType !== "molt") return;
       const entryDate = new Date(entry.date);
       if (entryDate < start) return;
       const bucketKey = `${entryDate.getFullYear()}-${entryDate.getMonth()}`;
       const bucket = lookup.get(bucketKey);
       if (!bucket) return;
       bucket.count += 1;
-      bucket.stageCounts[entry.stage] = (bucket.stageCounts[entry.stage] ?? 0) + 1;
+      if (entry.stage) {
+        bucket.stageCounts[entry.stage] = (bucket.stageCounts[entry.stage] ?? 0) + 1;
+      }
     });
 
     return buckets;
@@ -569,12 +738,13 @@ export default function Dashboard() {
   );
 
   const timelineSummary = useMemo(() => {
-    if (!entries.length) return "No molt history yet";
+    const hasMolts = entries.some((entry) => entry.entryType === "molt");
+    if (!hasMolts) return "No molt history yet";
     const first = timelineBuckets[0];
     const last = timelineBuckets[timelineBuckets.length - 1];
     const total = timelineBuckets.reduce((sum, bucket) => sum + bucket.count, 0);
     return `${first.date.toLocaleDateString(undefined, { month: "short", year: "numeric" })} – ${last.date.toLocaleDateString(undefined, { month: "short", year: "numeric" })} • ${total} molt${total === 1 ? "" : "s"}`;
-  }, [entries.length, timelineBuckets]);
+  }, [entries, timelineBuckets]);
 
   const handleReminderAction = async (action: "complete" | "snooze", entry: MoltEntry) => {
     if (action === "complete") {
@@ -597,7 +767,8 @@ export default function Dashboard() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || "Unable to update entry.");
       }
-      const updated = await res.json();
+      const raw = await res.json();
+      const updated = normalizeEntry(raw);
       setEntries((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
     } catch (err) {
       console.error(err);
@@ -655,7 +826,7 @@ export default function Dashboard() {
             <Image src="/moltly-logo.svg" alt="Moltly logo" width={60} height={60} className="hero__logo" priority />
             <h1>Moltly</h1>
           </div>
-          <p>Track every molt, reminder, and enclosure tweak across moltly.xyz with confidence.</p>
+          <p>Track every molt, feeding, reminder, and enclosure tweak across moltly.xyz with confidence.</p>
         </div>
         <div className="hero__actions">
           <button type="button" className="hero__action" onClick={() => (formOpen ? setFormOpen(false) : openNewEntryForm())}>
@@ -711,7 +882,7 @@ export default function Dashboard() {
                     )}
                   </header>
                   <div className="reminder-card__meta">
-                    <span>{entry.stage}</span>
+                    <span>{entry.entryType === "molt" ? entry.stage ?? "Molt" : "Feeding"}</span>
                     {entry.species && <span>{entry.species}</span>}
                   </div>
                   <div className="reminder-card__actions">
@@ -732,7 +903,12 @@ export default function Dashboard() {
         )}
       </section>
 
-      <section className={`timeline${timelineCollapsed ? " is-collapsed" : ""}${entries.length === 0 ? " is-empty" : ""}`} aria-labelledby="timeline-title">
+      <section
+        className={`timeline${timelineCollapsed ? " is-collapsed" : ""}${
+          entries.some((entry) => entry.entryType === "molt") ? "" : " is-empty"
+        }`}
+        aria-labelledby="timeline-title"
+      >
         <header className="section-header timeline__header">
           <div>
             <h2 id="timeline-title">Molt Timeline</h2>
@@ -776,7 +952,7 @@ export default function Dashboard() {
         <header className="section-header">
           <h2 id="specimens-title">Specimen Dashboards</h2>
           <span className="section-subtitle">
-            Keep tabs on each tarantula&apos;s pace, molt streak, and reminders.
+            Keep tabs on each tarantula&apos;s pace, molt streak, feeding history, and reminders.
           </span>
         </header>
         {specimenDashboards.length > 1 && (
@@ -802,10 +978,10 @@ export default function Dashboard() {
         {specimenDashboards.length === 0 ? (
           <p className="specimens__empty">
             {entries.length === 0
-              ? "Add molt entries to unlock specimen dashboards and growth insights."
+              ? "Add log entries to unlock specimen dashboards and growth insights."
               : filters.search.trim()
               ? "No specimens match your current search."
-              : "Add molt entries to unlock specimen dashboards and growth insights."}
+              : "Add log entries to unlock specimen dashboards and growth insights."}
           </p>
         ) : (
           <ul className="specimens__list">
@@ -828,6 +1004,9 @@ export default function Dashboard() {
                       <div className="specimen-card__totals">
                         <span>
                           {specimen.totalMolts} molt{specimen.totalMolts === 1 ? "" : "s"}
+                        </span>
+                        <span>
+                          {specimen.totalFeedings} feeding{specimen.totalFeedings === 1 ? "" : "s"}
                         </span>
                         <span>
                           {specimen.attachmentsCount} photo{specimen.attachmentsCount === 1 ? "" : "s"}
@@ -948,7 +1127,7 @@ export default function Dashboard() {
       </section>
 
       <section className="entry-panel" aria-hidden={!formOpen}>
-        <h2>{editingId ? "Edit Entry" : "Add Molt Entry"}</h2>
+        <h2>{editingId ? "Edit Entry" : "Add Log Entry"}</h2>
         <form onSubmit={submitForm}>
           <div className="field-row">
             <label className="field">
@@ -974,7 +1153,21 @@ export default function Dashboard() {
 
           <div className="field-row">
             <label className="field">
-              <span>Molt Date</span>
+              <span>Entry Type</span>
+              <select
+                name="entryType"
+                value={formState.entryType}
+                onChange={(event) => {
+                  const nextType = event.target.value as EntryType;
+                  setFormState((prev) => ({ ...prev, entryType: nextType }));
+                }}
+              >
+                <option value="molt">Molt</option>
+                <option value="feeding">Feeding</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Entry Date</span>
               <input
                 type="date"
                 name="date"
@@ -983,42 +1176,82 @@ export default function Dashboard() {
                 onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
               />
             </label>
-            <label className="field">
-              <span>Stage</span>
-              <select
-                name="stage"
-                value={formState.stage}
-                onChange={(event) => setFormState((prev) => ({ ...prev, stage: event.target.value as Stage }))}
-              >
-                <option value="Pre-molt">Pre-molt</option>
-                <option value="Molt">Molt</option>
-                <option value="Post-molt">Post-molt</option>
-              </select>
-            </label>
           </div>
 
-          <div className="field-row">
-            <label className="field">
-              <span>Last Size (cm)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={formState.oldSize}
-                onChange={(event) => setFormState((prev) => ({ ...prev, oldSize: event.target.value }))}
-              />
-            </label>
-            <label className="field">
-              <span>New Size (cm)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={formState.newSize}
-                onChange={(event) => setFormState((prev) => ({ ...prev, newSize: event.target.value }))}
-              />
-            </label>
-          </div>
+          {formState.entryType === "molt" ? (
+            <>
+              <div className="field-row">
+                <label className="field">
+                  <span>Molt Stage</span>
+                  <select
+                    name="stage"
+                    value={formState.stage}
+                    onChange={(event) => setFormState((prev) => ({ ...prev, stage: event.target.value as Stage }))}
+                  >
+                    <option value="Pre-molt">Pre-molt</option>
+                    <option value="Molt">Molt</option>
+                    <option value="Post-molt">Post-molt</option>
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Last Size (cm)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={formState.oldSize}
+                    onChange={(event) => setFormState((prev) => ({ ...prev, oldSize: event.target.value }))}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                <span>New Size (cm)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={formState.newSize}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, newSize: event.target.value }))}
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <div className="field-row">
+                <label className="field">
+                  <span>Prey Offered</span>
+                  <input
+                    type="text"
+                    value={formState.feedingPrey}
+                    onChange={(event) => setFormState((prev) => ({ ...prev, feedingPrey: event.target.value }))}
+                  />
+                </label>
+                <label className="field">
+                  <span>Outcome</span>
+                  <select
+                    value={formState.feedingOutcome}
+                    onChange={(event) =>
+                      setFormState((prev) => ({ ...prev, feedingOutcome: event.target.value as "" | FeedingOutcome }))
+                    }
+                  >
+                    <option value="">—</option>
+                    <option value="Offered">Offered</option>
+                    <option value="Ate">Ate</option>
+                    <option value="Refused">Refused</option>
+                    <option value="Not Observed">Not Observed</option>
+                  </select>
+                </label>
+              </div>
+              <label className="field">
+                <span>Quantity / Size</span>
+                <input
+                  type="text"
+                  value={formState.feedingAmount}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, feedingAmount: event.target.value }))}
+                />
+              </label>
+            </>
+          )}
 
           <div className="field-row">
             <label className="field">
@@ -1125,13 +1358,24 @@ export default function Dashboard() {
             placeholder="Search by name or species"
             value={filters.search}
             onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-            aria-label="Filter molt entries"
+            aria-label="Filter log entries"
           />
           <select
             className="toolbar__filter"
+            value={filters.type}
+            onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value as "all" | EntryType }))}
+            aria-label="Filter by entry type"
+          >
+            <option value="all">All entries</option>
+            <option value="molt">Molts</option>
+            <option value="feeding">Feedings</option>
+          </select>
+          <select
+            className="toolbar__filter"
             value={filters.stage}
-            onChange={(event) => setFilters((prev) => ({ ...prev, stage: event.target.value }))}
+            onChange={(event) => setFilters((prev) => ({ ...prev, stage: event.target.value as "all" | Stage }))}
             aria-label="Filter by molt stage"
+            disabled={filters.type === "feeding"}
           >
             <option value="all">All stages</option>
             <option value="Pre-molt">Pre-molt</option>
@@ -1148,7 +1392,7 @@ export default function Dashboard() {
         </div>
 
         {loading ? (
-          <div className="empty-state">Loading molt entries…</div>
+          <div className="empty-state">Loading entries…</div>
         ) : error ? (
           <div className="empty-state">
             {error}
@@ -1158,7 +1402,7 @@ export default function Dashboard() {
             </button>
           </div>
         ) : filteredEntries.length === 0 ? (
-          <div className="empty-state">No entries yet. Start your Moltly journey by adding the first molt record.</div>
+          <div className="empty-state">No entries yet. Add a molt or feeding to get started.</div>
         ) : (
           <ul className="log-list">
             {filteredEntries.map((entry) => {
@@ -1166,6 +1410,15 @@ export default function Dashboard() {
               const attachments = entry.attachments ?? [];
               const previewAttachments = attachments.slice(0, 3);
               const remainingAttachments = attachments.length - previewAttachments.length;
+              const isMolt = entry.entryType === "molt";
+              const hasOldSize = typeof entry.oldSize === "number";
+              const hasNewSize = typeof entry.newSize === "number";
+              const sizeLabel =
+                hasOldSize && hasNewSize
+                  ? `${entry.oldSize} → ${entry.newSize}cm`
+                  : hasNewSize
+                  ? `${entry.newSize}cm`
+                  : null;
               return (
                 <li className="log-card" key={entry.id}>
                   <div className="log-card__inner">
@@ -1175,14 +1428,25 @@ export default function Dashboard() {
                     </header>
                     {entry.species && <p className="log-card__species">{entry.species}</p>}
                     <div className="log-card__tags">
-                      <span className="chip chip--stage">{entry.stage}</span>
-                      <span className="chip chip--size">
-                        {entry.oldSize && entry.newSize
-                          ? `${entry.oldSize} → ${entry.newSize}cm`
-                          : entry.newSize
-                          ? `${entry.newSize}cm`
-                          : "Size n/a"}
-                      </span>
+                      {isMolt ? (
+                        <>
+                          <span className="chip chip--stage">{entry.stage ?? "Molt"}</span>
+                          <span className="chip chip--size">{sizeLabel ?? "Size n/a"}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="chip chip--stage">Feeding</span>
+                          {entry.feedingOutcome && (
+                            <span className="chip chip--size">{entry.feedingOutcome}</span>
+                          )}
+                          {(entry.feedingPrey || entry.feedingAmount) && (
+                            <span className="chip chip--size">
+                              {entry.feedingPrey ?? "Prey n/a"}
+                              {entry.feedingAmount ? ` · ${entry.feedingAmount}` : ""}
+                            </span>
+                          )}
+                        </>
+                      )}
                       {diff && (
                         <span className="chip chip--reminder" data-tone={diff.tone}>
                           {diff.label}
@@ -1203,7 +1467,7 @@ export default function Dashboard() {
                           >
                             <Image
                               src={attachment.url}
-                              alt={attachment.name || "Molt attachment"}
+                              alt={attachment.name || "Log attachment"}
                               width={96}
                               height={96}
                               unoptimized
@@ -1230,7 +1494,7 @@ export default function Dashboard() {
       </section>
 
       {!formOpen && (
-        <button className="fab" type="button" aria-label="Add molt entry" onClick={openNewEntryForm}>
+        <button className="fab" type="button" aria-label="Add log entry" onClick={openNewEntryForm}>
           +
         </button>
       )}

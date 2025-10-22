@@ -6,6 +6,14 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.0.3",
+    date: "2025-10-22",
+    highlights: [
+      "Add ability to log feeding entries.",
+      "Improve performance of data loading."
+    ]
+  },
+  {
     version: "1.0.2",
     date: "2025-10-18",
     highlights: [
