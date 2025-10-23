@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>$(DEVELOPMENT_LANGUAGE)</string>
+  <key>CFBundleExecutable</key>
+  <string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key>
+  <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>$(PRODUCT_NAME)</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+
+  <!-- App Transport Security (relaxed for dev). Set to NO for production. -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <false/>
+  </dict>
+
+  <!-- WebView base URL to load -->
+  <key>BASE_URL</key>
+  <string>https://moltly.xyz</string>
+
+  <!-- Permissions for attachments from camera / photos if used by the web app -->
+  <key>NSCameraUsageDescription</key>
+  <string>Allow camera for adding photos to entries.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Allow saving photos from the app.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Allow selecting photos to upload.</string>
+
+  <!-- Simple blank launch screen -->
+  <key>UILaunchScreen</key>
+  <dict/>
+
+  <!-- Portrait only for now -->
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+  </array>
+</dict>
+</plist>
