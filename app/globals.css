@@ -671,17 +671,129 @@ a:hover {
   font-size: 0.92rem;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 540px) {
+  :root {
+    font-size: 15px;
+  }
+
+  .dashboard-appbar {
+    padding: 16px clamp(14px, 5vw, 22px);
+    gap: 12px;
+  }
+
+  .dashboard-appbar__brand {
+    gap: 10px;
+  }
+
+  .dashboard-appbar__logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .dashboard-appbar__titles h1 {
+    font-size: 1.45rem;
+  }
+
+  .dashboard-appbar__eyebrow {
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+  }
+
+  .dashboard-appbar__actions {
+    gap: 8px;
+  }
+
+  .pill-button {
+    padding: 10px 14px;
+    font-size: 0.95rem;
+  }
+
+  .link-button {
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
+
   .dashboard-main {
-    padding: 16px clamp(12px, 4vw, 18px) 28px;
+    gap: 28px;
+    padding: 16px clamp(12px, 4vw, 20px) 28px;
+  }
+
+  .dashboard-view {
+    gap: 22px;
   }
 
   .overview-hero {
-    padding: 22px;
+    padding: 20px;
+    border-radius: var(--radius-md);
+    gap: 14px;
+  }
+
+  .overview-hero__copy h2 {
+    font-size: 1.45rem;
+  }
+
+  .overview-hero__copy p {
+    margin-top: 8px;
+    font-size: 0.95rem;
   }
 
   .overview-hero__reminder {
+    padding: 14px;
+  }
+
+  .metric-card {
     padding: 16px;
+    gap: 6px;
+  }
+
+  .metric-card__value {
+    font-size: 1.5rem;
+  }
+
+  .panel-card {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .panel-card header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .panel-card header p {
+    font-size: 0.88rem;
+  }
+
+  .view-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .view-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .section-actions {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .support-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .overview-hero {
+    padding: 18px;
+  }
+
+  .overview-hero__reminder {
+    padding: 12px;
   }
 
   .metric-grid {
@@ -689,7 +801,7 @@ a:hover {
   }
 
   .panel-card {
-    padding: 18px;
+    padding: 14px;
   }
 }
 
@@ -1276,6 +1388,25 @@ a:hover {
 
 .support-footer a {
   font-weight: 600;
+}
+
+.support-footer__delete {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #dc2626;
+  cursor: pointer;
+}
+
+.support-footer__delete:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.support-footer__delete:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .dashboard-tabbar {

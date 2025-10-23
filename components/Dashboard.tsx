@@ -303,6 +303,7 @@ export default function Dashboard() {
   const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
   const [showChangelog, setShowChangelog] = useState(false);
   const [expandedSpecimenKeys, setExpandedSpecimenKeys] = useState<string[]>([]);
+  const [accountDeleting, setAccountDeleting] = useState(false);
 
   const { data: session, status: sessionStatus } = useSession();
   const sessionUserId = session?.user?.id ?? null;
@@ -451,6 +452,35 @@ export default function Dashboard() {
     const nextEntries = entries.filter((entry) => entry.id !== id);
     setEntries(nextEntries);
     persistGuestEntries(nextEntries);
+  };
+
+  const handleAccountDeletion = async () => {
+    if (!isSyncMode) {
+      return;
+    }
+
+    const confirmed = confirm("Delete your Moltly account and all synced data? This cannot be undone.");
+    if (!confirmed) {
+      return;
+    }
+
+    setAccountDeleting(true);
+
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to delete account.");
+      }
+
+      alert("Your account has been deleted. You'll be signed out next.");
+      setAccountDeleting(false);
+      await signOut({ callbackUrl: "/login" });
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Failed to delete account.");
+      setAccountDeleting(false);
+    }
   };
 
   const handleAttachmentFiles = async (files: FileList | null) => {
@@ -967,7 +997,7 @@ export default function Dashboard() {
       <header className="dashboard-appbar">
         <div className="dashboard-appbar__brand">
           <Image
-            src="/moltly-logo.svg"
+            src="/moltly.png"
             alt="Moltly logo"
             width={48}
             height={48}
@@ -984,6 +1014,7 @@ export default function Dashboard() {
             type="button"
             className="pill-button"
             onClick={() => (formOpen ? setFormOpen(false) : openNewEntryForm())}
+            disabled={accountDeleting}
           >
             {formOpen ? "Close entry" : "New entry"}
           </button>
@@ -992,6 +1023,7 @@ export default function Dashboard() {
               type="button"
               className="pill-button pill-button--ghost"
               onClick={() => signOut({ callbackUrl: "/login" })}
+              disabled={accountDeleting}
             >
               Sign out
             </button>
@@ -1647,9 +1679,30 @@ export default function Dashboard() {
           GitHub
         </a>
         <span aria-hidden="true">•</span>
+        <a href="https://github.com/0xgingi/moltly/blob/main/TERMS.md" target="_blank" rel="noreferrer">
+          Terms
+        </a>
+        <span aria-hidden="true">•</span>
+        <a href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">
+          Privacy
+        </a>
+        <span aria-hidden="true">•</span>
         <a href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">
           Ko-fi
         </a>
+        {isSyncMode && (
+          <>
+            <span aria-hidden="true">•</span>
+            <button
+              type="button"
+              className="support-footer__delete"
+              onClick={handleAccountDeletion}
+              disabled={accountDeleting}
+            >
+              {accountDeleting ? "Deleting…" : "Delete account"}
+            </button>
+          </>
+        )}
       </footer>
 
       <nav className="dashboard-tabbar" aria-label="Primary navigation">
