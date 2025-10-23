@@ -2,7 +2,7 @@ name: Moltly
 options:
   xcodeVersion: '15.0'
   deploymentTarget:
-    iOS: '15.0'
+    iOS: '18.4'
 configs:
   - name: Debug
     type: debug
@@ -11,7 +11,7 @@ configs:
 settings:
   base:
     SWIFT_VERSION: 5.0
-    IPHONEOS_DEPLOYMENT_TARGET: 15.0
+    IPHONEOS_DEPLOYMENT_TARGET: 18.4
 targets:
   Moltly:
     type: application

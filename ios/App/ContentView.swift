@@ -11,7 +11,7 @@ struct ContentView: View {
 
     var body: some View {
         WebView(url: baseURL)
-            .ignoresSafeArea()
+            .ignoresSafeArea(.container, edges: .bottom)
     }
 }
 
@@ -20,4 +20,3 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
     }
 }
-
