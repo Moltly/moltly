@@ -1,10 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
-import { signOut } from "next-auth/react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { signOut, useSession } from "next-auth/react";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "../lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "../lib/changelog";
+import { readLocalEntries, writeLocalEntries } from "../lib/local-entries";
 import ResearchNotebook from "./ResearchNotebook";
 
 type EntryType = "molt" | "feeding";
@@ -92,6 +94,9 @@ type SpecimenDashboard = {
   recentEntries: MoltEntry[];
   latestEntry: MoltEntry | null;
 };
+
+type ViewKey = "overview" | "activity" | "specimens" | "reminders" | "notebook";
+type DataMode = "sync" | "local";
 
 function formatDate(iso: string | undefined) {
   if (!iso) return "—";
@@ -284,6 +289,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [activeView, setActiveView] = useState<ViewKey>("overview");
   const [formState, setFormState] = useState<FormState>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [attachmentDraft, setAttachmentDraft] = useState<Attachment[]>([]);
@@ -298,28 +304,66 @@ export default function Dashboard() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [expandedSpecimenKeys, setExpandedSpecimenKeys] = useState<string[]>([]);
 
-  const fetchEntries = async () => {
+  const { data: session, status: sessionStatus } = useSession();
+  const sessionUserId = session?.user?.id ?? null;
+  const mode: DataMode | null =
+    sessionStatus === "loading" ? null : sessionUserId ? "sync" : "local";
+  const isSyncMode = mode === "sync";
+  const isGuestMode = mode === "local";
+
+  const persistGuestEntries = (list: MoltEntry[]) => {
+    writeLocalEntries(list as unknown as UnknownRecord[]);
+  };
+
+  const fetchEntries = useCallback(async () => {
+    if (!mode) {
+      return;
+    }
     try {
       setLoading(true);
-      const res = await fetch("/api/logs", { credentials: "include" });
-      if (!res.ok) {
-        throw new Error("Failed to load log entries.");
+      if (mode === "sync") {
+        const res = await fetch("/api/logs", { credentials: "include" });
+        if (res.status === 401) {
+          await signOut({ redirect: false });
+          const localData = readLocalEntries();
+          const normalizedLocal = Array.isArray(localData)
+            ? localData.map((item: unknown) => normalizeEntry(item))
+            : [];
+          setEntries(normalizedLocal);
+          setError(null);
+          return;
+        }
+        if (!res.ok) {
+          throw new Error("Failed to load log entries.");
+        }
+        const data = await res.json();
+        const normalized = Array.isArray(data)
+          ? data.map((item: unknown) => normalizeEntry(item))
+          : [];
+        setEntries(normalized);
+        setError(null);
+      } else {
+        const localData = readLocalEntries();
+        const normalized = Array.isArray(localData)
+          ? localData.map((item: unknown) => normalizeEntry(item))
+          : [];
+        setEntries(normalized);
+        setError(null);
       }
-      const data = await res.json();
-      const normalized = Array.isArray(data) ? data.map((item: unknown) => normalizeEntry(item)) : [];
-      setEntries(normalized);
-      setError(null);
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Failed to load entries.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [mode]);
 
   useEffect(() => {
-    fetchEntries();
-  }, []);
+    if (!mode) {
+      return;
+    }
+    void fetchEntries();
+  }, [mode, fetchEntries]);
 
   useEffect(() => {
     const lastSeenVersion = window.localStorage.getItem(LAST_SEEN_VERSION_KEY);
@@ -388,16 +432,25 @@ export default function Dashboard() {
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this entry? This cannot be undone.")) return;
-    try {
-      const res = await fetch(`/api/logs/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        throw new Error("Failed to delete entry.");
-      }
-      setEntries((prev) => prev.filter((entry) => entry.id !== id));
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Failed to delete entry.");
+    if (!mode) {
+      return;
     }
+    if (isSyncMode) {
+      try {
+        const res = await fetch(`/api/logs/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          throw new Error("Failed to delete entry.");
+        }
+        setEntries((prev) => prev.filter((entry) => entry.id !== id));
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : "Failed to delete entry.");
+      }
+      return;
+    }
+    const nextEntries = entries.filter((entry) => entry.id !== id);
+    setEntries(nextEntries);
+    persistGuestEntries(nextEntries);
   };
 
   const handleAttachmentFiles = async (files: FileList | null) => {
@@ -439,29 +492,67 @@ export default function Dashboard() {
       attachments: attachmentDraft
     };
 
-    try {
-      const res = await fetch(editingId ? `/api/logs/${editingId}` : "/api/logs", {
-        method: editingId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Unable to save entry.");
-      }
-      const raw = await res.json();
-      const saved = normalizeEntry(raw);
-      if (editingId) {
-        setEntries((prev) => prev.map((entry) => (entry.id === saved.id ? saved : entry)));
-      } else {
-        setEntries((prev) => [saved, ...prev]);
-      }
-      setFormOpen(false);
-      resetForm();
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Unable to save entry.");
+    if (!mode) {
+      return;
     }
+
+    if (isSyncMode) {
+      try {
+        const res = await fetch(editingId ? `/api/logs/${editingId}` : "/api/logs", {
+          method: editingId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Unable to save entry.");
+        }
+        const raw = await res.json();
+        const saved = normalizeEntry(raw);
+        if (editingId) {
+          setEntries((prev) => prev.map((entry) => (entry.id === saved.id ? saved : entry)));
+        } else {
+          setEntries((prev) => [saved, ...prev]);
+        }
+        setError(null);
+        setFormOpen(false);
+        resetForm();
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : "Unable to save entry.");
+      }
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    if (editingId) {
+      const existing = entries.find((entry) => entry.id === editingId);
+      const baseRecord: UnknownRecord = {
+        ...(existing ? (existing as unknown as UnknownRecord) : {}),
+        ...payload,
+        id: editingId,
+        createdAt: existing?.createdAt ?? nowIso,
+        updatedAt: nowIso
+      };
+      const saved = normalizeEntry(baseRecord);
+      const nextEntries = entries.map((entry) => (entry.id === saved.id ? saved : entry));
+      setEntries(nextEntries);
+      persistGuestEntries(nextEntries);
+    } else {
+      const baseRecord: UnknownRecord = {
+        ...payload,
+        id: crypto.randomUUID(),
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      const saved = normalizeEntry(baseRecord);
+      const nextEntries = [saved, ...entries];
+      setEntries(nextEntries);
+      persistGuestEntries(nextEntries);
+    }
+    setError(null);
+    setFormOpen(false);
+    resetForm();
   };
 
   const filteredEntries = useMemo(() => {
@@ -766,27 +857,70 @@ export default function Dashboard() {
   };
 
   const updateEntry = async (id: string, updates: Record<string, unknown>) => {
-    try {
-      const res = await fetch(`/api/logs/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Unable to update entry.");
-      }
-      const raw = await res.json();
-      const updated = normalizeEntry(raw);
-      setEntries((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Unable to update entry.");
+    if (!mode) {
+      return;
     }
+    if (isSyncMode) {
+      try {
+        const res = await fetch(`/api/logs/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates)
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Unable to update entry.");
+        }
+        const raw = await res.json();
+        const updated = normalizeEntry(raw);
+        setEntries((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
+        setError(null);
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : "Unable to update entry.");
+      }
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    const nextEntries = entries.map((entry) => {
+      if (entry.id !== id) {
+        return entry;
+      }
+      const baseRecord: UnknownRecord = {
+        ...(entry as unknown as UnknownRecord),
+        ...updates,
+        id,
+        updatedAt: nowIso
+      };
+      return normalizeEntry(baseRecord);
+    });
+    setEntries(nextEntries);
+    persistGuestEntries(nextEntries);
+    setError(null);
   };
 
+  const viewTabs: Array<{ key: ViewKey; label: string; description: string }> = [
+    { key: "overview", label: "Overview", description: "Pulse" },
+    { key: "activity", label: "Activity", description: "History" },
+    { key: "specimens", label: "Specimens", description: "Profiles" },
+    { key: "reminders", label: "Reminders", description: "Queue" },
+    { key: "notebook", label: "Notebook", description: "Research" }
+  ];
+
+  const stageFilters: Array<{ value: "all" | Stage; label: string }> = [
+    { value: "all", label: "All stages" },
+    { value: "Pre-molt", label: "Pre" },
+    { value: "Molt", label: "Molt" },
+    { value: "Post-molt", label: "Post" }
+  ];
+
+  const upcomingReminders = reminders.slice(0, 4);
+  const spotlightEntries = filteredEntries.slice(0, 3);
+  const hasTimeline = entries.some((entry) => entry.entryType === "molt");
+  const showStageControls = filters.type !== "feeding";
+
   return (
-    <div className="app">
+    <div className="dashboard-shell">
       {showChangelog && pendingUpdates.length > 0 && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
           <div className="modal">
@@ -829,686 +963,684 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      <header className="hero">
-        <div className="hero__text">
-          <div className="hero__title">
-            <Image src="/moltly-logo.svg" alt="Moltly logo" width={60} height={60} className="hero__logo" priority />
+
+      <header className="dashboard-appbar">
+        <div className="dashboard-appbar__brand">
+          <Image
+            src="/moltly-logo.svg"
+            alt="Moltly logo"
+            width={48}
+            height={48}
+            className="dashboard-appbar__logo"
+            priority
+          />
+          <div className="dashboard-appbar__titles">
+            <span className="dashboard-appbar__eyebrow">Tarantula journal</span>
             <h1>Moltly</h1>
           </div>
-          <p>Track every molt, feeding, reminder, and enclosure tweak across moltly.xyz with confidence.</p>
         </div>
-        <div className="hero__actions">
-          <button type="button" className="hero__action" onClick={() => (formOpen ? setFormOpen(false) : openNewEntryForm())}>
-            {formOpen ? "Close Form" : "New Entry"}
+        <div className="dashboard-appbar__actions">
+          <button
+            type="button"
+            className="pill-button"
+            onClick={() => (formOpen ? setFormOpen(false) : openNewEntryForm())}
+          >
+            {formOpen ? "Close entry" : "New entry"}
           </button>
-          <button type="button" className="btn btn--ghost" onClick={() => signOut({ callbackUrl: "/login" })}>
-            Sign Out
-          </button>
+          {isSyncMode ? (
+            <button
+              type="button"
+              className="pill-button pill-button--ghost"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link className="pill-button pill-button--ghost" href="/login?callbackUrl=/">
+              Sign in
+            </Link>
+          )}
         </div>
       </header>
-      <section className="stats" aria-live="polite">
-        <div className="stat-card">
-          <span className="stat-card__label">Active Tarantulas</span>
-          <span className="stat-card__value">{stats.total}</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">Molts This Year</span>
-          <span className="stat-card__value">{stats.yearCount}</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">Last Molt</span>
-          <span className="stat-card__value">{formatDate(stats.lastDate ?? undefined)}</span>
-        </div>
-        <div className="stat-card">
-          <span className="stat-card__label">Next Reminder</span>
-          <span className="stat-card__value">
-            {stats.nextReminder
-              ? `${stats.nextReminder.entry.specimen} · ${stats.nextReminder.diff === 0 ? "Today" : `${stats.nextReminder.diff}d`}`
-              : "—"}
-          </span>
-        </div>
-      </section>
 
-      <section className="reminders" aria-labelledby="reminders-title">
-        <header className="section-header">
-          <h2 id="reminders-title">Reminder Center</h2>
-          <span className="section-subtitle">Track enclosure tweaks, feeding resumes, and check-ins.</span>
-        </header>
-        {reminders.length === 0 ? (
-          <p className="reminders__empty">You’re all set—add reminders to see them here.</p>
-        ) : (
-          <ul className="reminders__list">
-            {reminders.map(({ entry }) => {
-              const descriptor = reminderDescriptor(entry.reminderDate);
-              return (
-                <li className="reminder-card" key={entry.id}>
-                  <header>
-                    <p className="reminder-card__name">{entry.specimen}</p>
-                    {descriptor && (
-                      <span className="reminder-card__due" data-tone={descriptor.tone}>
-                        {descriptor.label} · {formatDate(entry.reminderDate)}
-                      </span>
-                    )}
-                  </header>
-                  <div className="reminder-card__meta">
-                    <span>{entry.entryType === "molt" ? entry.stage ?? "Molt" : "Feeding"}</span>
-                    {entry.species && <span>{entry.species}</span>}
-                  </div>
-                  <div className="reminder-card__actions">
-                    <button type="button" data-reminder-action="complete" onClick={() => handleReminderAction("complete", entry)}>
-                      Mark done
-                    </button>
-                    <button type="button" data-reminder-action="snooze" onClick={() => handleReminderAction("snooze", entry)}>
-                      Snooze 7d
-                    </button>
-                    <button type="button" data-reminder-action="view" onClick={() => handleEdit(entry)}>
-                      Open entry
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section
-        className={`timeline${timelineCollapsed ? " is-collapsed" : ""}${
-          entries.some((entry) => entry.entryType === "molt") ? "" : " is-empty"
-        }`}
-        aria-labelledby="timeline-title"
-      >
-        <header className="section-header timeline__header">
-          <div>
-            <h2 id="timeline-title">Molt Timeline</h2>
-            <span className="section-subtitle" id="timeline-summary">
-              {timelineSummary}
-            </span>
-          </div>
-          <button
-            className="timeline__toggle"
-            id="toggle-timeline"
-            type="button"
-            aria-expanded={!timelineCollapsed}
-            aria-controls="timeline"
-            onClick={() => setTimelineCollapsed((prev) => !prev)}
-          >
-            {timelineCollapsed ? "Expand" : "Collapse"}
-          </button>
-        </header>
-        <div className="timeline__scroll" id="timeline" role="list" aria-label="Molt timeline">
-          {timelineBuckets.map((bucket) => (
-            <div className="timeline__point" role="listitem" key={bucket.key}>
-              <span className="timeline__month">{bucket.label}</span>
-              <div className="timeline__bar">
-                <div className="timeline__bar-fill" style={{ height: bucket.count ? `${Math.max(10, (bucket.count / maxBucketCount) * 100)}%` : "0%" }} />
-              </div>
-              <span className="timeline__count">{bucket.count}</span>
-              <div className="timeline__stages">
-                {bucket.count === 0
-                  ? "—"
-                  : Object.entries(bucket.stageCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([stage, count]) => `${stage.split(" ")[0]}×${count}`)
-                      .join(" · ")}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="specimens" aria-labelledby="specimens-title">
-        <header className="section-header">
-          <h2 id="specimens-title">Specimen Dashboards</h2>
-          <span className="section-subtitle">
-            Keep tabs on each tarantula&apos;s pace, molt streak, feeding history, and reminders.
-          </span>
-        </header>
-        {specimenDashboards.length > 1 && (
-          <div className="specimens__controls" aria-label="Specimen dashboard controls">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => setExpandedSpecimenKeys(specimenDashboards.map((spec) => spec.key))}
-              disabled={expandedSpecimenKeys.length === specimenDashboards.length && specimenDashboards.length > 0}
-            >
-              Expand all
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => setExpandedSpecimenKeys([])}
-              disabled={expandedSpecimenKeys.length === 0}
-            >
-              Collapse all
-            </button>
-          </div>
-        )}
-        {specimenDashboards.length === 0 ? (
-          <p className="specimens__empty">
-            {entries.length === 0
-              ? "Add log entries to unlock specimen dashboards and growth insights."
-              : filters.search.trim()
-              ? "No specimens match your current search."
-              : "Add log entries to unlock specimen dashboards and growth insights."}
+      {isGuestMode && (
+        <aside className="dashboard-mode-banner" role="status">
+          <p className="dashboard-mode-banner__eyebrow">Guest mode</p>
+          <p className="dashboard-mode-banner__copy">
+            Entries stay on this device.{" "}
+            <Link href="/login?callbackUrl=/">Sign in</Link> to sync with your account.
           </p>
-        ) : (
-          <ul className="specimens__list">
-            {specimenDashboards.map((specimen) => {
-              const isExpanded = expandedSpecimenKeys.includes(specimen.key);
-              const safeIdSuffix = specimen.key.replace(/[^a-z0-9]+/gi, "-") || "specimen";
-              const detailsId = `specimen-${safeIdSuffix}-details`;
+        </aside>
+      )}
 
-              return (
-                <li className={`specimen-card${isExpanded ? "" : " specimen-card--collapsed"}`} key={specimen.key}>
-                  <header className="specimen-card__header">
-                    <div>
-                      <p className="specimen-card__name">{specimen.specimen}</p>
-                      {specimen.species && <p className="specimen-card__species">{specimen.species}</p>}
-                      {specimen.firstMoltDate && (
-                        <p className="specimen-card__meta">Tracking since {formatDate(specimen.firstMoltDate)}</p>
-                      )}
-                    </div>
-                    <div className="specimen-card__controls">
-                      <div className="specimen-card__totals">
-                        <span>
-                          {specimen.totalMolts} molt{specimen.totalMolts === 1 ? "" : "s"}
-                        </span>
-                        <span>
-                          {specimen.totalFeedings} feeding{specimen.totalFeedings === 1 ? "" : "s"}
-                        </span>
-                        <span>
-                          {specimen.attachmentsCount} photo{specimen.attachmentsCount === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className="specimen-card__toggle"
-                        onClick={() => {
-                          setExpandedSpecimenKeys((prev) => {
-                            if (prev.includes(specimen.key)) {
-                              return prev.filter((key) => key !== specimen.key);
-                            }
-                            return [...prev, specimen.key];
-                          });
-                        }}
-                        aria-expanded={isExpanded}
-                        aria-controls={detailsId}
-                      >
-                        {isExpanded ? "Collapse" : "Expand"}
-                      </button>
-                    </div>
-                  </header>
-                  <div className="specimen-card__details" id={detailsId} aria-hidden={!isExpanded}>
-                    <div className="specimen-card__stats">
-                      <div className="specimen-card__stat">
-                        <span>Last molt</span>
-                        <strong>{formatDate(specimen.lastMoltDate ?? undefined)}</strong>
-                      </div>
-                      <div className="specimen-card__stat">
-                        <span>Avg interval</span>
-                        <strong>
-                          {specimen.averageIntervalDays !== null ? `${specimen.averageIntervalDays}d` : "—"}
-                        </strong>
-                      </div>
-                      <div className="specimen-card__stat">
-                        <span>Last gap</span>
-                        <strong>{specimen.lastIntervalDays !== null ? `${specimen.lastIntervalDays}d` : "—"}</strong>
-                      </div>
-                      <div className="specimen-card__stat">
-                        <span>Molts this year</span>
-                        <strong>{specimen.yearMolts}</strong>
-                      </div>
-                      <div className="specimen-card__stat">
-                        <span>Next reminder</span>
-                        {specimen.reminder ? (
-                          <strong data-tone={specimen.reminder.tone}>
-                            {specimen.reminder.label}
-                            {specimen.reminder.date ? ` · ${formatDate(specimen.reminder.date)}` : ""}
-                          </strong>
-                        ) : (
-                          <strong>—</strong>
-                        )}
-                      </div>
-                    </div>
-                    {Object.values(specimen.stageCounts).some((count) => count > 0) && (
-                      <div className="specimen-card__stages" aria-label="Stage breakdown">
-                        {Object.entries(specimen.stageCounts)
-                          .filter(([, count]) => count > 0)
-                          .map(([stage, count]) => (
-                            <span key={stage} className="specimen-card__stage">
-                              {stage.split(" ")[0]}×{count}
-                            </span>
-                          ))}
-                      </div>
-                    )}
-                    <ol className="specimen-card__timeline">
-                      {specimen.recentEntries.map((entry, index) => {
-                        const hasOldSize = entry.oldSize !== undefined && entry.oldSize !== null;
-                        const hasNewSize = entry.newSize !== undefined && entry.newSize !== null;
-                        const sizeLabel =
-                          hasOldSize && hasNewSize
-                            ? `${entry.oldSize} → ${entry.newSize}cm`
-                            : hasNewSize
-                            ? `${entry.newSize}cm`
-                            : null;
-                        const note =
-                          entry.notes && entry.notes.length > 160
-                            ? `${entry.notes.slice(0, 157)}…`
-                            : entry.notes;
-                        const attachmentsCount = entry.attachments?.length ?? 0;
-                        const previous = specimen.recentEntries[index + 1];
-                        const gapDays =
-                          previous && entry.date ? differenceInDays(previous.date, entry.date) : null;
-                        const gapLabel = gapDays !== null ? `${gapDays}d gap` : null;
-                        return (
-                          <li key={entry.id}>
-                            <div className="specimen-card__timeline-header">
-                              <span className="chip chip--stage">{entry.stage}</span>
-                              <time dateTime={entry.date}>{formatDate(entry.date)}</time>
-                            </div>
-                            <div className="specimen-card__timeline-meta">
-                              {sizeLabel && <span>{sizeLabel}</span>}
-                              {gapLabel && <span>{gapLabel}</span>}
-                              {attachmentsCount > 0 && (
-                                <span>
-                                  {attachmentsCount} photo{attachmentsCount === 1 ? "" : "s"}
-                                </span>
-                              )}
-                            </div>
-                            {note && <p className="specimen-card__timeline-notes">{note}</p>}
-                          </li>
-                        );
-                      })}
-                    </ol>
-                    {specimen.totalMolts > specimen.recentEntries.length && (
-                      <p className="specimen-card__footnote">
-                        +{specimen.totalMolts - specimen.recentEntries.length} earlier molt
-                        {specimen.totalMolts - specimen.recentEntries.length === 1 ? "" : "s"} logged
-                      </p>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="entry-panel" aria-hidden={!formOpen}>
-        <h2>{editingId ? "Edit Entry" : "Add Log Entry"}</h2>
-        <form onSubmit={submitForm}>
-          <div className="field-row">
-            <label className="field">
-              <span>Spider/Tarantula Name</span>
-              <input
-                type="text"
-                name="specimen"
-                value={formState.specimen}
-                onChange={(event) => setFormState((prev) => ({ ...prev, specimen: event.target.value }))}
-              />
-            </label>
-            <label className="field">
-              <span>Species{formState.entryType === "molt" ? " *" : ""}</span>
-              <input
-                type="text"
-                name="species"
-                required={formState.entryType === "molt"}
-                value={formState.species}
-                onChange={(event) => setFormState((prev) => ({ ...prev, species: event.target.value }))}
-              />
-            </label>
+      <main className="dashboard-main">
+        <section
+          className="dashboard-view dashboard-view--overview"
+          data-view="overview"
+          hidden={activeView !== "overview"}
+        >
+          <div className="overview-hero">
+            <div className="overview-hero__copy">
+              <p className="overview-hero__eyebrow">Today&apos;s snapshot</p>
+              <h2>Everything your spiders are up to, on one hand.</h2>
+              <p>
+                {stats.total === 0
+                  ? "Log your first molt or feeding to populate the dashboard."
+                  : `Tracking ${stats.total} specimen${stats.total === 1 ? "" : "s"} with ${
+                      stats.yearCount
+                    } molt${stats.yearCount === 1 ? "" : "s"} in ${new Date().getFullYear()}.`}
+              </p>
+            </div>
+            {stats.nextReminder ? (
+              <div className="overview-hero__reminder">
+                <span className="overview-hero__reminder-label">Next reminder</span>
+                <strong>{stats.nextReminder.entry.specimen}</strong>
+                <span>{stats.nextReminder.diff === 0 ? "Today" : `In ${stats.nextReminder.diff}d`}</span>
+              </div>
+            ) : (
+              <div className="overview-hero__reminder overview-hero__reminder--empty">
+                <span className="overview-hero__reminder-label">Next reminder</span>
+                <strong>No reminders queued</strong>
+                <button type="button" className="link-button" onClick={() => setActiveView("reminders")}>
+                  Add one from the queue
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="field-row">
-            <label className="field">
-              <span>Entry Type</span>
-              <select
-                name="entryType"
-                value={formState.entryType}
-                onChange={(event) => {
-                  const nextType = event.target.value as EntryType;
-                  setFormState((prev) => ({ ...prev, entryType: nextType }));
-                }}
+          <div className="metric-grid">
+            <article className="metric-card">
+              <span className="metric-card__label">Active specimens</span>
+              <span className="metric-card__value">{stats.total}</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-card__label">Molts this year</span>
+              <span className="metric-card__value">{stats.yearCount}</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-card__label">Last molt</span>
+              <span className="metric-card__value">{formatDate(stats.lastDate ?? undefined)}</span>
+            </article>
+            <article className="metric-card">
+              <span className="metric-card__label">Reminders running</span>
+              <span className="metric-card__value">{reminders.length}</span>
+            </article>
+          </div>
+
+          <div className="overview-panels">
+            <section className="panel-card panel-card--timeline" aria-labelledby="timeline-overview-title">
+              <header>
+                <div>
+                  <h3 id="timeline-overview-title">Molt cadence</h3>
+                  <p>{timelineSummary}</p>
+                </div>
+                {hasTimeline && (
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => setTimelineCollapsed((prev) => !prev)}
+                    aria-expanded={!timelineCollapsed}
+                    aria-controls="overview-timeline"
+                  >
+                    {timelineCollapsed ? "Expand" : "Collapse"}
+                  </button>
+                )}
+              </header>
+              <div
+                className="timeline-chart"
+                id="overview-timeline"
+                data-collapsed={timelineCollapsed}
+                role="list"
+                aria-label="Molt timeline"
               >
-                <option value="molt">Molt</option>
-                <option value="feeding">Feeding</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>Entry Date</span>
-              <input
-                type="date"
-                name="date"
-                required
-                value={formState.date}
-                onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
-              />
-            </label>
-          </div>
-
-          {formState.entryType === "molt" ? (
-            <>
-              <div className="field-row">
-                <label className="field">
-                  <span>Molt Stage</span>
-                  <select
-                    name="stage"
-                    value={formState.stage}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, stage: event.target.value as Stage }))}
-                  >
-                    <option value="Pre-molt">Pre-molt</option>
-                    <option value="Molt">Molt</option>
-                    <option value="Post-molt">Post-molt</option>
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Last Size (cm)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={formState.oldSize}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, oldSize: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <label className="field">
-                <span>New Size (cm)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={formState.newSize}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, newSize: event.target.value }))}
-                />
-              </label>
-            </>
-          ) : (
-            <>
-              <div className="field-row">
-                <label className="field">
-                  <span>Prey Offered</span>
-                  <input
-                    type="text"
-                    value={formState.feedingPrey}
-                    onChange={(event) => setFormState((prev) => ({ ...prev, feedingPrey: event.target.value }))}
-                  />
-                </label>
-                <label className="field">
-                  <span>Outcome</span>
-                  <select
-                    value={formState.feedingOutcome}
-                    onChange={(event) =>
-                      setFormState((prev) => ({ ...prev, feedingOutcome: event.target.value as "" | FeedingOutcome }))
-                    }
-                  >
-                    <option value="">—</option>
-                    <option value="Offered">Offered</option>
-                    <option value="Ate">Ate</option>
-                    <option value="Refused">Refused</option>
-                    <option value="Not Observed">Not Observed</option>
-                  </select>
-                </label>
-              </div>
-              <label className="field">
-                <span>Quantity / Size</span>
-                <input
-                  type="text"
-                  value={formState.feedingAmount}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, feedingAmount: event.target.value }))}
-                />
-              </label>
-            </>
-          )}
-
-          <div className="field-row">
-            <label className="field">
-              <span>Humidity (%)</span>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={formState.humidity}
-                onChange={(event) => setFormState((prev) => ({ ...prev, humidity: event.target.value }))}
-              />
-            </label>
-            <label className="field">
-              <span>Temperature (°C)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.5"
-                value={formState.temperature}
-                onChange={(event) => setFormState((prev) => ({ ...prev, temperature: event.target.value }))}
-              />
-            </label>
-          </div>
-
-          <label className="field">
-            <span>Notes</span>
-            <textarea
-              name="notes"
-              rows={3}
-              value={formState.notes}
-              onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
-              placeholder="Behavior changes, feeding notes, enclosure tweaks…"
-            />
-          </label>
-
-          <div className="field-row">
-            <label className="field">
-              <span>Next Reminder</span>
-              <input
-                type="date"
-                name="reminderDate"
-                value={formState.reminderDate}
-                onChange={(event) => setFormState((prev) => ({ ...prev, reminderDate: event.target.value }))}
-              />
-            </label>
-            <label className="field">
-              <span>Photo Attachments</span>
-              <input type="file" accept="image/*" multiple onChange={(event) => handleAttachmentFiles(event.target.files)} />
-            </label>
-          </div>
-
-          {attachmentDraft.length > 0 && (
-            <div className="existing-attachments">
-              <p>Current photos</p>
-              <div className="existing-attachments__list">
-                {attachmentDraft.map((attachment) => (
-                  <div className="existing-attachments__item" key={attachment.id}>
-                    <Image
-                      src={attachment.url}
-                      alt={attachment.name}
-                      width={48}
-                      height={48}
-                      className="existing-attachments__thumb"
-                      unoptimized
-                    />
-                    <span>{attachment.name}</span>
-                    <button
-                      type="button"
-                      className="existing-attachments__remove"
-                      onClick={() => removeAttachment(attachment.id)}
-                    >
-                      Remove
-                    </button>
+                {timelineBuckets.map((bucket) => (
+                  <div className="timeline-chart__point" role="listitem" key={bucket.key}>
+                    <span className="timeline-chart__label">{bucket.label}</span>
+                    <div className="timeline-chart__bar">
+                      <div
+                        className="timeline-chart__fill"
+                        style={{ height: bucket.count ? `${Math.max(10, (bucket.count / maxBucketCount) * 100)}%` : "0%" }}
+                      />
+                    </div>
+                    <span className="timeline-chart__value">{bucket.count}</span>
                   </div>
                 ))}
               </div>
+            </section>
+
+            <section className="panel-card panel-card--reminders" aria-labelledby="overview-reminders-title">
+              <header>
+                <div>
+                  <h3 id="overview-reminders-title">Upcoming reminders</h3>
+                  <p>Stay ahead of enclosure tweaks and feedings.</p>
+                </div>
+                <button type="button" className="link-button" onClick={() => setActiveView("reminders")}>
+                  View queue
+                </button>
+              </header>
+              {loading ? (
+                <p className="empty-state">Loading reminders…</p>
+              ) : upcomingReminders.length === 0 ? (
+                <p className="empty-state">No scheduled reminders yet.</p>
+              ) : (
+                <ul className="reminder-preview">
+                  {upcomingReminders.map(({ entry }) => {
+                    const descriptor = reminderDescriptor(entry.reminderDate);
+                    return (
+                      <li key={entry.id}>
+                        <div>
+                          <p className="reminder-preview__name">{entry.specimen}</p>
+                          {entry.species && <span className="reminder-preview__meta">{entry.species}</span>}
+                        </div>
+                        {descriptor && (
+                          <span className="reminder-preview__due" data-tone={descriptor.tone}>
+                            {descriptor.label}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="panel-card panel-card--recent" aria-labelledby="overview-recent-title">
+              <header>
+                <div>
+                  <h3 id="overview-recent-title">Latest activity</h3>
+                  <p>Fresh entries across molt logs and feedings.</p>
+                </div>
+                <button type="button" className="link-button" onClick={() => setActiveView("activity")}>
+                  Open history
+                </button>
+              </header>
+              {loading ? (
+                <p className="empty-state">Loading activity…</p>
+              ) : spotlightEntries.length === 0 ? (
+                <p className="empty-state">No entries yet. Log your first molt or feeding.</p>
+              ) : (
+                <ul className="spotlight-list">
+                  {spotlightEntries.map((entry) => {
+                    const descriptor = reminderDescriptor(entry.reminderDate);
+                    const attachments = entry.attachments?.length ?? 0;
+                    return (
+                      <li key={entry.id} onClick={() => handleEdit(entry)}>
+                        <div>
+                          <p className="spotlight-list__title">{entry.specimen}</p>
+                          <span className="spotlight-list__meta">{formatDate(entry.date)}</span>
+                          {entry.species && <span className="spotlight-list__meta">{entry.species}</span>}
+                        </div>
+                        <div className="spotlight-list__tags">
+                          <span className="chip chip--stage">
+                            {entry.entryType === "molt" ? entry.stage ?? "Molt" : "Feeding"}
+                          </span>
+                          {attachments > 0 && (
+                            <span className="chip chip--size">
+                              {attachments} photo{attachments === 1 ? "" : "s"}
+                            </span>
+                          )}
+                          {descriptor && (
+                            <span className="chip chip--reminder" data-tone={descriptor.tone}>
+                              {descriptor.label}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
+        </section>
+
+        <section
+          className="dashboard-view dashboard-view--activity"
+          data-view="activity"
+          hidden={activeView !== "activity"}
+        >
+          <header className="view-header">
+            <div>
+              <h2>Activity</h2>
+              <p>Search and manage every molt, feeding, and reminder.</p>
+            </div>
+          </header>
+
+          <div className="activity-toolbar">
+            <label className="search-field">
+              <span className="visually-hidden">Search specimens or species</span>
+              <input
+                type="search"
+                placeholder="Search specimens or species"
+                value={filters.search}
+                onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
+              />
+            </label>
+            <div className="segmented-control" role="group" aria-label="Entry type filter">
+              {(["all", "molt", "feeding"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="segmented-control__option"
+                  data-active={filters.type === option}
+                  onClick={() => setFilters((prev) => ({ ...prev, type: option }))}
+                >
+                  {option === "all" ? "All" : option === "molt" ? "Molts" : "Feedings"}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="sort-toggle"
+              onClick={() =>
+                setFilters((prev) => ({ ...prev, order: prev.order === "desc" ? "asc" : "desc" }))
+              }
+              aria-label={`Sort ${filters.order === "desc" ? "newest first" : "oldest first"}`}
+            >
+              {filters.order === "desc" ? "Newest → Oldest" : "Oldest → Newest"}
+            </button>
+          </div>
+
+          {showStageControls && (
+            <div className="chip-set" role="group" aria-label="Molt stage filter">
+              {stageFilters.map((stage) => (
+                <button
+                  key={stage.value}
+                  type="button"
+                  className="chip chip--filter"
+                  data-active={filters.stage === stage.value}
+                  onClick={() => setFilters((prev) => ({ ...prev, stage: stage.value }))}
+                >
+                  {stage.label}
+                </button>
+              ))}
             </div>
           )}
 
-          <div className="panel-actions">
-            <button type="submit" className="btn btn--primary">
-              {editingId ? "Save Changes" : "Save Entry"}
-            </button>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => {
-                setFormOpen(false);
-                resetForm();
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section>
-        <div className="toolbar">
-          <input
-            className="toolbar__search"
-            type="search"
-            placeholder="Search by name or species"
-            value={filters.search}
-            onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-            aria-label="Filter log entries"
-          />
-          <select
-            className="toolbar__filter"
-            value={filters.type}
-            onChange={(event) => setFilters((prev) => ({ ...prev, type: event.target.value as "all" | EntryType }))}
-            aria-label="Filter by entry type"
-          >
-            <option value="all">All entries</option>
-            <option value="molt">Molts</option>
-            <option value="feeding">Feedings</option>
-          </select>
-          <select
-            className="toolbar__filter"
-            value={filters.stage}
-            onChange={(event) => setFilters((prev) => ({ ...prev, stage: event.target.value as "all" | Stage }))}
-            aria-label="Filter by molt stage"
-            disabled={filters.type === "feeding"}
-          >
-            <option value="all">All stages</option>
-            <option value="Pre-molt">Pre-molt</option>
-            <option value="Molt">Molt</option>
-            <option value="Post-molt">Post-molt</option>
-          </select>
-          <button
-            className="toolbar__sort"
-            type="button"
-            onClick={() => setFilters((prev) => ({ ...prev, order: prev.order === "desc" ? "asc" : "desc" }))}
-          >
-            {filters.order === "desc" ? "Latest First" : "Oldest First"}
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="empty-state">Loading entries…</div>
-        ) : error ? (
-          <div className="empty-state">
-            {error}
-            <br />
-            <button type="button" className="btn btn--ghost" onClick={fetchEntries} style={{ marginTop: 12 }}>
-              Retry
-            </button>
-          </div>
-        ) : filteredEntries.length === 0 ? (
-          <div className="empty-state">No entries yet. Add a molt or feeding to get started.</div>
-        ) : (
-          <ul className="log-list">
-            {filteredEntries.map((entry) => {
-              const diff = reminderDescriptor(entry.reminderDate);
-              const attachments = entry.attachments ?? [];
-              const previewAttachments = attachments.slice(0, 3);
-              const remainingAttachments = attachments.length - previewAttachments.length;
-              const isMolt = entry.entryType === "molt";
-              const hasOldSize = typeof entry.oldSize === "number";
-              const hasNewSize = typeof entry.newSize === "number";
-              const sizeLabel =
-                hasOldSize && hasNewSize
-                  ? `${entry.oldSize} → ${entry.newSize}cm`
-                  : hasNewSize
-                  ? `${entry.newSize}cm`
-                  : null;
-              return (
-                <li className="log-card" key={entry.id}>
-                  <div className="log-card__inner">
-                    <header>
-                      <p className="log-card__specimen">{entry.specimen}</p>
-                      <span className="log-card__date">{formatDate(entry.date)}</span>
-                    </header>
-                    {entry.species && <p className="log-card__species">{entry.species}</p>}
-                    <div className="log-card__tags">
-                      {isMolt ? (
-                        <>
-                          <span className="chip chip--stage">{entry.stage ?? "Molt"}</span>
-                          <span className="chip chip--size">{sizeLabel ?? "Size n/a"}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="chip chip--stage">Feeding</span>
-                          {entry.feedingOutcome && (
-                            <span className="chip chip--size">{entry.feedingOutcome}</span>
+          {error ? (
+            <div className="state-card state-card--error">
+              <p>{error}</p>
+              <button type="button" className="pill-button" onClick={fetchEntries}>
+                Retry
+              </button>
+            </div>
+          ) : loading ? (
+            <p className="empty-state">Loading log entries…</p>
+          ) : filteredEntries.length === 0 ? (
+            <div className="state-card">
+              <p>No entries match your filters.</p>
+              <button
+                type="button"
+                className="pill-button pill-button--ghost"
+                onClick={() =>
+                  setFilters({
+                    search: "",
+                    stage: "all",
+                    type: "all",
+                    order: "desc"
+                  })
+                }
+              >
+                Reset filters
+              </button>
+            </div>
+          ) : (
+            <ul className="log-feed">
+              {filteredEntries.map((entry) => {
+                const diff = reminderDescriptor(entry.reminderDate);
+                const attachments = entry.attachments ?? [];
+                const previewAttachments = attachments.slice(0, 3);
+                const remainingAttachments = attachments.length - previewAttachments.length;
+                const isMolt = entry.entryType === "molt";
+                const hasOldSize = typeof entry.oldSize === "number";
+                const hasNewSize = typeof entry.newSize === "number";
+                const sizeLabel =
+                  hasOldSize && hasNewSize
+                    ? `${entry.oldSize} → ${entry.newSize}cm`
+                    : hasNewSize
+                    ? `${entry.newSize}cm`
+                    : null;
+                return (
+                  <li className="log-card" key={entry.id}>
+                    <div className="log-card__inner">
+                      <header>
+                        <p className="log-card__specimen">{entry.specimen}</p>
+                        <span className="log-card__date">{formatDate(entry.date)}</span>
+                      </header>
+                      {entry.species && <p className="log-card__species">{entry.species}</p>}
+                      <div className="log-card__tags">
+                        {isMolt ? (
+                          <>
+                            <span className="chip chip--stage">{entry.stage ?? "Molt"}</span>
+                            <span className="chip chip--size">{sizeLabel ?? "Size n/a"}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="chip chip--stage">Feeding</span>
+                            {entry.feedingOutcome && (
+                              <span className="chip chip--size">{entry.feedingOutcome}</span>
+                            )}
+                            {(entry.feedingPrey || entry.feedingAmount) && (
+                              <span className="chip chip--size">
+                                {entry.feedingPrey ?? "Prey n/a"}
+                                {entry.feedingAmount ? ` · ${entry.feedingAmount}` : ""}
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {diff && (
+                          <span className="chip chip--reminder" data-tone={diff.tone}>
+                            {diff.label}
+                          </span>
+                        )}
+                      </div>
+                      {entry.notes && <p className="log-card__notes">{entry.notes}</p>}
+                      {previewAttachments.length > 0 && (
+                        <div className="log-card__attachments" aria-label="Entry photos">
+                          {previewAttachments.map((attachment) => (
+                            <a
+                              key={attachment.id}
+                              className="log-card__attachment"
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`Open ${attachment.name ?? "photo"} in a new tab`}
+                            >
+                              <Image
+                                src={attachment.url}
+                                alt={attachment.name || "Log attachment"}
+                                width={96}
+                                height={96}
+                                unoptimized
+                              />
+                            </a>
+                          ))}
+                          {remainingAttachments > 0 && (
+                            <span className="log-card__attachment-more">+{remainingAttachments}</span>
                           )}
-                          {(entry.feedingPrey || entry.feedingAmount) && (
-                            <span className="chip chip--size">
-                              {entry.feedingPrey ?? "Prey n/a"}
-                              {entry.feedingAmount ? ` · ${entry.feedingAmount}` : ""}
-                            </span>
-                          )}
-                        </>
+                        </div>
                       )}
-                      {diff && (
-                        <span className="chip chip--reminder" data-tone={diff.tone}>
-                          {diff.label}
+                      <div className="log-card__actions">
+                        <button
+                          type="button"
+                          className="pill-button pill-button--ghost"
+                          onClick={() => handleEdit(entry)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="pill-button pill-button--ghost"
+                          onClick={() => handleDelete(entry.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section
+          className="dashboard-view dashboard-view--specimens"
+          data-view="specimens"
+          hidden={activeView !== "specimens"}
+        >
+          <header className="view-header">
+            <div>
+              <h2>Specimen profiles</h2>
+              <p>Growth trends, molt streaks, and reminder health for every spider.</p>
+            </div>
+            {specimenDashboards.length > 1 && (
+              <div className="section-actions">
+                <button
+                  type="button"
+                  className="pill-button pill-button--ghost"
+                  onClick={() => setExpandedSpecimenKeys(specimenDashboards.map((spec) => spec.key))}
+                  disabled={
+                    expandedSpecimenKeys.length === specimenDashboards.length && specimenDashboards.length > 0
+                  }
+                >
+                  Expand all
+                </button>
+                <button
+                  type="button"
+                  className="pill-button pill-button--ghost"
+                  onClick={() => setExpandedSpecimenKeys([])}
+                  disabled={expandedSpecimenKeys.length === 0}
+                >
+                  Collapse all
+                </button>
+              </div>
+            )}
+          </header>
+          {specimenDashboards.length === 0 ? (
+            <p className="empty-state">
+              {entries.length === 0
+                ? "Add log entries to unlock specimen dashboards and growth insights."
+                : filters.search.trim()
+                ? "No specimens match your current search."
+                : "Add log entries to unlock specimen dashboards and growth insights."}
+            </p>
+          ) : (
+            <ul className="specimens__list">
+              {specimenDashboards.map((specimen) => {
+                const isExpanded = expandedSpecimenKeys.includes(specimen.key);
+                const safeIdSuffix = specimen.key.replace(/[^a-z0-9]+/gi, "-") || "specimen";
+                const detailsId = `specimen-${safeIdSuffix}-details`;
+
+                return (
+                  <li className={`specimen-card${isExpanded ? "" : " specimen-card--collapsed"}`} key={specimen.key}>
+                    <header className="specimen-card__header">
+                      <div>
+                        <p className="specimen-card__name">{specimen.specimen}</p>
+                        {specimen.species && <p className="specimen-card__species">{specimen.species}</p>}
+                        {specimen.firstMoltDate && (
+                          <p className="specimen-card__meta">Tracking since {formatDate(specimen.firstMoltDate)}</p>
+                        )}
+                      </div>
+                      <div className="specimen-card__controls">
+                        <div className="specimen-card__totals">
+                          <span>
+                            {specimen.totalMolts} molt{specimen.totalMolts === 1 ? "" : "s"}
+                          </span>
+                          <span>
+                            {specimen.totalFeedings} feeding{specimen.totalFeedings === 1 ? "" : "s"}
+                          </span>
+                          <span>
+                            {specimen.attachmentsCount} photo{specimen.attachmentsCount === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="pill-button pill-button--ghost"
+                          onClick={() => {
+                            setExpandedSpecimenKeys((prev) => {
+                              if (prev.includes(specimen.key)) {
+                                return prev.filter((key) => key !== specimen.key);
+                              }
+                              return [...prev, specimen.key];
+                            });
+                          }}
+                          aria-expanded={isExpanded}
+                          aria-controls={detailsId}
+                        >
+                          {isExpanded ? "Collapse" : "Expand"}
+                        </button>
+                      </div>
+                    </header>
+                    <dl className="specimen-card__stats">
+                      <div>
+                        <dt>Average interval</dt>
+                        <dd>
+                          {specimen.averageIntervalDays !== null ? `${specimen.averageIntervalDays} days` : "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Last gap</dt>
+                        <dd>{specimen.lastIntervalDays !== null ? `${specimen.lastIntervalDays} days` : "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>Molts this year</dt>
+                        <dd>{specimen.yearMolts}</dd>
+                      </div>
+                      <div>
+                        <dt>Reminder</dt>
+                        <dd>
+                          {specimen.reminder ? (
+                            <span className="chip chip--reminder" data-tone={specimen.reminder.tone}>
+                              {specimen.reminder.label}
+                            </span>
+                          ) : (
+                            "None"
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="specimen-card__stages">
+                      {(Object.entries(specimen.stageCounts) as Array<[Stage, number]>).map(([stage, count]) => (
+                        <span key={stage} className="chip chip--stage">
+                          {stage.split("-")[0]} × {count}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="specimen-card__timeline-wrap" id={detailsId} hidden={!isExpanded}>
+                      {specimen.recentEntries.length === 0 ? (
+                        <p className="specimen-card__empty">No molt history yet.</p>
+                      ) : (
+                        <ol className="specimen-card__timeline">
+                          {specimen.recentEntries.map((entry, index) => {
+                            const hasOldSize = entry.oldSize !== undefined && entry.oldSize !== null;
+                            const hasNewSize = entry.newSize !== undefined && entry.newSize !== null;
+                            const sizeLabel =
+                              hasOldSize && hasNewSize
+                                ? `${entry.oldSize} → ${entry.newSize}cm`
+                                : hasNewSize
+                                ? `${entry.newSize}cm`
+                                : null;
+                            const note =
+                              entry.notes && entry.notes.length > 160
+                                ? `${entry.notes.slice(0, 157)}…`
+                                : entry.notes;
+                            const attachmentsCount = entry.attachments?.length ?? 0;
+                            const previous = specimen.recentEntries[index + 1];
+                            const gapDays = previous && entry.date ? differenceInDays(previous.date, entry.date) : null;
+                            const gapLabel = gapDays !== null ? `${gapDays}d gap` : null;
+                            return (
+                              <li key={entry.id}>
+                                <div className="specimen-card__timeline-header">
+                                  <span className="chip chip--stage">{entry.stage}</span>
+                                  <time dateTime={entry.date}>{formatDate(entry.date)}</time>
+                                </div>
+                                <div className="specimen-card__timeline-meta">
+                                  {sizeLabel && <span>{sizeLabel}</span>}
+                                  {gapLabel && <span>{gapLabel}</span>}
+                                  {attachmentsCount > 0 && (
+                                    <span>
+                                      {attachmentsCount} photo{attachmentsCount === 1 ? "" : "s"}
+                                    </span>
+                                  )}
+                                </div>
+                                {note && <p className="specimen-card__timeline-notes">{note}</p>}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      )}
+                      {specimen.totalMolts > specimen.recentEntries.length && (
+                        <p className="specimen-card__footnote">
+                          +{specimen.totalMolts - specimen.recentEntries.length} earlier molt
+                          {specimen.totalMolts - specimen.recentEntries.length === 1 ? "" : "s"} logged
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section
+          className="dashboard-view dashboard-view--reminders"
+          data-view="reminders"
+          hidden={activeView !== "reminders"}
+        >
+          <header className="view-header">
+            <div>
+              <h2>Reminder queue</h2>
+              <p>Mark care tasks complete or snooze them forward.</p>
+            </div>
+          </header>
+          {loading ? (
+            <p className="empty-state">Loading reminders…</p>
+          ) : reminders.length === 0 ? (
+            <p className="empty-state">No reminders yet. Add a reminder while logging a molt or feeding.</p>
+          ) : (
+            <ul className="reminder-list">
+              {reminders.map(({ entry }) => {
+                const descriptor = reminderDescriptor(entry.reminderDate);
+                return (
+                  <li className="reminder-item" key={entry.id}>
+                    <div className="reminder-item__header">
+                      <div>
+                        <p className="reminder-item__name">{entry.specimen}</p>
+                        {entry.species && <span className="reminder-item__species">{entry.species}</span>}
+                      </div>
+                      {descriptor && (
+                        <span className="reminder-item__due" data-tone={descriptor.tone}>
+                          {descriptor.label} · {formatDate(entry.reminderDate)}
                         </span>
                       )}
                     </div>
-                    {entry.notes && <p className="log-card__notes">{entry.notes}</p>}
-                    {previewAttachments.length > 0 && (
-                      <div className="log-card__attachments" aria-label="Entry photos">
-                        {previewAttachments.map((attachment) => (
-                          <a
-                            key={attachment.id}
-                            className="log-card__attachment"
-                            href={attachment.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={`Open ${attachment.name ?? "photo"} in a new tab`}
-                          >
-                            <Image
-                              src={attachment.url}
-                              alt={attachment.name || "Log attachment"}
-                              width={96}
-                              height={96}
-                              unoptimized
-                            />
-                          </a>
-                        ))}
-                        {remainingAttachments > 0 && <span className="log-card__attachment-more">+{remainingAttachments}</span>}
-                      </div>
-                    )}
-                    <div className="log-card__actions">
-                      <button type="button" className="btn btn--ghost" onClick={() => handleEdit(entry)}>
-                        Edit
+                    <div className="reminder-item__meta">
+                      <span>{entry.entryType === "molt" ? entry.stage ?? "Molt" : "Feeding"}</span>
+                      {entry.feedingOutcome && <span>{entry.feedingOutcome}</span>}
+                    </div>
+                    <div className="reminder-item__actions">
+                      <button type="button" className="pill-button" onClick={() => handleReminderAction("complete", entry)}>
+                        Mark done
                       </button>
-                      <button type="button" className="btn btn--ghost" onClick={() => handleDelete(entry.id)}>
-                        Delete
+                      <button
+                        type="button"
+                        className="pill-button pill-button--ghost"
+                        onClick={() => handleReminderAction("snooze", entry)}
+                      >
+                        Snooze 7d
+                      </button>
+                      <button
+                        type="button"
+                        className="pill-button pill-button--ghost"
+                        onClick={() => handleEdit(entry)}
+                      >
+                        Open entry
                       </button>
                     </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-      <ResearchNotebook />
+        <section
+          className="dashboard-view dashboard-view--notebook"
+          data-view="notebook"
+          hidden={activeView !== "notebook"}
+        >
+          <header className="view-header">
+            <div>
+              <h2>Research notebook</h2>
+              <p>Keep feeder plans, enclosure ideas, and species insights close by.</p>
+            </div>
+          </header>
+          <ResearchNotebook />
+        </section>
+      </main>
 
-      {!formOpen && (
-        <button className="fab" type="button" aria-label="Add log entry" onClick={openNewEntryForm}>
-          +
-        </button>
-      )}
       <footer className="support-footer" aria-label="Project links">
         <span>Like Moltly?</span>
         <a href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">
@@ -1519,6 +1651,275 @@ export default function Dashboard() {
           Ko-fi
         </a>
       </footer>
+
+      <nav className="dashboard-tabbar" aria-label="Primary navigation">
+        {viewTabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className="dashboard-tabbar__item"
+            data-active={activeView === tab.key}
+            onClick={() => setActiveView(tab.key)}
+          >
+            <span className="dashboard-tabbar__label">{tab.label}</span>
+            <span className="dashboard-tabbar__description">{tab.description}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className={`entry-sheet${formOpen ? " is-open" : ""}`} aria-hidden={!formOpen}>
+        <button
+          type="button"
+          className="entry-sheet__backdrop"
+          aria-label="Close entry form"
+          onClick={() => setFormOpen(false)}
+        />
+        <section className="entry-sheet__content" aria-live="polite">
+          <header className="entry-sheet__header">
+            <div>
+              <p className="entry-sheet__eyebrow">{editingId ? "Update log" : "New log entry"}</p>
+              <h2>{editingId ? "Edit Entry" : "Add Log Entry"}</h2>
+            </div>
+            <button type="button" className="pill-button pill-button--ghost" onClick={() => setFormOpen(false)}>
+              Close
+            </button>
+          </header>
+          <form onSubmit={submitForm} className="entry-form">
+            <div className="field-row">
+              <label className="field">
+                <span>Spider/Tarantula Name</span>
+                <input
+                  type="text"
+                  name="specimen"
+                  value={formState.specimen}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, specimen: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Species{formState.entryType === "molt" ? " *" : ""}</span>
+                <input
+                  type="text"
+                  name="species"
+                  required={formState.entryType === "molt"}
+                  value={formState.species}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, species: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <div className="field-row">
+              <label className="field">
+                <span>Entry Type</span>
+                <select
+                  name="entryType"
+                  value={formState.entryType}
+                  onChange={(event) => {
+                    const nextType = event.target.value as EntryType;
+                    setFormState((prev) => ({ ...prev, entryType: nextType }));
+                  }}
+                >
+                  <option value="molt">Molt</option>
+                  <option value="feeding">Feeding</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Entry Date</span>
+                <input
+                  type="date"
+                  name="date"
+                  required
+                  value={formState.date}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, date: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            {formState.entryType === "molt" ? (
+              <>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Molt Stage</span>
+                    <select
+                      name="stage"
+                      value={formState.stage}
+                      onChange={(event) =>
+                        setFormState((prev) => ({ ...prev, stage: event.target.value as Stage }))
+                      }
+                    >
+                      <option value="Pre-molt">Pre-molt</option>
+                      <option value="Molt">Molt</option>
+                      <option value="Post-molt">Post-molt</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Last Size (cm)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={formState.oldSize}
+                      onChange={(event) => setFormState((prev) => ({ ...prev, oldSize: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <label className="field">
+                  <span>New Size (cm)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={formState.newSize}
+                    onChange={(event) => setFormState((prev) => ({ ...prev, newSize: event.target.value }))}
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <div className="field-row">
+                  <label className="field">
+                    <span>Prey Offered</span>
+                    <input
+                      type="text"
+                      value={formState.feedingPrey}
+                      onChange={(event) =>
+                        setFormState((prev) => ({ ...prev, feedingPrey: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Outcome</span>
+                    <select
+                      value={formState.feedingOutcome}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          feedingOutcome: event.target.value as "" | FeedingOutcome
+                        }))
+                      }
+                    >
+                      <option value="">—</option>
+                      <option value="Offered">Offered</option>
+                      <option value="Ate">Ate</option>
+                      <option value="Refused">Refused</option>
+                      <option value="Not Observed">Not Observed</option>
+                    </select>
+                  </label>
+                </div>
+                <label className="field">
+                  <span>Quantity / Size</span>
+                  <input
+                    type="text"
+                    value={formState.feedingAmount}
+                    onChange={(event) =>
+                      setFormState((prev) => ({ ...prev, feedingAmount: event.target.value }))
+                    }
+                  />
+                </label>
+              </>
+            )}
+
+            <div className="field-row">
+              <label className="field">
+                <span>Humidity (%)</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={formState.humidity}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, humidity: event.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span>Temperature (°C)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={formState.temperature}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, temperature: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <label className="field">
+              <span>Notes</span>
+              <textarea
+                name="notes"
+                rows={3}
+                value={formState.notes}
+                onChange={(event) => setFormState((prev) => ({ ...prev, notes: event.target.value }))}
+                placeholder="Behavior changes, feeding notes, enclosure tweaks…"
+              />
+            </label>
+
+            <div className="field-row">
+              <label className="field">
+                <span>Next Reminder</span>
+                <input
+                  type="date"
+                  name="reminderDate"
+                  value={formState.reminderDate}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, reminderDate: event.target.value }))}
+                />
+              </label>
+              <label className="field">
+                <span>Photo Attachments</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => handleAttachmentFiles(event.target.files)}
+                />
+              </label>
+            </div>
+
+            {attachmentDraft.length > 0 && (
+              <div className="existing-attachments">
+                <p>Current photos</p>
+                <div className="existing-attachments__list">
+                  {attachmentDraft.map((attachment) => (
+                    <div className="existing-attachments__item" key={attachment.id}>
+                      <Image
+                        src={attachment.url}
+                        alt={attachment.name}
+                        width={48}
+                        height={48}
+                        className="existing-attachments__thumb"
+                      />
+                      <span>{attachment.name}</span>
+                      <button
+                        className="existing-attachments__remove"
+                        type="button"
+                        onClick={() => removeAttachment(attachment.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <footer className="entry-form__actions">
+              <button type="button" className="pill-button pill-button--ghost" onClick={resetForm}>
+                Clear
+              </button>
+              <button type="submit" className="pill-button">
+                {editingId ? "Save changes" : "Add entry"}
+              </button>
+            </footer>
+          </form>
+        </section>
+      </div>
+
+      {!formOpen && (
+        <button className="fab" type="button" aria-label="Add log entry" onClick={openNewEntryForm}>
+          +
+        </button>
+      )}
     </div>
   );
 }

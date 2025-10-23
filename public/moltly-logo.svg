@@ -1,26 +1,57 @@
 <svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="moltly-gradient" x1="20" y1="20" x2="140" y2="140" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff9b7c"/>
-      <stop offset="1" stop-color="#ff7958"/>
+    <radialGradient id="moltly-orb" cx="50%" cy="32%" r="72%">
+      <stop offset="0" stop-color="#4d9dff"/>
+      <stop offset="1" stop-color="#081427"/>
+    </radialGradient>
+    <radialGradient id="moltly-core" cx="48%" cy="40%" r="58%">
+      <stop offset="0" stop-color="#102443" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#05080f" stop-opacity="0.9"/>
+    </radialGradient>
+    <linearGradient id="moltly-ring" x1="32" y1="40" x2="128" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9dd3ff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#1d63ff" stop-opacity="0.9"/>
     </linearGradient>
-    <linearGradient id="moltly-leg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f5f6f9" stop-opacity="0.8"/>
-      <stop offset="1" stop-color="#f5f6f9" stop-opacity="0.2"/>
+    <linearGradient id="moltly-stroke" x1="52" y1="54" x2="108" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c3e2ff"/>
+      <stop offset="1" stop-color="#6bb6ff"/>
+    </linearGradient>
+    <linearGradient id="moltly-glint" x1="60" y1="44" x2="100" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#def0ff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#9ac8ff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <circle cx="80" cy="80" r="72" fill="url(#moltly-gradient)"/>
-  <circle cx="80" cy="72" r="26" fill="#0f1419" opacity="0.9"/>
-  <circle cx="80" cy="105" r="18" fill="#0f1419" opacity="0.95"/>
-  <path d="M36 80c6-18 18-32 30-36" stroke="url(#moltly-leg)" stroke-width="8" stroke-linecap="round"/>
-  <path d="M124 80c-6-18-18-32-30-36" stroke="url(#moltly-leg)" stroke-width="8" stroke-linecap="round"/>
-  <path d="M40 106c9-6 24-8 36-4" stroke="url(#moltly-leg)" stroke-width="8" stroke-linecap="round"/>
-  <path d="M120 106c-9-6-24-8-36-4" stroke="url(#moltly-leg)" stroke-width="8" stroke-linecap="round"/>
-  <path d="M52 130c8-8 26-12 40-8" stroke="url(#moltly-leg)" stroke-width="8" stroke-linecap="round"/>
-  <path d="M108 130c-8-8-26-12-40-8" stroke="url(#moltly-leg)" stroke-width="8" stroke-linecap="round"/>
-  <path d="M80 52v-16" stroke="#f5f6f9" stroke-width="6" stroke-linecap="round"/>
-  <path d="M56 64l-10-10" stroke="#f5f6f9" stroke-width="6" stroke-linecap="round"/>
-  <path d="M104 64l10-10" stroke="#f5f6f9" stroke-width="6" stroke-linecap="round"/>
-  <circle cx="70" cy="70" r="4" fill="#ffcf73"/>
-  <circle cx="90" cy="70" r="4" fill="#ffcf73"/>
+  <circle cx="80" cy="80" r="72" fill="url(#moltly-orb)"/>
+  <circle cx="80" cy="80" r="58" fill="url(#moltly-core)"/>
+  <circle cx="80" cy="80" r="58" fill="none" stroke="url(#moltly-ring)" stroke-width="4" opacity="0.45"/>
+  <path
+    d="M48 108Q48 70 80 52Q112 70 112 108"
+    fill="none"
+    stroke="url(#moltly-stroke)"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M60 108Q60 86 80 68Q100 86 100 108"
+    fill="none"
+    stroke="url(#moltly-stroke)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.8"
+  />
+  <path
+    d="M72 108Q72 96 80 88Q88 96 88 108"
+    fill="none"
+    stroke="url(#moltly-stroke)"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.7"
+  />
+  <path d="M60 60l-10-14" stroke="url(#moltly-stroke)" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+  <path d="M100 60l10-14" stroke="url(#moltly-stroke)" stroke-width="6" stroke-linecap="round" opacity="0.85"/>
+  <circle cx="80" cy="64" r="14" fill="url(#moltly-glint)" opacity="0.85"/>
+  <circle cx="80" cy="86" r="10" fill="#0f172a" opacity="0.6"/>
 </svg>

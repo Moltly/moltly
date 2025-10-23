@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ResearchNote, ResearchStack } from "../types/research";
+import { readLocalResearchStacks, writeLocalResearchStacks } from "../lib/local-research";
 
 type StackFilter = {
   search: string;
@@ -9,6 +11,8 @@ type StackFilter = {
 };
 
 type StackDraftFields = Pick<ResearchStack, "name" | "species" | "category" | "description" | "tags" | "notes">;
+
+type DataMode = "sync" | "local";
 
 const defaultFilter: StackFilter = {
   search: "",
@@ -142,8 +146,36 @@ export default function ResearchNotebook() {
   const [creatingStack, setCreatingStack] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const contentId = "research-notebook-content";
+  const { data: session, status: sessionStatus } = useSession();
+  const mode: DataMode | null =
+    sessionStatus === "loading" ? null : session?.user?.id ? "sync" : "local";
+  const isGuestMode = mode === "local";
+  const persistGuestStacks = useCallback(
+    (list: ResearchStack[]) => {
+      if (!isGuestMode) {
+        return;
+      }
+      writeLocalResearchStacks(list);
+    },
+    [isGuestMode]
+  );
 
   useEffect(() => {
+    if (!mode) {
+      return;
+    }
+
+    if (mode === "local") {
+      const localStacks = readLocalResearchStacks();
+      setStacks(localStacks);
+      setSelectedStackId((prev) => prev ?? (localStacks[0]?.id ?? null));
+      setDirtyStacks({});
+      setSavingStacks({});
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     const loadStacks = async () => {
       try {
         setLoading(true);
@@ -165,8 +197,8 @@ export default function ResearchNotebook() {
       }
     };
 
-    loadStacks();
-  }, []);
+    void loadStacks();
+  }, [mode]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(COLLAPSE_STORAGE_KEY);
@@ -417,6 +449,19 @@ export default function ResearchNotebook() {
   const handleSaveStack = async (stackId: string) => {
     const stack = stacks.find((item) => item.id === stackId);
     if (!stack) return;
+    if (isGuestMode) {
+      setStacks((prev) => {
+        const now = new Date().toISOString();
+        const next = prev.map((item) =>
+          item.id === stackId ? { ...item, updatedAt: now } : item
+        );
+        persistGuestStacks(next);
+        return next;
+      });
+      clearDirty(stackId);
+      setError(null);
+      return;
+    }
     try {
       setSaving(stackId, true);
       const payload: StackDraftFields = {
@@ -452,6 +497,16 @@ export default function ResearchNotebook() {
     const stack = stacks.find((item) => item.id === stackId);
     const label = stack?.name ?? "this stack";
     if (!confirm(`Delete “${label}”? This removes all attached notes.`)) return;
+    if (isGuestMode) {
+      setStacks((prev) => {
+        const next = prev.filter((item) => item.id !== stackId);
+        persistGuestStacks(next);
+        return next;
+      });
+      clearDirty(stackId);
+      setError(null);
+      return;
+    }
     try {
       await fetchJson(`/api/research/${stackId}`, { method: "DELETE" });
       setStacks((prev) => prev.filter((item) => item.id !== stackId));
@@ -469,6 +524,36 @@ export default function ResearchNotebook() {
     const trimmedName = createForm.name.trim();
     if (!trimmedName) {
       setError("Stack name is required.");
+      return;
+    }
+    if (isGuestMode) {
+      setCreatingStack(true);
+      try {
+        const now = new Date().toISOString();
+        const newStack: ResearchStack = {
+          id: generateId(),
+          name: trimmedName,
+          species: createForm.species.trim() || undefined,
+          category: createForm.category.trim() || undefined,
+          description: createForm.description.trim() || undefined,
+          tags: [],
+          notes: [],
+          createdAt: now,
+          updatedAt: now
+        };
+        setStacks((prev) => {
+          const next = [newStack, ...prev];
+          persistGuestStacks(next);
+          return next;
+        });
+        setSelectedStackId(newStack.id);
+        clearDirty(newStack.id);
+        setCreateForm(defaultCreateForm);
+        setCreateOpen(false);
+        setError(null);
+      } finally {
+        setCreatingStack(false);
+      }
       return;
     }
 
