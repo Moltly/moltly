@@ -1,5 +1,5 @@
-import Dashboard from "../components/Dashboard";
+import MobileDashboard from "../components/MobileDashboard";
 
 export default async function HomePage() {
-  return <Dashboard />;
+  return <MobileDashboard />;
 }
