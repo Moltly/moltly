@@ -143,3 +143,13 @@
     display: none;
   }
 }
+
+input[type="date"] {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
