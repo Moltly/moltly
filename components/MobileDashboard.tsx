@@ -529,7 +529,6 @@ export default function MobileDashboard() {
       {/* Support footer links */}
       <div className="max-w-screen-lg mx-auto px-4 pb-32">
         <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-[rgb(var(--text-soft))] py-6">
-          <span>Like Moltly?</span>
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">GitHub</a>
           <span aria-hidden="true">•</span>
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/TERMS.md" target="_blank" rel="noreferrer">Terms</a>
@@ -537,6 +536,7 @@ export default function MobileDashboard() {
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a>
           <span aria-hidden="true">•</span>
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">Ko‑fi</a>
+          <a className="text-[rgb(var(--primary))] hover:underline" href="https://testflight.apple.com/join/4NE9tZGT" target="_blank" rel="noreferrer">iOS Testflight</a>
           {isSync && (
             <>
               <span aria-hidden="true">•</span>
