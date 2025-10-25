@@ -49,7 +49,7 @@ export function writeLocalEntries(entries: UnknownRecord[]): void {
   }
 }
 
-export function clearLocalEntries(): void {
+function clearLocalEntries(): void {
   const storage = getLocalStorage();
   if (!storage) {
     return;
@@ -61,4 +61,4 @@ export function clearLocalEntries(): void {
   }
 }
 
-export const LOCAL_ENTRIES_STORAGE_KEY = LOCAL_STORAGE_KEY;
+const LOCAL_ENTRIES_STORAGE_KEY = LOCAL_STORAGE_KEY;

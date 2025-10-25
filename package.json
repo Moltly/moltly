@@ -13,7 +13,6 @@
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.23.24",
     "lucide-react": "^0.548.0",
     "mongodb": "^6.20.0",
     "mongoose": "^8.19.2",
@@ -24,15 +23,14 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4.1.16",
-    "@types/bcryptjs": "^3.0.0",
     "@types/node": "24.9.1",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "eslint": "9.38.0",
     "eslint-config-next": "16.0.0",
-    "tailwindcss": "^4.1.16",
+    "postcss": "^8.5.6",
+    "postcss-load-config": "^6.0.1",
     "typescript": "5.9.3"
   }
 }

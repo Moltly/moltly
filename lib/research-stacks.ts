@@ -9,7 +9,7 @@ export type StackPayload = {
   notes?: unknown;
 };
 
-export type SanitizedResearchNote = {
+type SanitizedResearchNote = {
   id: string;
   title: string;
   individualLabel?: string;
@@ -19,7 +19,7 @@ export type SanitizedResearchNote = {
   updatedAt: Date;
 };
 
-export type SanitizedStackCreate = {
+type SanitizedStackCreate = {
   name: string;
   species?: string;
   category?: string;
@@ -28,11 +28,11 @@ export type SanitizedStackCreate = {
   notes: SanitizedResearchNote[];
 };
 
-export type SanitizedStackUpdate = Partial<Omit<SanitizedStackCreate, "notes">> & {
+type SanitizedStackUpdate = Partial<Omit<SanitizedStackCreate, "notes">> & {
   notes?: SanitizedResearchNote[];
 };
 
-export type NormalizedResearchNote = {
+type NormalizedResearchNote = {
   id: string;
   title: string;
   individualLabel?: string;
@@ -42,7 +42,7 @@ export type NormalizedResearchNote = {
   updatedAt: string;
 };
 
-export type NormalizedResearchStack = {
+type NormalizedResearchStack = {
   id: string;
   name: string;
   species?: string;

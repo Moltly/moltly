@@ -1,7 +1,7 @@
 import { HTMLAttributes, forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
-export interface CardProps extends HTMLAttributes<HTMLDivElement> {
+interface CardProps extends HTMLAttributes<HTMLDivElement> {
   elevated?: boolean;
 }
 
@@ -49,18 +49,6 @@ export const CardTitle = forwardRef<
 
 CardTitle.displayName = "CardTitle";
 
-export const CardDescription = forwardRef<
-  HTMLParagraphElement,
-  HTMLAttributes<HTMLParagraphElement>
->(({ className, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn("text-sm text-[rgb(var(--text-soft))]", className)}
-    {...props}
-  />
-));
-
-CardDescription.displayName = "CardDescription";
 
 export const CardContent = forwardRef<
   HTMLDivElement,
@@ -71,17 +59,5 @@ export const CardContent = forwardRef<
 
 CardContent.displayName = "CardContent";
 
-export const CardFooter = forwardRef<
-  HTMLDivElement,
-  HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("flex items-center p-4 sm:p-6 pt-0", className)}
-    {...props}
-  />
-));
-
-CardFooter.displayName = "CardFooter";
 
 export default Card;

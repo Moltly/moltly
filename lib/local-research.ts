@@ -75,7 +75,7 @@ export function writeLocalResearchStacks(stacks: ResearchStack[]): void {
   }
 }
 
-export function clearLocalResearchStacks(): void {
+function clearLocalResearchStacks(): void {
   const storage = getLocalStorage();
   if (!storage) {
     return;
@@ -87,4 +87,4 @@ export function clearLocalResearchStacks(): void {
   }
 }
 
-export const LOCAL_RESEARCH_STORAGE_KEY = LOCAL_STORAGE_KEY;
+const LOCAL_RESEARCH_STORAGE_KEY = LOCAL_STORAGE_KEY;

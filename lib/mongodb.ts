@@ -28,7 +28,7 @@ function createClientPromise(): Promise<MongoClient> {
   return client.connect();
 }
 
-export function getMongoClientPromise(): Promise<MongoClient> {
+function getMongoClientPromise(): Promise<MongoClient> {
   if (clientPromise) {
     return clientPromise;
   }

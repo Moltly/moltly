@@ -93,7 +93,7 @@ function compareVersions(a: string, b: string) {
   return 0;
 }
 
-export const CHANGELOG = [...entries].sort((a, b) => compareVersions(b.version, a.version));
+const CHANGELOG = [...entries].sort((a, b) => compareVersions(b.version, a.version));
 
 export function getUpdatesSince(lastSeenVersion?: string | null) {
   if (!lastSeenVersion) {
