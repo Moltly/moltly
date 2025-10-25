@@ -11,7 +11,17 @@ iOS Testflight: https://testflight.apple.com/join/4NE9tZGT
 - Add, edit, and search molts and feedings; filter by stage and sort how you like.
 - Drop in photos when you log an entry.
 - Keep a lightweight research notebook for species or individuals; tag, filter, and duplicate notes.
-## Environment
+
+## To Do
+- Split Frontend/Backend Auth
+- Change iOS from webview to capactior
+- Improve UI/UX
+- Major changes to notebook
+- Android Application
+
+## Self Host
+
+### Environment
 
 Create a `.env` file with:
 
@@ -23,7 +33,7 @@ DISCORD_CLIENT_SECRET=your-discord-client-secret
 NEXTAUTH_URL=http://localhost:5777
 ```
 
-## Docker
+### Docker
 
 ```bash
 docker compose up --build
