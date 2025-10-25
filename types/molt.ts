@@ -13,7 +13,7 @@ export type Attachment = {
 export type MoltEntry = {
   id: string;
   entryType: EntryType;
-  specimen: string;
+  specimen?: string;
   species?: string;
   date: string;
   stage?: Stage;

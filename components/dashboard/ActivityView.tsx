@@ -208,7 +208,7 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-[rgb(var(--text))] truncate">
-                        {entry.specimen}
+                        {entry.specimen || "Unnamed"}
                       </h3>
                       <Badge variant={entry.entryType === "molt" ? "primary" : "success"}>
                         {entry.entryType}

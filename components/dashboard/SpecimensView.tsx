@@ -20,11 +20,11 @@ export default function SpecimensView({ entries }: SpecimensViewProps) {
     const dashboardMap = new Map<string, SpecimenDashboard>();
 
     entries.forEach((entry) => {
-      const key = entry.specimen;
+      const key = entry.specimen ?? "Unnamed";
       if (!dashboardMap.has(key)) {
         dashboardMap.set(key, {
           key,
-          specimen: entry.specimen,
+          specimen: key,
           species: entry.species,
           totalMolts: 0,
           totalFeedings: 0,

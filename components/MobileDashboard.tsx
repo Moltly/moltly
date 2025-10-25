@@ -142,7 +142,7 @@ export default function MobileDashboard() {
     setEditingId(entry.id);
     setFormState({
       entryType: entry.entryType,
-      specimen: entry.specimen,
+      specimen: entry.specimen ?? "",
       species: entry.species ?? "",
       date: entry.date.slice(0, 10),
       stage: entry.stage ?? "Molt",

@@ -135,13 +135,12 @@ export default function EntryFormModal({
               </div>
             </div>
 
-            {/* Specimen Name */}
+            {/* Specimen Name (optional) */}
             <div>
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                Specimen Name *
+                Specimen Name <span className="text-[rgb(var(--text-subtle))] font-normal">(optional)</span>
               </label>
               <Input
-                required
                 placeholder="e.g., Rosie, Spider #1"
                 value={formState.specimen}
                 onChange={(e) => onFormChange({ specimen: e.target.value })}

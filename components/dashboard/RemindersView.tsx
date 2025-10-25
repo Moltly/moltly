@@ -123,7 +123,7 @@ export default function RemindersView({
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-[rgb(var(--text))] mb-1 truncate">
-                      {reminder.specimen}
+                      {reminder.specimen || "Unnamed"}
                     </h3>
                     {reminder.species && (
                       <p className="text-sm text-[rgb(var(--text-soft))] mb-2 italic">

@@ -16,7 +16,7 @@ interface OverviewViewProps {
 
 export default function OverviewView({ entries, onViewChange }: OverviewViewProps) {
   const stats = useMemo(() => {
-    const uniqueSpecimens = new Set(entries.map((e) => e.specimen)).size;
+    const uniqueSpecimens = new Set(entries.map((e) => e.specimen ?? "Unnamed")).size;
 
     const molts = entries.filter((e) => e.entryType === "molt");
     const currentYear = new Date().getFullYear();
@@ -138,7 +138,7 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
           <CardContent className="space-y-3">
             <div>
               <p className="font-semibold text-[rgb(var(--text))] mb-1">
-                {stats.nextReminder.specimen}
+                {stats.nextReminder.specimen || "Unnamed"}
               </p>
               {stats.nextReminder.species && (
                 <p className="text-sm text-[rgb(var(--text-soft))] mb-2">
@@ -192,7 +192,7 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
-                        {entry.specimen}
+                        {entry.specimen || "Unnamed"}
                       </p>
                       <p className="text-xs text-[rgb(var(--text-subtle))]">
                         {formatDate(entry.reminderDate!)}
@@ -243,9 +243,9 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
-                      {entry.specimen}
-                    </p>
+                      <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
+                      {entry.specimen || "Unnamed"}
+                      </p>
                     <Badge variant={entry.entryType === "molt" ? "primary" : "success"}>
                       {entry.entryType}
                     </Badge>
