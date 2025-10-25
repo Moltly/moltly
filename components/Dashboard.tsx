@@ -1674,7 +1674,6 @@ export default function Dashboard() {
       </main>
 
       <footer className="support-footer" aria-label="Project links">
-        <span>Like Moltly?</span>
         <a href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">
           GitHub
         </a>
