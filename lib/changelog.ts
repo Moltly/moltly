@@ -6,6 +6,14 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.2.3",
+    date: "2025-10-24",
+    highlights: [
+      "Fix iOS layout issue when creating or editing an entry.",
+      "Fix date inconsistency."
+    ]
+  },
+  {
     version: "1.2.2",
     date: "2025-10-24",
     highlights: [

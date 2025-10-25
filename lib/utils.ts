@@ -5,8 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+function parseInputDate(date: Date | string): Date {
+  if (date instanceof Date) return date;
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.\d+)?Z)?$/);
+  if (match) {
+    const y = Number.parseInt(match[1], 10);
+    const m = Number.parseInt(match[2], 10);
+    const d = Number.parseInt(match[3], 10);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(date);
+}
+
 export function formatDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseInputDate(date);
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -15,7 +27,7 @@ export function formatDate(date: Date | string): string {
 }
 
 export function formatRelativeDate(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseInputDate(date);
   const now = new Date();
   const diffInDays = Math.floor(
     (now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)
@@ -30,7 +42,7 @@ export function formatRelativeDate(date: Date | string): string {
 }
 
 export function getDaysUntil(date: Date | string): number {
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = parseInputDate(date);
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   d.setHours(0, 0, 0, 0);

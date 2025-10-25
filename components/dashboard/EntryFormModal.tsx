@@ -96,7 +96,7 @@ export default function EntryFormModal({
       />
 
       {/* Modal */}
-      <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] max-w-full bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)] z-[70] overflow-hidden flex flex-col animate-slide-up sm:animate-[slide-in-from-right_0.3s_ease-out]">
+      <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] max-w-full bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)] z-[70] overflow-hidden flex flex-col animate-slide-up sm:animate-[slide-in-from-right_0.3s_ease-out] overscroll-y-contain overscroll-x-none touch-pan-y">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
           <h2 className="text-xl font-bold text-[rgb(var(--text))]">
@@ -108,8 +108,8 @@ export default function EntryFormModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
-          <div className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="p-4 space-y-4 min-w-0">
             {/* Entry Type Toggle */}
             <div>
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">

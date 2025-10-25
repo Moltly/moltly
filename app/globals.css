@@ -74,10 +74,14 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     background: radial-gradient(120% 120% at 50% -20%, rgba(96, 165, 250, 0.08), transparent), rgb(var(--bg));
     min-height: 100dvh;
+    /* Prevent accidental horizontal bounce on mobile */
+    overflow-x: hidden;
   }
 
   html {
     scroll-behavior: smooth;
+    /* Avoid horizontal overscroll bounce */
+    overscroll-behavior-x: none;
   }
 }
 
