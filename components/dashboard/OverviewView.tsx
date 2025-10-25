@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Activity, Calendar, TrendingUp, AlertCircle } from "lucide-react";
+import { Activity, Calendar, TrendingUp, AlertCircle, Droplets } from "lucide-react";
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import StatCard from "./StatCard";
 import Badge from "@/components/ui/Badge";
@@ -233,12 +233,16 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
                 <div className={`p-2 rounded-[var(--radius-sm)] ${
                   entry.entryType === "molt"
                     ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary))]"
-                    : "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
+                    : entry.entryType === "feeding"
+                    ? "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
+                    : "bg-[rgb(var(--bg-muted))] text-[rgb(var(--text-soft))]"
                 }`}>
                   {entry.entryType === "molt" ? (
                     <TrendingUp className="w-4 h-4" />
-                  ) : (
+                  ) : entry.entryType === "feeding" ? (
                     <Activity className="w-4 h-4" />
+                  ) : (
+                    <Droplets className="w-4 h-4" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -246,8 +250,8 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
                       <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
                       {entry.specimen || "Unnamed"}
                       </p>
-                    <Badge variant={entry.entryType === "molt" ? "primary" : "success"}>
-                      {entry.entryType}
+                    <Badge variant={entry.entryType === "molt" ? "primary" : entry.entryType === "feeding" ? "success" : "neutral"}>
+                      {entry.entryType === "water" ? "water" : entry.entryType}
                     </Badge>
                   </div>
                   {entry.species && (

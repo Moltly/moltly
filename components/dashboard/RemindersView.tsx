@@ -134,8 +134,8 @@ export default function RemindersView({
                       <Badge variant={variant}>
                         {getStatusLabel(reminder.daysUntil)}
                       </Badge>
-                      <Badge variant={reminder.entryType === "molt" ? "primary" : "success"}>
-                        {reminder.entryType}
+                      <Badge variant={reminder.entryType === "molt" ? "primary" : reminder.entryType === "feeding" ? "success" : "neutral"}>
+                        {reminder.entryType === "water" ? "water" : reminder.entryType}
                       </Badge>
                       {reminder.stage && (
                         <Badge variant="neutral">{reminder.stage}</Badge>

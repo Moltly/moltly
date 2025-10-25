@@ -1,4 +1,4 @@
-export type EntryType = "molt" | "feeding";
+export type EntryType = "molt" | "feeding" | "water";
 export type Stage = "Pre-molt" | "Molt" | "Post-molt";
 export type FeedingOutcome = "Offered" | "Ate" | "Refused" | "Not Observed";
 

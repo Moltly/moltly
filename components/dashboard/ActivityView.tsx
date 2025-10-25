@@ -80,7 +80,7 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
           No activity yet
         </h2>
         <p className="text-[rgb(var(--text-soft))] max-w-md">
-          Start logging molts and feedings to see your activity history here.
+          Start logging molts, feedings, and water changes to see your activity history here.
         </p>
       </div>
     );
@@ -117,7 +117,7 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
                   Entry Type
                 </label>
                 <div className="flex gap-2">
-                  {["all", "molt", "feeding"].map((type) => (
+                  {["all", "molt", "feeding", "water"].map((type) => (
                     <Button
                       key={type}
                       variant={filters.type === type ? "primary" : "secondary"}
@@ -210,8 +210,8 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
                       <h3 className="font-semibold text-[rgb(var(--text))] truncate">
                         {entry.specimen || "Unnamed"}
                       </h3>
-                      <Badge variant={entry.entryType === "molt" ? "primary" : "success"}>
-                        {entry.entryType}
+                      <Badge variant={entry.entryType === "molt" ? "primary" : entry.entryType === "feeding" ? "success" : "neutral"}>
+                        {entry.entryType === "water" ? "water" : entry.entryType}
                       </Badge>
                     </div>
                     {entry.species && (
@@ -258,6 +258,13 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
                         </span>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Water Change */}
+                {entry.entryType === "water" && (
+                  <div className="text-sm text-[rgb(var(--text-soft))]">
+                    Water dish refreshed.
                   </div>
                 )}
 

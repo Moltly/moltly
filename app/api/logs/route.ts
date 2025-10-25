@@ -17,7 +17,7 @@ export async function GET() {
 
   const normalized = documents.map((document) => {
     const entry = document.toObject();
-    const entryType = entry.entryType === "feeding" ? "feeding" : "molt";
+    const entryType = entry.entryType === "feeding" ? "feeding" : entry.entryType === "molt" ? "molt" : "water";
     return {
       ...entry,
       entryType,
@@ -60,8 +60,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Date is required." }, { status: 400 });
     }
 
-    const allowedEntryTypes = new Set(["molt", "feeding"]);
-    const entryType: "molt" | "feeding" = allowedEntryTypes.has(rawEntryType) ? rawEntryType : "molt";
+    const allowedEntryTypes = new Set(["molt", "feeding", "water"]);
+    const entryType: "molt" | "feeding" | "water" = allowedEntryTypes.has(rawEntryType) ? rawEntryType : "molt";
 
     const trimmedSpecimen = typeof specimen === "string" ? specimen.trim() : "";
     const normalizedSpecimen = trimmedSpecimen.length > 0 ? trimmedSpecimen : undefined;
@@ -74,10 +74,7 @@ export async function POST(request: Request) {
     }
 
     const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
-    const normalizedStage =
-      entryType === "molt"
-        ? allowedStages.has(stage) ? stage : "Molt"
-        : undefined;
+    const normalizedStage = entryType === "molt" ? (allowedStages.has(stage) ? stage : "Molt") : undefined;
 
     const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
     const normalizedOutcome =

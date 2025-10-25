@@ -41,13 +41,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Entry not found." }, { status: 404 });
     }
 
-    const allowedEntryTypes = new Set(["molt", "feeding"]);
+    const allowedEntryTypes = new Set(["molt", "feeding", "water"]);
     const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
     const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
 
-    let effectiveEntryType: "molt" | "feeding" = entry.entryType ?? "molt";
+    let effectiveEntryType: "molt" | "feeding" | "water" = (entry.entryType as any) ?? "molt";
     if (typeof updates.entryType === "string" && allowedEntryTypes.has(updates.entryType)) {
-      effectiveEntryType = updates.entryType as "molt" | "feeding";
+      effectiveEntryType = updates.entryType as "molt" | "feeding" | "water";
     }
     entry.entryType = effectiveEntryType;
 
@@ -71,8 +71,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    if ("stage" in updates || effectiveEntryType === "feeding") {
-      if (effectiveEntryType === "feeding") {
+    if ("stage" in updates || effectiveEntryType !== "molt") {
+      if (effectiveEntryType !== "molt") {
         entry.stage = undefined;
       } else if (typeof updates.stage === "string" && allowedStages.has(updates.stage)) {
         entry.stage = updates.stage;
@@ -138,13 +138,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       entry.attachments = updates.attachments;
     }
 
-    if (effectiveEntryType === "molt") {
+    if (effectiveEntryType !== "feeding") {
       entry.feedingPrey = undefined;
       entry.feedingOutcome = undefined;
       entry.feedingAmount = undefined;
-      if (!entry.species) {
-        return NextResponse.json({ error: "Species is required for molt entries." }, { status: 400 });
-      }
+    }
+
+    if (effectiveEntryType === "molt" && !entry.species) {
+      return NextResponse.json({ error: "Species is required for molt entries." }, { status: 400 });
     }
 
     await entry.save();

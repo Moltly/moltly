@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.3.0",
+    date: "2025-10-25",
+    highlights: [
+      "Make specimen name optional.",
+      "Replaced Footer with Info/Help Popup.",
+      "Bug Fixes and performance improvements.",
+      "Add ability to log water changes."
+    ]
+  },
+  {
     version: "1.2.3",
     date: "2025-10-24",
     highlights: [

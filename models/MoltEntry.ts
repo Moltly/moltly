@@ -18,7 +18,7 @@ const MoltEntrySchema = new Schema(
     date: { type: Date, required: true },
     entryType: {
       type: String,
-      enum: ["molt", "feeding"],
+      enum: ["molt", "feeding", "water"],
       default: "molt",
       index: true
     },
@@ -26,10 +26,10 @@ const MoltEntrySchema = new Schema(
       type: String,
       enum: ["Pre-molt", "Molt", "Post-molt"],
       default: function () {
-        return (this as { entryType?: string }).entryType === "feeding" ? undefined : "Molt";
+        return (this as { entryType?: string }).entryType === "molt" ? "Molt" : undefined;
       },
       required: function () {
-        return (this as { entryType?: string }).entryType !== "feeding";
+        return (this as { entryType?: string }).entryType === "molt";
       }
     },
     oldSize: Number,

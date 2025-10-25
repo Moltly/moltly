@@ -175,8 +175,9 @@ export default function MobileDashboard() {
   };
 
   const onSubmit = async () => {
+    const isMolt = formState.entryType === "molt";
     const isFeeding = formState.entryType === "feeding";
-    if (!isFeeding && !formState.species.trim()) {
+    if (isMolt && !formState.species.trim()) {
       alert("Species is required for molt entries.");
       return;
     }
@@ -186,9 +187,9 @@ export default function MobileDashboard() {
       specimen: formState.specimen.trim() || undefined,
       species: formState.species.trim() || undefined,
       date: formState.date,
-      stage: isFeeding ? undefined : formState.stage,
-      oldSize: !isFeeding && formState.oldSize ? Number(formState.oldSize) : undefined,
-      newSize: !isFeeding && formState.newSize ? Number(formState.newSize) : undefined,
+      stage: isMolt ? formState.stage : undefined,
+      oldSize: isMolt && formState.oldSize ? Number(formState.oldSize) : undefined,
+      newSize: isMolt && formState.newSize ? Number(formState.newSize) : undefined,
       humidity: formState.humidity ? Number(formState.humidity) : undefined,
       temperature: formState.temperature ? Number(formState.temperature) : undefined,
       notes: formState.notes.trim() || undefined,

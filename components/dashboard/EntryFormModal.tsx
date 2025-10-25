@@ -86,6 +86,7 @@ export default function EntryFormModal({
   };
 
   const isMolt = formState.entryType === "molt";
+  const isFeeding = formState.entryType === "feeding";
 
   return (
     <>
@@ -115,7 +116,7 @@ export default function EntryFormModal({
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
                 Entry Type
               </label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   type="button"
                   variant={isMolt ? "primary" : "secondary"}
@@ -126,11 +127,19 @@ export default function EntryFormModal({
                 </Button>
                 <Button
                   type="button"
-                  variant={!isMolt ? "primary" : "secondary"}
+                  variant={isFeeding ? "primary" : "secondary"}
                   onClick={() => onFormChange({ entryType: "feeding" })}
                   className="flex-1"
                 >
                   Feeding
+                </Button>
+                <Button
+                  type="button"
+                  variant={!isMolt && !isFeeding ? "primary" : "secondary"}
+                  onClick={() => onFormChange({ entryType: "water" })}
+                  className="flex-1"
+                >
+                  Water Change
                 </Button>
               </div>
             </div>
@@ -223,7 +232,7 @@ export default function EntryFormModal({
             )}
 
             {/* Feeding-specific fields */}
-            {!isMolt && (
+            {isFeeding && (
               <>
                 <div>
                   <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
