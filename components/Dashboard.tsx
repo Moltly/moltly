@@ -1690,6 +1690,10 @@ export default function Dashboard() {
         <a href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">
           Ko-fi
         </a>
+        <span aria-hidden="true">•</span>
+        <a href="https://testflight.apple.com/join/4NE9tZGT" target="_blank" rel="noreferrer">
+          iOS Testflight
+        </a>
         {isSyncMode && (
           <>
             <span aria-hidden="true">•</span>

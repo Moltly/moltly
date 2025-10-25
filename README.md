@@ -1,17 +1,16 @@
 # Moltly
 
-A cozy molt logbook and reminder center for tarantula keepers. Keep every shed, enclosure tweak, and follow-up in one place—credentials or Discord sign-in gets you to the same dashboard.
+Your cozy logbook and reminder hub for tarantula keeping. Track molts, feedings, and enclosure tweaks without the fuss.
 
-## Highlights
+iOS Testflight: https://testflight.apple.com/join/4NE9tZGT
 
-- Home dashboard shows active spiders, molt pace this year, the most recent shed, and the next reminder at a glance.
-- Twelve-month timeline breaks down molt streaks with stage counts so you can spot quiet months fast.
-- Reminder center lets you snooze or clear follow-ups without leaving the page.
-- Full CRUD for molt and feeding entries with search, stage filtering, and asc/desc sorting.
-- Inline attachment support for quick photo drops.
-- Research notebook keeps reusable note stacks for species, individuals, or projects—with duplication, tags, and filtering.
-- Auth powered by NextAuth with classic email/password and Discord.
+## What you can do
 
+- See your spiders at a glance: who molted last, who’s due next, and how this year is pacing.
+- Snooze or clear reminders in one place, no extra clicks.
+- Add, edit, and search molts and feedings; filter by stage and sort how you like.
+- Drop in photos when you log an entry.
+- Keep a lightweight research notebook for species or individuals; tag, filter, and duplicate notes.
 ## Environment
 
 Create a `.env` file with:
