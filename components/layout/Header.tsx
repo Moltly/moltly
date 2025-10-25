@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, LogOut, LogIn } from "lucide-react";
+import { Plus, LogOut, LogIn, Info } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { DataMode } from "@/types/molt";
 
@@ -8,9 +8,10 @@ interface HeaderProps {
   mode: DataMode;
   onNewEntry: () => void;
   onSignOut?: () => void;
+  onOpenInfo?: () => void;
 }
 
-export default function Header({ mode, onNewEntry, onSignOut }: HeaderProps) {
+export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: HeaderProps) {
   return (
     <header className="sticky top-0 z-40 w-full bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-b border-[rgb(var(--border))]">
       <div className="flex items-center justify-between px-4 py-3 max-w-screen-lg mx-auto">
@@ -31,6 +32,15 @@ export default function Header({ mode, onNewEntry, onSignOut }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenInfo}
+            title="App info and links"
+            aria-label="App info and links"
+          >
+            <Info className="w-4 h-4" />
+          </Button>
           <Button
             variant="primary"
             size="sm"

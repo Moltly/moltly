@@ -51,6 +51,7 @@ export default function MobileDashboard() {
   const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [accountDeleting, setAccountDeleting] = useState(false);
 
   const persistLocal = useCallback(
@@ -434,6 +435,65 @@ export default function MobileDashboard() {
 
   return (
     <div className="min-h-dvh bg-[rgb(var(--bg))]">
+      {/* Info modal */}
+      {showInfo && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="info-title"
+        >
+          <div className="w-full max-w-lg rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]">
+            <div className="flex items-start justify-between p-4 border-b border-[rgb(var(--border))]">
+              <div>
+                <h2 id="info-title" className="text-xl font-bold">About Moltly</h2>
+                <p className="text-sm text-[rgb(var(--text-soft))]">Links and account options</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfo(false)}
+                className="text-[rgb(var(--primary))] hover:underline"
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">GitHub</a>
+                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
+                <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/TERMS.md" target="_blank" rel="noreferrer">Terms</a>
+                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
+                <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a>
+                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
+                <a className="text-[rgb(var(--primary))] hover:underline" href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">Ko‑fi</a>
+                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
+                <a className="text-[rgb(var(--primary))] hover:underline" href="https://testflight.apple.com/join/4NE9tZGT" target="_blank" rel="noreferrer">iOS Testflight</a>
+              </div>
+              {isSync && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleAccountDeletion}
+                    disabled={accountDeleting}
+                    className="text-sm text-[rgb(var(--danger))] hover:underline disabled:opacity-60"
+                  >
+                    {accountDeleting ? "Deleting…" : "Delete account"}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-[rgb(var(--border))] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowInfo(false)}
+                className="px-4 py-2 rounded-[var(--radius)] bg-[rgb(var(--primary))] text-white"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* What's new modal */}
       {showChangelog && pendingUpdates.length > 0 && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
@@ -499,6 +559,7 @@ export default function MobileDashboard() {
         mode={isSync ? "sync" : "local"}
         onNewEntry={openNewEntry}
         onSignOut={isSync ? () => void signOut({ callbackUrl: "/login" }) : undefined}
+        onOpenInfo={() => setShowInfo(true)}
       />
 
       <div className="max-w-screen-lg mx-auto px-4 py-4 pb-28">
@@ -526,33 +587,7 @@ export default function MobileDashboard() {
         )}
       </div>
 
-      {/* Support footer links */}
-      <div className="max-w-screen-lg mx-auto px-4 pb-32">
-        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-[rgb(var(--text-soft))] py-6">
-          <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">GitHub</a>
-          <span aria-hidden="true">•</span>
-          <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/TERMS.md" target="_blank" rel="noreferrer">Terms</a>
-          <span aria-hidden="true">•</span>
-          <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a>
-          <span aria-hidden="true">•</span>
-          <a className="text-[rgb(var(--primary))] hover:underline" href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">Ko‑fi</a>
-          <span aria-hidden="true">•</span>
-          <a className="text-[rgb(var(--primary))] hover:underline" href="https://testflight.apple.com/join/4NE9tZGT" target="_blank" rel="noreferrer">iOS Testflight</a>
-          {isSync && (
-            <>
-              <span aria-hidden="true">•</span>
-              <button
-                type="button"
-                onClick={handleAccountDeletion}
-                disabled={accountDeleting}
-                className="text-[rgb(var(--danger))] hover:underline disabled:opacity-60"
-              >
-                Delete account
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      {/* Footer links moved into Info modal */}
 
       <EntryFormModal
         isOpen={formOpen}
