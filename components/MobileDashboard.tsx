@@ -536,6 +536,7 @@ export default function MobileDashboard() {
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a>
           <span aria-hidden="true">•</span>
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">Ko‑fi</a>
+          <span aria-hidden="true">•</span>
           <a className="text-[rgb(var(--primary))] hover:underline" href="https://testflight.apple.com/join/4NE9tZGT" target="_blank" rel="noreferrer">iOS Testflight</a>
           {isSync && (
             <>
