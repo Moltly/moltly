@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
@@ -438,49 +439,143 @@ export default function MobileDashboard() {
       {/* Info modal */}
       {showInfo && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="info-title"
+          onClick={() => setShowInfo(false)}
         >
-          <div className="w-full max-w-lg rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]">
-            <div className="flex items-start justify-between p-4 border-b border-[rgb(var(--border))]">
-              <div>
-                <h2 id="info-title" className="text-xl font-bold">About Moltly</h2>
-                <p className="text-sm text-[rgb(var(--text-soft))]">Links and account options</p>
+          <div
+            className="w-full max-w-lg rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))]">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[rgb(var(--primary))] to-[rgb(var(--primary-strong))] text-white font-bold flex items-center justify-center">
+                  M
+                </div>
+                <div>
+                  <h2 id="info-title" className="text-xl font-bold">About Moltly</h2>
+                  <p className="text-sm text-[rgb(var(--text-soft))]">Version {APP_VERSION} • {isSync ? "Signed in" : "Guest mode"}</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
-                className="text-[rgb(var(--primary))] hover:underline"
+                className="p-2 rounded-[var(--radius)] text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                aria-label="Close"
               >
-                Close
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-                <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly" target="_blank" rel="noreferrer">GitHub</a>
-                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
-                <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/TERMS.md" target="_blank" rel="noreferrer">Terms</a>
-                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
-                <a className="text-[rgb(var(--primary))] hover:underline" href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a>
-                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
-                <a className="text-[rgb(var(--primary))] hover:underline" href="https://ko-fi.com/0xgingi" target="_blank" rel="noreferrer">Ko‑fi</a>
-                <span aria-hidden="true" className="text-[rgb(var(--text-subtle))]">•</span>
-                <a className="text-[rgb(var(--primary))] hover:underline" href="https://testflight.apple.com/join/4NE9tZGT" target="_blank" rel="noreferrer">iOS Testflight</a>
-              </div>
-              {isSync && (
-                <div className="pt-2">
+            <div className="p-4 space-y-6">
+              {/* Quick links */}
+              <section>
+                <h3 className="text-xs uppercase tracking-wide text-[rgb(var(--text-subtle))] mb-3">Links</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <a
+                    href="https://github.com/0xgingi/moltly"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
+                  >
+                    <span className="flex items-center gap-2"><Github className="w-4 h-4" /> GitHub</span>
+                    <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
+                  </a>
+                  <a
+                    href="https://github.com/0xgingi/moltly/blob/main/TERMS.md"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
+                  >
+                    <span className="flex items-center gap-2"><FileText className="w-4 h-4" /> Terms</span>
+                    <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
+                  </a>
+                  <a
+                    href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
+                  >
+                    <span className="flex items-center gap-2"><Shield className="w-4 h-4" /> Privacy</span>
+                    <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
+                  </a>
+                  <a
+                    href="https://ko-fi.com/0xgingi"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
+                  >
+                    <span className="flex items-center gap-2"><Coffee className="w-4 h-4" /> Ko‑fi</span>
+                    <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
+                  </a>
+                  <a
+                    href="https://testflight.apple.com/join/4NE9tZGT"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors sm:col-span-2"
+                  >
+                    <span className="flex items-center gap-2"><Smartphone className="w-4 h-4" /> iOS TestFlight</span>
+                    <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
+                  </a>
+                </div>
+              </section>
+
+              {/* App info */}
+              <section>
+                <h3 className="text-xs uppercase tracking-wide text-[rgb(var(--text-subtle))] mb-3">App</h3>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="px-2.5 py-1 rounded-full bg-[rgb(var(--bg-muted))] text-[rgb(var(--text))]">Version {APP_VERSION}</span>
+                  <span className="px-2.5 py-1 rounded-full bg-[rgb(var(--bg-muted))] text-[rgb(var(--text))]">{isSync ? "Sync mode" : "Guest mode"}</span>
                   <button
                     type="button"
-                    onClick={handleAccountDeletion}
-                    disabled={accountDeleting}
-                    className="text-sm text-[rgb(var(--danger))] hover:underline disabled:opacity-60"
+                    onClick={() => setShowChangelog(true)}
+                    className="ml-auto text-[rgb(var(--primary))] hover:underline inline-flex items-center gap-1"
                   >
-                    {accountDeleting ? "Deleting…" : "Delete account"}
+                    <Sparkles className="w-4 h-4" /> What’s new
                   </button>
                 </div>
-              )}
+              </section>
+
+              {/* Account */}
+              <section>
+                <h3 className="text-xs uppercase tracking-wide text-[rgb(var(--text-subtle))] mb-3">Account</h3>
+                {isSync ? (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm text-[rgb(var(--text-soft))]">You’re signed in. Manage your account below.</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void signOut({ callbackUrl: "/login" })}
+                        className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center gap-2"
+                      >
+                        <LogOut className="w-4 h-4" /> Sign out
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAccountDeletion}
+                        disabled={accountDeleting}
+                        className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--danger))] text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]/20 disabled:opacity-60"
+                      >
+                        {accountDeleting ? "Deleting…" : "Delete account"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm text-[rgb(var(--text-soft))]">
+                      You’re using guest mode. Data is stored locally on this device. Sign in to enable sync across devices.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => (window.location.href = "/login")}
+                      className="self-start px-3 py-2 rounded-[var(--radius)] bg-[rgb(var(--primary))] text-white"
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                )}
+              </section>
             </div>
             <div className="p-4 border-t border-[rgb(var(--border))] flex justify-end">
               <button
