@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["YP8HMR9NR6.xyz.moltly.app"],
+        "components": [
+          { 
+            "/": "/api/auth/callback/*"
+          },
+          {
+            "/": "/api/auth/signin*"
+          },
+          {
+            "/": "/login*"
+          }
+        ]
+      }
+    ]
+  }
+}

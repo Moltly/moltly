@@ -1,0 +1,35 @@
+require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
+
+platform :ios, '14.0'
+use_frameworks!
+
+# workaround to avoid Xcode caching of Pods that requires
+# Product -> Clean Build Folder after new Cordova plugins installed
+# Requires CocoaPods 1.6 or newer
+install! 'cocoapods'
+
+def capacitor_pods
+  pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorStatusBar', :path => '../../node_modules/@capacitor/status-bar'
+end
+
+target 'Moltly' do
+  capacitor_pods
+  # Add your Pods here
+end
+
+post_install do |installer|
+  assertDeploymentTarget(installer)
+
+  installer.aggregate_targets.each do |target|
+    target.xcconfigs.each do |config_name, config_file|
+      config_file.attributes['LIBRARY_SEARCH_PATHS'] = '$(inherited) /usr/lib/swift'
+      config_file.save_as(target.xcconfig_path(config_name))
+    end
+  end
+
+  installer.pods_project.build_configurations.each do |config|
+    config.build_settings['LIBRARY_SEARCH_PATHS'] = ['$(inherited)', '/usr/lib/swift']
+  end
+end
