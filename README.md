@@ -13,19 +13,8 @@ iOS Testflight: https://testflight.apple.com/join/4NE9tZGT
 - Keep a lightweight research notebook for species or individuals; tag, filter, and duplicate notes.
 
 ## To Do
-- Split Frontend/Backend Auth
-- Improve UI/UX
 - Major changes to notebook
 - Android Application
-
-## iOS App (Capacitor)
-- The native shell is generated via [Capacitor](https://capacitorjs.com/) and lives in `ios/`.
-- The container loads the live site; set `CAP_SERVER_URL=http://<your-mac-ip>:5777` before `npm run mobile:sync` to debug against local Next.js.
-- Helpful scripts:
-  - `npm run mobile:sync` – copies web assets + updates Pods
-  - `npm run mobile:open` – opens the Xcode workspace
-  - `npm run mobile:run` – runs on the last target without syncing
-- For more details see `ios/README.md`.
 
 ## Self Host
 
