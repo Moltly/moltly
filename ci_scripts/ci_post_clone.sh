@@ -61,11 +61,24 @@ echo "Node: $(node -v 2>/dev/null || echo 'missing')"
 echo "npm:  $(npm -v 2>/dev/null || echo 'missing')"
 echo "CocoaPods: $(pod --version 2>/dev/null || echo 'missing')"
 
-# Install JS dependencies (npm fallback if bun/pnpm are unavailable)
+# Install JS dependencies
+# Prefer bun (bun.lock present). If bun missing, install it; otherwise fallback to npm with legacy peer deps.
+if ! command -v bun >/dev/null 2>&1; then
+  echo "bun not found; installing..."
+  export BUN_INSTALL="${HOME}/.bun"
+  curl -fsSL https://bun.sh/install | bash -s -- bun-v1.1.26 >/dev/null 2>&1 || true
+  export PATH="${BUN_INSTALL}/bin:$PATH"
+  echo "bun: $(bun --version 2>/dev/null || echo 'missing')"
+fi
+
 if command -v bun >/dev/null 2>&1; then
-  bun install --frozen-lockfile || bun install
-else
-  npm install --no-audit --no-fund
+  bun install --frozen-lockfile || bun install || true
+fi
+
+if [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null || true)" ]; then
+  echo "Falling back to npm (legacy peer deps)"
+  export NPM_CONFIG_LEGACY_PEER_DEPS=1
+  npm ci --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
 fi
 
 # Sync Capacitor iOS (copies web assets and ensures Podfile/plugins are in place)

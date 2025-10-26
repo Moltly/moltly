@@ -62,12 +62,23 @@ echo "CocoaPods: $(pod --version 2>/dev/null || echo 'missing')"
 
 # Install JS deps if node_modules is missing/sparse
 if [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null || true)" ]; then
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "bun not found; installing..."
+    export BUN_INSTALL="${HOME}/.bun"
+    curl -fsSL https://bun.sh/install | bash -s -- bun-v1.1.26 >/dev/null 2>&1 || true
+    export PATH="${BUN_INSTALL}/bin:$PATH"
+    echo "bun: $(bun --version 2>/dev/null || echo 'missing')"
+  fi
   if command -v bun >/dev/null 2>&1; then
-    bun install --frozen-lockfile || bun install
-  elif [ -f package-lock.json ]; then
-    npm ci --no-audit --no-fund || npm install --no-audit --no-fund
-  else
-    npm install --no-audit --no-fund
+    bun install --frozen-lockfile || bun install || true
+  fi
+  if [ ! -d node_modules ] || [ -z "$(ls -A node_modules 2>/dev/null || true)" ]; then
+    export NPM_CONFIG_LEGACY_PEER_DEPS=1
+    if [ -f package-lock.json ]; then
+      npm ci --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+    else
+      npm install --no-audit --no-fund --legacy-peer-deps
+    fi
   fi
 fi
 
