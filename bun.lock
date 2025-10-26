@@ -4,7 +4,7 @@
     "": {
       "name": "molt-log",
       "dependencies": {
-        "@capacitor/app": "^7",
+        "@capacitor/app": "^7.1.0",
         "@capacitor/core": "^7.4.4",
         "@capacitor/ios": "^7.4.4",
         "@capacitor/status-bar": "^7.0.3",
