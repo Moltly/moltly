@@ -12,6 +12,7 @@ const config: CapacitorConfig = {
   server: {
     url: serverUrl,
     cleartext: serverUrl.startsWith('http://'),
+    allowNavigation: ['moltly.xyz', 'www.moltly.xyz', 'discord.com'],
   },
 };
 

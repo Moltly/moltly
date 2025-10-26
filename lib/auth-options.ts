@@ -29,7 +29,8 @@ export const authOptions: NextAuthOptions = {
   providers: [
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID ?? "",
-      clientSecret: process.env.DISCORD_CLIENT_SECRET ?? ""
+      clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
+      authorization: { params: { scope: "identify email" } }
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -89,17 +90,27 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async signIn({ user, account }) {
-      if (!account || account.provider !== "discord") {
-        return;
+      try {
+        if (!account || account.provider !== "discord") {
+          return;
+        }
+        if (!user.email) {
+          console.warn("Discord sign-in missing email; skipping user upsert.");
+          return;
+        }
+
+        await connectMongoose();
+        await User.findOneAndUpdate(
+          { email: user.email.toLowerCase() },
+          { $setOnInsert: { name: user.name, image: user.image } },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (error) {
+        console.error("NextAuth signIn event error:", error);
       }
-      await connectMongoose();
-      await User.findOneAndUpdate(
-        { email: user.email?.toLowerCase() },
-        { $setOnInsert: { name: user.name, image: user.image } },
-        { upsert: true, new: true }
-      );
     }
   },
+  debug: process.env.NEXTAUTH_DEBUG === "true",
   secret: process.env.NEXTAUTH_SECRET
 };
 
