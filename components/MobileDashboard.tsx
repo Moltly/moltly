@@ -552,7 +552,10 @@ export default function MobileDashboard() {
                   <span className="px-2.5 py-1 rounded-full bg-[rgb(var(--bg-muted))] text-[rgb(var(--text))]">{isSync ? "Sync mode" : "Guest mode"}</span>
                   <button
                     type="button"
-                    onClick={() => setShowChangelog(true)}
+                    onClick={() => {
+                      setPendingUpdates(getUpdatesSince(null));
+                      setShowChangelog(true);
+                    }}
                     className="ml-auto text-[rgb(var(--primary))] hover:underline inline-flex items-center gap-1"
                   >
                     <Sparkles className="w-4 h-4" /> What’s new
