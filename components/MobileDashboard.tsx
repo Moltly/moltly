@@ -53,6 +53,12 @@ export default function MobileDashboard() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [hasPasswordAccount, setHasPasswordAccount] = useState<boolean | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
   const [accountDeleting, setAccountDeleting] = useState(false);
 
   const persistLocal = useCallback(
@@ -122,6 +128,22 @@ export default function MobileDashboard() {
       setShowChangelog(true);
     }
   }, []);
+
+  useEffect(() => {
+    const loadPasswordStatus = async () => {
+      if (!showInfo || !isSync) return;
+      try {
+        const res = await fetch("/api/account/password", { method: "GET", credentials: "include" });
+        if (!res.ok) throw new Error("Failed to load account status");
+        const data = (await res.json()) as { hasPassword?: boolean };
+        setHasPasswordAccount(Boolean(data.hasPassword));
+      } catch (err) {
+        console.error(err);
+        setHasPasswordAccount(null);
+      }
+    };
+    void loadPasswordStatus();
+  }, [showInfo, isSync]);
 
   // Scroll-to-top button visibility
   useEffect(() => {
@@ -440,14 +462,14 @@ export default function MobileDashboard() {
       {/* Info modal */}
       {showInfo && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="info-title"
           onClick={() => setShowInfo(false)}
         >
           <div
-            className="w-full max-w-lg rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]"
+            className="w-full max-w-lg max-h-[90dvh] flex flex-col rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))]">
@@ -469,7 +491,7 @@ export default function MobileDashboard() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 space-y-6">
+            <div className="p-4 space-y-6 flex-1 min-h-0 overflow-y-auto">
               {/* Quick links */}
               <section>
                 <h3 className="text-xs uppercase tracking-wide text-[rgb(var(--text-subtle))] mb-3">Links</h3>
@@ -552,6 +574,15 @@ export default function MobileDashboard() {
                       >
                         <LogOut className="w-4 h-4" /> Sign out
                       </button>
+                      {hasPasswordAccount === true ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowChangePassword(true)}
+                          className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                        >
+                          Change password
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={handleAccountDeletion}
@@ -578,7 +609,7 @@ export default function MobileDashboard() {
                 )}
               </section>
             </div>
-            <div className="p-4 border-t border-[rgb(var(--border))] flex justify-end">
+            <div className="p-4 border-t border-[rgb(var(--border))] flex justify-end safe-bottom">
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
@@ -592,7 +623,7 @@ export default function MobileDashboard() {
       )}
       {/* What's new modal */}
       {showChangelog && pendingUpdates.length > 0 && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="changelog-title">
           <div className="w-full max-w-lg rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]">
             <div className="flex items-start justify-between p-4 border-b border-[rgb(var(--border))]">
               <div>
@@ -634,7 +665,7 @@ export default function MobileDashboard() {
                 </div>
               ))}
             </div>
-            <div className="p-4 border-t border-[rgb(var(--border))] flex justify-end">
+            <div className="p-4 border-t border-[rgb(var(--border))] flex justify-end safe-bottom">
               <button
                 type="button"
                 onClick={() => {
@@ -708,6 +739,114 @@ export default function MobileDashboard() {
         >
           ↑ Top
         </button>
+      )}
+
+      {/* Change Password modal */}
+      {showChangePassword && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="change-password-title"
+          onClick={() => setShowChangePassword(false)}
+        >
+          <div
+            className="w-full max-w-md max-h-[90dvh] flex flex-col rounded-[var(--radius-lg)] bg-[rgb(var(--surface))] shadow-[var(--shadow-lg)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))]">
+              <h2 id="change-password-title" className="text-lg font-bold">Change password</h2>
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(false)}
+                className="p-2 rounded-[var(--radius)] text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form
+              className="p-4 space-y-3 flex-1 min-h-0 overflow-y-auto safe-bottom"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (newPassword !== confirmNewPassword) {
+                  alert("New passwords do not match.");
+                  return;
+                }
+                setChangingPassword(true);
+                try {
+                  const res = await fetch("/api/account/password", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ currentPassword, newPassword })
+                  });
+                  if (!res.ok) {
+                    const body = await res.json().catch(() => ({} as { error?: string }));
+                    throw new Error(body.error || "Failed to change password.");
+                  }
+                  alert("Password updated.");
+                  setShowChangePassword(false);
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmNewPassword("");
+                } catch (err) {
+                  console.error(err);
+                  alert(err instanceof Error ? err.message : "Failed to change password.");
+                } finally {
+                  setChangingPassword(false);
+                }
+              }}
+            >
+              <div className="space-y-1">
+                <label className="text-sm text-[rgb(var(--text-soft))]">Current password</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm text-[rgb(var(--text-soft))]">New password</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="At least 8 chars, letters + numbers"
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm text-[rgb(var(--text-soft))]">Confirm new password</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(false)}
+                  className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="px-3 py-2 rounded-[var(--radius)] bg-[rgb(var(--primary))] text-white disabled:opacity-60"
+                >
+                  {changingPassword ? "Saving…" : "Save"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
