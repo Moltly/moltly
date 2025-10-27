@@ -17,6 +17,7 @@ import { readLocalEntries, writeLocalEntries } from "@/lib/local-entries";
 import { readLocalResearchStacks, writeLocalResearchStacks } from "@/lib/local-research";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
+import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/notifications";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
@@ -194,6 +195,9 @@ export default function MobileDashboard() {
       setEntries(next);
       persistLocal(next);
     }
+    try {
+      await cancelReminderNotification(id);
+    } catch {}
   };
 
   const onSubmit = async () => {
@@ -236,6 +240,24 @@ export default function MobileDashboard() {
       }
       const saved = (await res.json()) as MoltEntry;
       setEntries((prev) => (editingId ? prev.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...prev]));
+      // Schedule/cancel local notification via Capacitor
+      try {
+        const prev = editingId ? entries.find((e) => e.id === editingId) : undefined;
+        const prevDate = prev?.reminderDate;
+        const nextDate = saved.reminderDate;
+        if (prevDate && !nextDate) {
+          await cancelReminderNotification(saved.id);
+        } else if (nextDate) {
+          await scheduleReminderNotification({
+            id: saved.id,
+            dateISO: nextDate.slice(0, 10),
+            title: `Reminder: ${saved.specimen || "Unnamed"}`,
+            body: saved.notes || (saved.entryType === "feeding" ? "Feeding due." : saved.entryType === "water" ? "Water change due." : "Care reminder."),
+          });
+        }
+      } catch (err) {
+        console.warn("Local notification scheduling failed", err);
+      }
     } else {
       const nowIso = new Date().toISOString();
       const saved: MoltEntry = {
@@ -261,6 +283,23 @@ export default function MobileDashboard() {
       const next = editingId ? entries.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...entries];
       setEntries(next);
       persistLocal(next);
+      try {
+        const prev = editingId ? entries.find((e) => e.id === editingId) : undefined;
+        const prevDate = prev?.reminderDate;
+        const nextDate = saved.reminderDate;
+        if (prevDate && !nextDate) {
+          await cancelReminderNotification(saved.id);
+        } else if (nextDate) {
+          await scheduleReminderNotification({
+            id: saved.id,
+            dateISO: nextDate.slice(0, 10),
+            title: `Reminder: ${saved.specimen || "Unnamed"}`,
+            body: saved.notes || (saved.entryType === "feeding" ? "Feeding due." : saved.entryType === "water" ? "Water change due." : "Care reminder."),
+          });
+        }
+      } catch (err) {
+        console.warn("Local notification scheduling failed", err);
+      }
     }
 
     setFormOpen(false);
@@ -414,6 +453,9 @@ export default function MobileDashboard() {
       setEntries(next);
       persistLocal(next);
     }
+    try {
+      await cancelReminderNotification(id);
+    } catch {}
   };
 
   const onSnooze = async (id: string, days: number) => {
@@ -433,6 +475,17 @@ export default function MobileDashboard() {
       setEntries(next);
       persistLocal(next);
     }
+    try {
+      const entry = entries.find((e) => e.id === id);
+      if (entry) {
+        await scheduleReminderNotification({
+          id,
+          dateISO: value,
+          title: `Reminder: ${entry.specimen || "Unnamed"}`,
+          body: entry.notes || (entry.entryType === "feeding" ? "Feeding due." : entry.entryType === "water" ? "Water change due." : "Care reminder."),
+        });
+      }
+    } catch {}
   };
 
   // Account deletion (sync mode only)
