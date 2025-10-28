@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { MoltEntry, Filters } from "@/types/molt";
 import { formatDate, getReminderStatus } from "@/lib/utils";
+import ImageGallery, { type GalleryImage } from "@/components/ui/ImageGallery";
 
 interface ActivityViewProps {
   entries: MoltEntry[];
@@ -24,6 +25,9 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
   });
 
   const [showFilters, setShowFilters] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   const filteredEntries = useMemo(() => {
     let filtered = [...entries];
@@ -87,6 +91,7 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* Search & Filter Bar */}
       <div className="space-y-3">
@@ -317,12 +322,22 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
 
                 {/* Attachments */}
                 {entry.attachments && entry.attachments.length > 0 && (
-                  <div className="flex items-center gap-2 pt-2 border-t border-[rgb(var(--border))]">
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 pt-2 border-t border-[rgb(var(--border))] w-full text-left hover:bg-[rgb(var(--bg-muted))] rounded"
+                    onClick={() => {
+                      const imgs: GalleryImage[] = entry.attachments!.map((a) => ({ id: a.id, url: a.url, name: a.name }));
+                      setGalleryImages(imgs);
+                      setGalleryIndex(0);
+                      setGalleryOpen(true);
+                    }}
+                    aria-label="View attachments"
+                  >
                     <ImageIcon className="w-4 h-4 text-[rgb(var(--text-subtle))]" />
                     <span className="text-sm text-[rgb(var(--text-soft))]">
                       {entry.attachments.length} {entry.attachments.length === 1 ? "photo" : "photos"}
                     </span>
-                  </div>
+                  </button>
                 )}
 
                 {/* Reminder */}
@@ -353,5 +368,13 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
         </div>
       )}
     </div>
+    <ImageGallery
+      open={galleryOpen}
+      images={galleryImages}
+      index={galleryIndex}
+      onClose={() => setGalleryOpen(false)}
+      onIndexChange={(i) => setGalleryIndex(i)}
+    />
+    </>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink } from "lucide-react";
+import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
@@ -61,6 +61,11 @@ export default function MobileDashboard() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [accountDeleting, setAccountDeleting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const importInputId = "moltly-import-input";
 
   const persistLocal = useCallback(
     (list: MoltEntry[]) => {
@@ -641,6 +646,90 @@ export default function MobileDashboard() {
                       ) : null}
                       <button
                         type="button"
+                        onClick={async () => {
+                          setIsExporting(true);
+                          try {
+                            const res = await fetch("/api/export?embed=1", { credentials: "include" });
+                            if (!res.ok) throw new Error("Export failed");
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `moltly-export-${new Date().toISOString().slice(0,10)}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                          } catch (err) {
+                            alert("Export failed. Please try again.");
+                          } finally {
+                            setIsExporting(false);
+                          }
+                        }}
+                        className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center gap-2"
+                        disabled={isExporting}
+                      >
+                        <Download className="w-4 h-4" /> {isExporting ? "Exporting…" : "Export data"}
+                      </button>
+                      <label className="inline-flex items-center">
+                        <input
+                          id={importInputId}
+                          type="file"
+                          accept="application/json"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsImporting(true);
+                            setImportError(null);
+                            setImportSuccess(null);
+                            try {
+                              const text = await file.text();
+                              const data = JSON.parse(text);
+                              const res = await fetch("/api/import", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(data),
+                              });
+                              if (!res.ok) {
+                                const body = await res.json().catch(() => ({} as { error?: string }));
+                                throw new Error(body.error || "Import failed.");
+                              }
+                              setImportSuccess("Import complete. Reloading data…");
+                              // Reload entries and research
+                              try {
+                                const [eRes, rRes] = await Promise.all([
+                                  fetch("/api/logs", { credentials: "include" }),
+                                  fetch("/api/research", { credentials: "include" }),
+                                ]);
+                                if (eRes.ok) setEntries(await eRes.json());
+                                if (rRes.ok) {
+                                  const r = (await rRes.json()) as ResearchStack[];
+                                  setStacks(Array.isArray(r) ? r : []);
+                                  if (r.length > 0) setSelectedStackId(r[0].id);
+                                }
+                              } catch {}
+                            } catch (err) {
+                              setImportError(err instanceof Error ? err.message : "Import failed.");
+                            } finally {
+                              setIsImporting(false);
+                              // reset input to allow re-selecting the same file
+                              const input = document.getElementById(importInputId) as HTMLInputElement | null;
+                              if (input) input.value = "";
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => (document.getElementById(importInputId) as HTMLInputElement | null)?.click()}
+                          className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center gap-2"
+                          disabled={isImporting}
+                        >
+                          <Upload className="w-4 h-4" /> {isImporting ? "Importing…" : "Import data"}
+                        </button>
+                      </label>
+                      <button
+                        type="button"
                         onClick={handleAccountDeletion}
                         disabled={accountDeleting}
                         className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--danger))] text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]/20 disabled:opacity-60"
@@ -648,19 +737,103 @@ export default function MobileDashboard() {
                         {accountDeleting ? "Deleting…" : "Delete account"}
                       </button>
                     </div>
+                    {(importError || importSuccess) && (
+                      <div className={"text-sm " + (importError ? "text-[rgb(var(--danger))]" : "text-[rgb(var(--success))]")}>{importError || importSuccess}</div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
                     <p className="text-sm text-[rgb(var(--text-soft))]">
                       You’re using guest mode. Data is stored locally on this device. Sign in to enable sync across devices.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => (window.location.href = "/login")}
-                      className="self-start px-3 py-2 rounded-[var(--radius)] bg-[rgb(var(--primary))] text-white"
-                    >
-                      Sign in
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setIsExporting(true);
+                          try {
+                            // Build local export payload
+                            const localEntries = readLocalEntries();
+                            const localResearch = readLocalResearchStacks();
+                            const payload = {
+                              version: 1,
+                              exportedAt: new Date().toISOString(),
+                              entries: localEntries,
+                              research: localResearch,
+                            };
+                            const blob = new Blob([JSON.stringify(payload)], { type: "application/json;charset=utf-8" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `moltly-export-${new Date().toISOString().slice(0,10)}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            URL.revokeObjectURL(url);
+                          } catch {
+                            alert("Export failed. Please try again.");
+                          } finally {
+                            setIsExporting(false);
+                          }
+                        }}
+                        className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center gap-2"
+                        disabled={isExporting}
+                      >
+                        <Download className="w-4 h-4" /> {isExporting ? "Exporting…" : "Export data"}
+                      </button>
+                      <label className="inline-flex items-center">
+                        <input
+                          id={importInputId + "-local"}
+                          type="file"
+                          accept="application/json"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setIsImporting(true);
+                            setImportError(null);
+                            setImportSuccess(null);
+                            try {
+                              const text = await file.text();
+                              const data = JSON.parse(text) as { entries?: any[]; research?: ResearchStack[] };
+                              const nextEntries = Array.isArray(data.entries) ? (data.entries as MoltEntry[]) : [];
+                              const nextResearch = Array.isArray(data.research) ? (data.research as ResearchStack[]) : [];
+                              // Overwrite local stores
+                              writeLocalEntries(nextEntries as unknown as Record<string, unknown>[]);
+                              writeLocalResearchStacks(nextResearch);
+                              setEntries(nextEntries as MoltEntry[]);
+                              setStacks(nextResearch);
+                              if (nextResearch.length > 0) setSelectedStackId(nextResearch[0].id);
+                              setImportSuccess("Import complete.");
+                            } catch (err) {
+                              setImportError(err instanceof Error ? err.message : "Import failed.");
+                            } finally {
+                              setIsImporting(false);
+                              const input = document.getElementById(importInputId + "-local") as HTMLInputElement | null;
+                              if (input) input.value = "";
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => (document.getElementById(importInputId + "-local") as HTMLInputElement | null)?.click()}
+                          className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center gap-2"
+                          disabled={isImporting}
+                        >
+                          <Upload className="w-4 h-4" /> {isImporting ? "Importing…" : "Import data"}
+                        </button>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => (window.location.href = "/login")}
+                        className="px-3 py-2 rounded-[var(--radius)] bg-[rgb(var(--primary))] text-white"
+                      >
+                        Sign in
+                      </button>
+                    </div>
+                    {(importError || importSuccess) && (
+                      <div className={"text-sm " + (importError ? "text-[rgb(var(--danger))]" : "text-[rgb(var(--success))]")}>{importError || importSuccess}</div>
+                    )}
                   </div>
                 )}
               </section>
