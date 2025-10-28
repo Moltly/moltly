@@ -5,7 +5,7 @@ Last updated: 2025-10-23
 This Privacy Policy explains how Moltly (the “Service”) collects, uses, and shares information when you use moltly.xyz and any related applications or APIs.
 
 Operator (Data Controller): Moltly
-Contact: 0xgingi@0xgingi.com
+Contact: contact@moltly.xyz
 
 If you deploy the Moltly software yourself, you are the data controller for your deployment. This Policy describes the hosted Service operated by the operator named above.
 
@@ -47,7 +47,7 @@ Where GDPR/UK GDPR applies, we process personal data on these bases:
 - We use industry‑standard measures to protect your data, including hashing passwords with bcrypt and using HTTPS in production. No method of transmission or storage is 100% secure.
 
 8) Your Rights
-Depending on your location, you may have rights to access, correct, port, or delete your personal data, and to object to or restrict certain processing. To exercise rights, contact us at 0xgingi@0xgingi.com You can also export or delete your synced data by deleting your account in the app. Guest mode data must be managed via your browser (e.g., clearing site data).
+Depending on your location, you may have rights to access, correct, port, or delete your personal data, and to object to or restrict certain processing. To exercise rights, contact us at contact@moltly.xyz You can also export or delete your synced data by deleting your account in the app. Guest mode data must be managed via your browser (e.g., clearing site data).
 
 9) International Transfers
 - We may process and store data in countries other than yours. Where required, we implement appropriate safeguards for international transfers (e.g., standard contractual clauses).
@@ -59,7 +59,7 @@ Depending on your location, you may have rights to access, correct, port, or del
 - We may update this Policy from time to time. If changes are material, we will provide reasonable notice (e.g., in‑app notice or email, where appropriate). Continued use of the Service after an update signifies acceptance of the revised Policy.
 
 12) Contact
-- Questions or requests regarding this Policy: 0xgingi@0xgingi.com
+- Questions or requests regarding this Policy: contact@moltly.xyz
 Supplement: Product‑Specific Details
 - Authentication: NextAuth handles email/password and OAuth sign‑in (e.g., Discord, Apple). With the MongoDB adapter enabled, OAuth account records (including provider identifiers and tokens) may be persisted to support sign‑in. We do not post content to these providers on your behalf.
 - Entries and attachments: Molt entries, feeding logs, reminders, and photos you upload are stored with your account in our database when you are signed in.

@@ -7,7 +7,7 @@ These Terms of Service (the “Terms”) govern your access to and use of Moltly
 By accessing or using the Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.
 
 Operator: Moltly
-Contact: 0xgingi@0xgingi.com
+Contact: contact@moltly.xyz
 
 1. Eligibility and Accounts
 - You must be at least 13 years old to use the Service. If you are under the age of majority in your jurisdiction, you may only use the Service with a parent or legal guardian’s consent.
@@ -63,7 +63,7 @@ You agree not to:
 - We may revise these Terms from time to time. If changes are material, we will provide notice by reasonable means (e.g., updating the “Last updated” date, in‑app notice, or email if appropriate). Your continued use of the Service after changes become effective constitutes acceptance of the revised Terms.
 
 14. Contact
-- Questions about these Terms? Email us at 0xgingi@0xgingi.com.
+- Questions about these Terms? Email us at contact@moltly.xyz.
 
 15. For Self‑Hosted Deployments
 - If you deploy the Moltly software yourself, you are solely responsible for your own terms and privacy practices. These Terms apply to the hosted Service operated by the operator named above.
