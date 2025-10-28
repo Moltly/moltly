@@ -1,6 +1,6 @@
 # Moltly — Terms of Service
 
-Last updated: 2025-10-23
+Last updated: 2025-10-28
 
 These Terms of Service (the “Terms”) govern your access to and use of Moltly (the “Service”), available at moltly.xyz and any related applications or APIs.
 
@@ -34,9 +34,13 @@ You agree not to:
 5. Third‑Party Services
 - The Service offers sign‑in via third‑party providers such as Discord and Apple. Your use of those providers is governed by their own terms and privacy policies. We are not responsible for third‑party services.
 - We may use infrastructure and service providers (e.g., hosting and database providers) to operate the Service.
+- Content delivery and security: We use Cloudflare as a reverse proxy, content delivery network (CDN), DNS, and security provider (including DDoS protection and web application firewall). By using the Service, your requests may be routed through Cloudflare, which may temporarily cache content and process technical information such as your IP address, country/region, and request metadata to provide its services. For details about Cloudflare’s practices, see Cloudflare’s Privacy Policy: https://www.cloudflare.com/privacypolicy/ and Cloudflare Cookies: https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/
 
 6. Privacy
 - Our collection and use of personal information is described in our Privacy Policy (PRIVACY.md). By using the Service, you consent to our data practices as described there.
+
+6a. Cookies and Security Technologies
+- The Service uses strictly necessary security technologies provided by our infrastructure partners. In particular, Cloudflare may set essential cookies or local storage entries (for example, to distinguish bots from legitimate traffic or to maintain access after a challenge). These are necessary to deliver the Service securely and cannot be turned off.
 
 7. Modifications and Availability
 - We may add, remove, or change features at any time, and we may suspend or discontinue the Service, in whole or in part, with or without notice.
