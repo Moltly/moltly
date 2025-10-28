@@ -7,7 +7,7 @@
         "@aws-sdk/client-s3": "^3.918.0",
         "@capacitor/app": "^7.1.0",
         "@capacitor/core": "^7.4.4",
-        "@capacitor/filesystem": "^7.1.0",
+        "@capacitor/filesystem": "^7.1.4",
         "@capacitor/ios": "^7.4.4",
         "@capacitor/local-notifications": "^7.0.3",
         "@capacitor/share": "^7.0.2",
