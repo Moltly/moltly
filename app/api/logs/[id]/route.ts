@@ -4,6 +4,9 @@ import { Types } from "mongoose";
 import { authOptions } from "../../../../lib/auth-options";
 import { connectMongoose } from "../../../../lib/mongoose";
 import MoltEntry from "../../../../models/MoltEntry";
+import path from "path";
+import { unlink } from "fs/promises";
+import { isS3Configured, keyFromS3Url, deleteObject } from "../../../../lib/s3";
 
 type RouteContext = {
   params: Promise<{ id?: string | string[] }>;
@@ -134,7 +137,11 @@ export async function PATCH(request: Request, context: RouteContext) {
           : undefined;
     }
 
+    let removedAttachmentUrls: string[] = [];
     if (Array.isArray(updates.attachments)) {
+      const prevUrls = (entry.attachments || []).map((a: any) => a.url).filter(Boolean);
+      const nextUrls = (updates.attachments || []).map((a: any) => a.url).filter(Boolean);
+      removedAttachmentUrls = prevUrls.filter((u: string) => !nextUrls.includes(u));
       entry.attachments = updates.attachments;
     }
 
@@ -149,6 +156,23 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     await entry.save();
+
+    if (removedAttachmentUrls.length > 0) {
+      const useS3 = isS3Configured();
+      await Promise.all(
+        removedAttachmentUrls.map(async (url) => {
+          if (useS3) {
+            const key = keyFromS3Url(url);
+            if (key) {
+              try { await deleteObject(key); } catch {}
+            }
+          } else if (url.startsWith("/uploads/")) {
+            const file = path.join(process.cwd(), "public", url);
+            try { await unlink(file); } catch {}
+          }
+        })
+      );
+    }
 
     return NextResponse.json({
       ...entry.toObject(),
@@ -171,14 +195,32 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const params = await context.params;
     const id = assertId(params.id);
     await connectMongoose();
-    const result = await MoltEntry.findOneAndDelete({
+    const entry = await MoltEntry.findOneAndDelete({
       _id: ensureObjectId(id),
       userId: session.user.id
     });
 
-    if (!result) {
+    if (!entry) {
       return NextResponse.json({ error: "Entry not found." }, { status: 404 });
     }
+
+    try {
+      const urls: string[] = (entry.attachments || []).map((a: any) => a.url).filter(Boolean);
+      const useS3 = isS3Configured();
+      await Promise.all(
+        urls.map(async (url) => {
+          if (useS3) {
+            const key = keyFromS3Url(url);
+            if (key) {
+              try { await deleteObject(key); } catch {}
+            }
+          } else if (url.startsWith("/uploads/")) {
+            const file = path.join(process.cwd(), "public", url);
+            try { await unlink(file); } catch {}
+          }
+        })
+      );
+    } catch {}
 
     return NextResponse.json({ success: true });
   } catch (error) {

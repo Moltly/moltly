@@ -28,6 +28,15 @@ NEXTAUTH_SECRET=replace-with-strong-secret
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
 NEXTAUTH_URL=http://localhost:5777
+
+S3_BUCKET=molt-uploads
+S3_REGION=us-east-1
+S3_ENDPOINT=http://minio:9000
+S3_PUBLIC_URL=http://localhost:9000
+S3_ACCESS_KEY=Change_ME!
+S3_SECRET_KEY=Change_ME!
+S3_FORCE_PATH_STYLE=true
+
 ```
 
 ### Docker

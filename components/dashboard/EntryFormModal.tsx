@@ -5,7 +5,6 @@ import { X, Upload, Trash2, Calendar, Droplets, Thermometer } from "lucide-react
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { FormState, Attachment, Stage, FeedingOutcome } from "@/types/molt";
-import Image from "next/image";
 
 interface EntryFormModalProps {
   isOpen: boolean;
@@ -54,18 +53,32 @@ export default function EntryFormModal({
     try {
       const newAttachments: Attachment[] = [];
 
-      for (const file of Array.from(files)) {
-        // In a real app, you'd upload to a server/CDN
-        // For now, create a local URL
-        const url = URL.createObjectURL(file);
-        const attachment: Attachment = {
-          id: crypto.randomUUID(),
-          name: file.name,
-          url,
-          type: file.type,
-          addedAt: new Date().toISOString(),
-        };
-        newAttachments.push(attachment);
+      try {
+        const form = new FormData();
+        for (const file of Array.from(files)) form.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: form, credentials: "include" });
+        if (res.ok) {
+          const payload = (await res.json()) as { attachments: Attachment[] };
+          if (Array.isArray(payload.attachments)) newAttachments.push(...payload.attachments);
+        } else {
+          throw new Error(`Upload failed with status ${res.status}`);
+        }
+      } catch (err) {
+        for (const file of Array.from(files)) {
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+          });
+          newAttachments.push({
+            id: crypto.randomUUID(),
+            name: file.name,
+            url: dataUrl,
+            type: file.type || "",
+            addedAt: new Date().toISOString(),
+          });
+        }
       }
 
       onAttachmentsChange([...attachments, ...newAttachments]);
@@ -376,12 +389,11 @@ export default function EntryFormModal({
                         key={attachment.id}
                         className="relative group aspect-square rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))]"
                       >
-                        <Image
+                        <img
                           src={attachment.url}
                           alt={attachment.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 33vw, 120px"
+                          className="object-cover w-full h-full"
+                          loading="lazy"
                         />
                         <button
                           type="button"
