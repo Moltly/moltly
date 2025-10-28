@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
+import { Capacitor } from "@capacitor/core";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import OverviewView from "@/components/dashboard/OverviewView";
@@ -66,6 +67,47 @@ export default function MobileDashboard() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const importInputId = "moltly-import-input";
+
+  // Cross-platform export helper: uses Capacitor on native platforms, falls back to web download
+  const exportJsonText = useCallback(async (jsonText: string) => {
+    const filename = `moltly-export-${new Date().toISOString().slice(0, 10)}.json`;
+    try {
+      if (Capacitor.getPlatform() !== "web") {
+        // Try native share via Filesystem + Share
+        try {
+          const modFS = await import("@capacitor/filesystem");
+          const modShare = await import("@capacitor/share");
+          const { Filesystem, Directory, Encoding } = modFS;
+          const { Share } = modShare;
+
+          await Filesystem.writeFile({
+            path: filename,
+            data: jsonText,
+            directory: Directory.Cache,
+            encoding: Encoding.UTF8,
+          });
+          const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: filename });
+          await Share.share({ title: filename, url: uri, dialogTitle: "Export data" });
+          return;
+        } catch (e) {
+          // Fallback to web-style download if native plugins are unavailable
+        }
+      }
+
+      // Web fallback (or native fallback)
+      const blob = new Blob([jsonText], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      throw err;
+    }
+  }, []);
 
   const persistLocal = useCallback(
     (list: MoltEntry[]) => {
@@ -651,15 +693,8 @@ export default function MobileDashboard() {
                           try {
                             const res = await fetch("/api/export?embed=1", { credentials: "include" });
                             if (!res.ok) throw new Error("Export failed");
-                            const blob = await res.blob();
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `moltly-export-${new Date().toISOString().slice(0,10)}.json`;
-                            document.body.appendChild(a);
-                            a.click();
-                            a.remove();
-                            URL.revokeObjectURL(url);
+                            const text = await res.text();
+                            await exportJsonText(text);
                           } catch (err) {
                             alert("Export failed. Please try again.");
                           } finally {
@@ -761,15 +796,8 @@ export default function MobileDashboard() {
                               entries: localEntries,
                               research: localResearch,
                             };
-                            const blob = new Blob([JSON.stringify(payload)], { type: "application/json;charset=utf-8" });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `moltly-export-${new Date().toISOString().slice(0,10)}.json`;
-                            document.body.appendChild(a);
-                            a.click();
-                            a.remove();
-                            URL.revokeObjectURL(url);
+                            const text = JSON.stringify(payload);
+                            await exportJsonText(text);
                           } catch {
                             alert("Export failed. Please try again.");
                           } finally {
