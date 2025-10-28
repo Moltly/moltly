@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Capacitor } from "@capacitor/core";
 
 export type GalleryImage = {
   id: string;
@@ -36,21 +37,102 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
   const canPrev = index > 0;
   const canNext = index < images.length - 1;
 
+  async function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function filenameFromUrl(url: string): string | undefined {
+    try {
+      const u = new URL(url, typeof window !== "undefined" ? window.location.href : undefined);
+      const last = u.pathname.split("/").filter(Boolean).pop();
+      return last || undefined;
+    } catch {
+      const parts = url.split("/");
+      return parts.pop() || undefined;
+    }
+  }
+
+  function ensureExt(name: string, ext: string) {
+    return name.toLowerCase().endsWith(`.${ext}`) ? name : `${name}.${ext}`;
+  }
+
+  async function handleDownload() {
+    const baseName = current.name || filenameFromUrl(current.url) || "image";
+    let ext = "jpg";
+    if (current.url.startsWith("data:")) {
+      const m = current.url.slice(5).split(";")[0];
+      if (m.startsWith("image/")) {
+        const maybe = m.split("/")[1];
+        if (maybe) ext = maybe.toLowerCase();
+      }
+    } else {
+      const fromUrl = filenameFromUrl(current.url);
+      const p = fromUrl?.split(".").pop()?.toLowerCase();
+      if (p && p.length <= 5) ext = p;
+    }
+    const filename = ensureExt(baseName, ext);
+
+    if (Capacitor.getPlatform() !== "web") {
+      try {
+        const modFS = await import("@capacitor/filesystem");
+        const modShare = await import("@capacitor/share");
+        const { Filesystem, Directory, Encoding } = modFS;
+        const { Share } = modShare;
+
+        let base64: string | undefined;
+        if (current.url.startsWith("data:")) {
+          base64 = current.url.split(",")[1];
+        } else {
+          const res = await fetch(current.url);
+          if (!res.ok) throw new Error("Failed to fetch image");
+          const blob = await res.blob();
+          const dataUrl = await blobToBase64(blob);
+          base64 = dataUrl.split(",")[1];
+        }
+        if (!base64) throw new Error("Unable to read image");
+
+        await Filesystem.writeFile({
+          path: filename,
+          data: base64,
+          directory: Directory.Cache,
+        });
+        const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: filename });
+        await Share.share({ title: filename, url: uri, dialogTitle: "Share image" });
+        return;
+      } catch (e) {
+        // Fallback to web download below
+      }
+    }
+
+    // Web fallback (or native fallback if plugins unavailable)
+    const a = document.createElement("a");
+    a.href = current.url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/90">
       {/* Top bar */}
       <div className="flex items-center justify-between p-3 text-white">
         <div className="text-sm truncate max-w-[60%]">{current.name || current.url}</div>
         <div className="flex items-center gap-2">
-          <a
-            href={current.url}
-            download
+          <button
+            type="button"
+            onClick={() => void handleDownload()}
             className="p-2 rounded bg-white/10 hover:bg-white/20"
             title="Download"
             aria-label="Download image"
           >
             <Download className="w-5 h-5" />
-          </a>
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -116,4 +198,3 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
     </div>
   );
 }
-
