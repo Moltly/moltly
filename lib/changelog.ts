@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.5.0",
+    date: "2025-10-28",
+    highlights: [
+      "Add support for Apple Sign In.",
+      "Improve error handling for OAuth providers.",
+      "Improve Image Upload/Hosting via S3."
+    ]
+  },
+  {
     version: "1.4.0",
     date: "2025-10-27",
     highlights: [

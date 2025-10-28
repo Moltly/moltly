@@ -17,7 +17,7 @@ If you deploy the Moltly software yourself, you are the data controller for your
 
 2) How We Use Information
 - Provide and operate the Service, including syncing your data when signed in and rendering your content in the app.
-- Authenticate users via email/password or Discord and maintain session security.
+- Authenticate users via email/password and OAuth providers (e.g., Discord, Apple) and maintain session security.
 - Protect the Service (e.g., rate limiting and detecting abusive behavior); we combine an email and an IP address to enforce short‑term sign‑in lockouts.
 - Improve the reliability and user experience of the Service.
 
@@ -61,8 +61,7 @@ Depending on your location, you may have rights to access, correct, port, or del
 12) Contact
 - Questions or requests regarding this Policy: 0xgingi@0xgingi.com
 Supplement: Product‑Specific Details
-- Authentication: NextAuth handles email/password and Discord sign‑in. With the MongoDB adapter enabled, OAuth account records (including provider identifiers and tokens) may be persisted to support sign‑in. We do not post content to Discord on your behalf.
+- Authentication: NextAuth handles email/password and OAuth sign‑in (e.g., Discord, Apple). With the MongoDB adapter enabled, OAuth account records (including provider identifiers and tokens) may be persisted to support sign‑in. We do not post content to these providers on your behalf.
 - Entries and attachments: Molt entries, feeding logs, reminders, and photos you upload are stored with your account in our database when you are signed in.
 - Research notebook: Stacks, notes (including titles, content, tags, and optional individual labels), and timestamps are stored with your account when signed in.
 - Rate limiting: We derive an IP address from request headers and temporarily pair it with a normalized email to enforce sign‑in attempt limits. Records auto‑expire and are not persisted to long‑term storage.
-

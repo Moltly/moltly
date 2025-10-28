@@ -4,7 +4,11 @@ import { Types } from "mongoose";
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import DiscordProvider from "next-auth/providers/discord";
+import AppleProvider from "next-auth/providers/apple";
 import getMongoClientPromise from "./mongodb";
+import fs from "node:fs";
+import path from "node:path";
+import { SignJWT, importPKCS8 } from "jose";
 import { connectMongoose } from "./mongoose";
 import User from "../models/User";
 import { clearLoginAttempts, evaluateLoginRateLimit, recordFailedLoginAttempt } from "./login-rate-limit";
@@ -20,6 +24,51 @@ type UserRecord = {
 const hasMongo = Boolean(process.env.MONGODB_URI);
 const adapter = hasMongo ? MongoDBAdapter(getMongoClientPromise()) : undefined;
 
+async function generateAppleClientSecretFromEnv(): Promise<string | undefined> {
+  const teamId = process.env.APPLE_TEAM_ID;
+  const keyId = process.env.APPLE_KEY_ID;
+  const clientId = process.env.APPLE_CLIENT_ID;
+  let privateKey = process.env.APPLE_PRIVATE_KEY;
+  const privateKeyPath = process.env.APPLE_PRIVATE_KEY_PATH;
+
+  if (!teamId || !keyId || !clientId) return undefined;
+  if (!privateKey && privateKeyPath) {
+    try {
+      privateKey = fs.readFileSync(path.resolve(privateKeyPath), "utf8");
+    } catch {
+      return undefined;
+    }
+  }
+  if (!privateKey) return undefined;
+
+  const alg = "ES256" as const;
+  const normalizedKey = privateKey.includes("-----BEGIN") ? privateKey : privateKey.replace(/\\n/g, "\n");
+  try {
+    const pk = await importPKCS8(normalizedKey, alg);
+    const now = Math.floor(Date.now() / 1000);
+    const exp = now + 60 * 60 * 24 * 180 - 60; // ~6 months
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg, kid: keyId })
+      .setIssuer(teamId)
+      .setAudience("https://appleid.apple.com")
+      .setSubject(clientId)
+      .setIssuedAt(now)
+      .setExpirationTime(exp)
+      .sign(pk);
+    return token;
+  } catch {
+    return undefined;
+  }
+}
+
+let resolvedAppleSecret: string | undefined = process.env.APPLE_CLIENT_SECRET;
+if (!resolvedAppleSecret) {
+  try {
+    const maybe = await generateAppleClientSecretFromEnv();
+    if (maybe) resolvedAppleSecret = maybe;
+  } catch {}
+}
+
 export const authOptions: NextAuthOptions = {
   adapter,
   session: {
@@ -27,11 +76,22 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt"
   },
   providers: [
+    ...(process.env.APPLE_CLIENT_ID && (process.env.APPLE_CLIENT_SECRET || resolvedAppleSecret)
+      ? [
+          AppleProvider({
+            clientId: process.env.APPLE_CLIENT_ID,
+            clientSecret: (process.env.APPLE_CLIENT_SECRET || resolvedAppleSecret) as string,
+            authorization: { params: { scope: "name email", response_mode: "form_post" } },
+          }),
+        ]
+      : []),
+    // Discord OAuth
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID ?? "",
       clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
       authorization: { params: { scope: "identify email" } }
     }),
+    // Email/password credentials
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -88,14 +148,46 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login"
   },
+  cookies: (() => {
+    const isSecure = (process.env.NEXTAUTH_URL ?? "").startsWith("https://");
+    return {
+      pkceCodeVerifier: {
+        name: isSecure ? "__Secure-next-auth.pkce.code_verifier" : "next-auth.pkce.code_verifier",
+        options: {
+          httpOnly: true,
+          sameSite: isSecure ? "none" : "lax",
+          path: "/",
+          secure: isSecure,
+        },
+      },
+      state: {
+        name: isSecure ? "__Secure-next-auth.state" : "next-auth.state",
+        options: {
+          httpOnly: true,
+          sameSite: isSecure ? "none" : "lax",
+          path: "/",
+          secure: isSecure,
+        },
+      },
+      nonce: {
+        name: isSecure ? "__Secure-next-auth.nonce" : "next-auth.nonce",
+        options: {
+          httpOnly: true,
+          sameSite: isSecure ? "none" : "lax",
+          path: "/",
+          secure: isSecure,
+        },
+      },
+    } as const;
+  })(),
   events: {
     async signIn({ user, account }) {
       try {
-        if (!account || account.provider !== "discord") {
+        if (!account || !["discord", "apple"].includes(account.provider)) {
           return;
         }
         if (!user.email) {
-          console.warn("Discord sign-in missing email; skipping user upsert.");
+          console.warn(`${account.provider} sign-in missing email; skipping user upsert.`);
           return;
         }
 

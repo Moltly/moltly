@@ -12,10 +12,6 @@ iOS Testflight: https://testflight.apple.com/join/4NE9tZGT
 - Drop in photos when you log an entry.
 - Keep a lightweight research notebook for species or individuals; tag, filter, and duplicate notes.
 
-## To Do
-- Major changes to notebook
-- Android Application
-
 ## Self Host
 
 ### Environment
@@ -57,3 +53,21 @@ docker compose up --build
 * Click “Add Redirect” and paste in appurl/api/auth/callback/discord (example for local development: http://localhost:5777/api/auth/callback/discord)
 
 * Save your changes
+
+## Apple Authentication (optional)
+
+Add “Sign in with Apple” for web:
+
+1. In Apple Developer, create a Services ID (Identifiers → Services IDs). This is your web `client_id` (e.g., `com.example.web`). Enable “Sign In with Apple”.
+2. Under the Services ID → Configure:
+   - Domains and Subdomains: add your domain (e.g., `moltly.xyz`)
+   - Return URLs: `https://your-domain/api/auth/callback/apple` (and optionally `http://localhost:5777/api/auth/callback/apple` for local dev).
+3. Create a new Key (ES256) with “Sign In with Apple” enabled. Note the Key ID and download the private key (.p8). Note your Team ID from Membership.
+4. Generate the secret on start:
+   - Put your `.p8` somewhere, Then add these to .env:
+     ```bash
+     APPLE_TEAM_ID=YOUR_TEAM_ID \
+     APPLE_KEY_ID=YOUR_KEY_ID \
+     APPLE_CLIENT_ID=your.services.id \
+     APPLE_PRIVATE_KEY_PATH=./AuthKey_XXXXXX.p8 \
+     ```

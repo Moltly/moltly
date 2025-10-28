@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
   server: {
     url: serverUrl,
     cleartext: serverUrl.startsWith('http://'),
-    allowNavigation: ['moltly.xyz', 'www.moltly.xyz', 'discord.com'],
+    allowNavigation: ['moltly.xyz', 'www.moltly.xyz', 'discord.com', 'appleid.apple.com', 'appleid.cdn-apple.com'],
   },
 };
 

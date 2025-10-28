@@ -32,7 +32,7 @@ You agree not to:
 - Reverse engineer, decompile, or attempt to derive the source code of the Service except to the extent such restrictions are prohibited by law.
 
 5. Third‑Party Services
-- The Service offers sign‑in via Discord. Your use of Discord is governed by Discord’s own terms and privacy policy. We are not responsible for third‑party services.
+- The Service offers sign‑in via third‑party providers such as Discord and Apple. Your use of those providers is governed by their own terms and privacy policies. We are not responsible for third‑party services.
 - We may use infrastructure and service providers (e.g., hosting and database providers) to operate the Service.
 
 6. Privacy
@@ -67,4 +67,3 @@ You agree not to:
 
 15. For Self‑Hosted Deployments
 - If you deploy the Moltly software yourself, you are solely responsible for your own terms and privacy practices. These Terms apply to the hosted Service operated by the operator named above.
-

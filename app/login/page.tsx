@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn, Mail, Lock } from "lucide-react";
@@ -64,6 +64,22 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [providers, setProviders] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/providers")
+      .then((res) => res.json())
+      .then((data) => {
+        if (active) setProviders(data || {});
+      })
+      .catch(() => {
+        if (active) setProviders({});
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -156,7 +172,24 @@ function LoginForm() {
         </div>
       </div>
 
+      {/* OAuth Providers */}
+      {/* Apple OAuth */}
+      {!!providers?.apple && (
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => signIn("apple", { callbackUrl })}
+        className="w-full gap-2 mb-2"
+      >
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M16.365 1.43c0 1.14-.464 2.2-1.208 2.99-.77.82-1.99 1.41-3.2 1.33-.071-1.11.497-2.25 1.242-3.03C13.97 1.86 15.23 1.24 16.365 1.43m3.49 16.4c-.061.12-1.16 3.98-4.32 3.98-1.03 0-1.84-.35-2.62-.71-.76-.35-1.47-.67-2.37-.67-.94 0-1.69.33-2.45.67-.72.31-1.46.64-2.39.69-3.13.11-4.44-3.78-4.5-3.9-.25-.71-.46-1.46-.61-2.22-.52-2.64.18-5.39 1.86-7.27 1.04-1.18 2.43-1.92 3.83-1.92.74 0 1.48.39 2.32.75.71.32 1.46.65 2.31.65.81 0 1.44-.31 2.22-.68.86-.41 1.77-.84 2.8-.74 1.19.1 2.56.86 3.5 2.19-3.08 1.77-2.58 6.41.51 7.92M15.05 0c.07 0 .14 0 .21.01-.02.01-.03.01-.05.01.02 0 .03-.01.05-.01" />
+        </svg>
+        Continue with Apple
+      </Button>
+      )}
+
       {/* Discord OAuth */}
+      {!!providers?.discord && (
       <Button
         type="button"
         variant="secondary"
@@ -168,6 +201,7 @@ function LoginForm() {
         </svg>
         Continue with Discord
       </Button>
+      )}
 
       {/* Sign Up Link */}
       <p className="text-center text-sm text-[rgb(var(--text-soft))] mt-6">

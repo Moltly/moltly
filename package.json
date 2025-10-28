@@ -1,12 +1,13 @@
 {
   "name": "molt-log",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "gen:apple-secret": "bun scripts/generate-apple-secret.mjs",
     "mobile:sync": "bunx cap sync ios",
     "mobile:open": "bunx cap open ios",
     "mobile:run": "bunx cap run ios --no-sync"
