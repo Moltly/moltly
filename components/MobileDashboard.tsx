@@ -641,6 +641,15 @@ export default function MobileDashboard() {
                     <span className="flex items-center gap-2"><Smartphone className="w-4 h-4" /> iOS TestFlight</span>
                     <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
                   </a>
+                                    <a
+                    href="https://github.com/0xgingi/moltly/releases/latest"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors sm:col-span-2"
+                  >
+                    <span className="flex items-center gap-2"><Smartphone className="w-4 h-4" /> Android APK</span>
+                    <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
+                  </a>
                 </div>
               </section>
 

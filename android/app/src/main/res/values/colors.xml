@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Basic theme colors to avoid fallbacks and enable explicit status bar color -->
+    <color name="colorPrimary">#121212</color>
+    <color name="colorPrimaryDark">#0B0B0B</color>
+    <color name="colorAccent">#4F8DF7</color>
+    <color name="splash_background">#0B0B0B</color>
+</resources>

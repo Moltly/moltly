@@ -13,7 +13,7 @@ interface HeaderProps {
 
 export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-40 w-full bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-b border-[rgb(var(--border))]">
+    <header className="sticky top-0 z-40 w-full bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-b border-[rgb(var(--border))] safe-top">
       <div className="flex items-center justify-between px-4 py-3 max-w-screen-lg mx-auto">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">

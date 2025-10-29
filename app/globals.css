@@ -90,6 +90,13 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* Pads content away from the status bar when needed.
+   - On iOS: uses safe-area inset
+   - On Android: uses a CSS var we set from the Capacitor StatusBar API */
+.safe-top {
+  padding-top: max(var(--android-statusbar-pad, 0px), env(safe-area-inset-top));
+}
+
 .textarea {
   width: 100%;
   min-height: 120px;
