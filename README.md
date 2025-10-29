@@ -3,6 +3,7 @@
 Your cozy logbook and reminder hub for tarantula keeping. Track molts, feedings, and enclosure tweaks without the fuss.
 
 iOS Testflight: https://testflight.apple.com/join/4NE9tZGT
+
 Android APK: https://github.com/0xgingi/moltly/releases/latest
 
 ## What you can do
@@ -34,6 +35,8 @@ S3_ACCESS_KEY=Change_ME!
 S3_SECRET_KEY=Change_ME!
 S3_FORCE_PATH_STYLE=true
 
+TRAEFIK_WEB_HOST=localhost
+TRAEFIK_MINIO_HOST=localhost
 ```
 
 ### Docker
