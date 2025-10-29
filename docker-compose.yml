@@ -37,13 +37,13 @@ services:
       - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-true}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.web.rule=Host(`moltly.xyz`)"
+      - "traefik.http.routers.web.rule=Host(`${TRAEFIK_WEB_HOST:-moltly.xyz}`)"
       - "traefik.http.routers.web.entrypoints=websecure"
       - "traefik.http.routers.web.tls=true"
       - "traefik.http.routers.web.tls.certresolver=le"
       - "traefik.http.services.web.loadbalancer.server.port=5777"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.routers.web-http.rule=Host(`moltly.xyz`)"
+      - "traefik.http.routers.web-http.rule=Host(`${TRAEFIK_WEB_HOST:-moltly.xyz}`)"
       - "traefik.http.routers.web-http.entrypoints=web"
       - "traefik.http.routers.web-http.middlewares=redirect-to-https"
     depends_on:
@@ -71,12 +71,12 @@ services:
       - MINIO_ROOT_PASSWORD=${S3_SECRET_KEY:-minioadmin}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.minio.rule=Host(`image.moltly.xyz`)"
+      - "traefik.http.routers.minio.rule=Host(`${TRAEFIK_MINIO_HOST:-image.moltly.xyz}`)"
       - "traefik.http.routers.minio.entrypoints=websecure"
       - "traefik.http.routers.minio.tls=true"
       - "traefik.http.routers.minio.tls.certresolver=le"
       - "traefik.http.services.minio.loadbalancer.server.port=9000"
-      - "traefik.http.routers.minio-http.rule=Host(`image.moltly.xyz`)"
+      - "traefik.http.routers.minio-http.rule=Host(`${TRAEFIK_MINIO_HOST:-image.moltly.xyz}`)"
       - "traefik.http.routers.minio-http.entrypoints=web"
       - "traefik.http.routers.minio-http.middlewares=redirect-to-https"
     volumes:
