@@ -4,7 +4,7 @@ Your cozy logbook and reminder hub for tarantula keeping. Track molts, feedings,
 
 iOS Testflight: https://testflight.apple.com/join/4NE9tZGT
 
-Android APK: https://github.com/0xgingi/moltly/releases/latest
+Android APK: https://github.com/moltly/moltly/releases/latest
 
 ## What you can do
 

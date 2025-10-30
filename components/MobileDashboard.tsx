@@ -897,7 +897,7 @@ export default function MobileDashboard() {
                 <h3 className="text-xs uppercase tracking-wide text-[rgb(var(--text-subtle))] mb-3">Links</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <a
-                    href="https://github.com/0xgingi/moltly"
+                    href="https://github.com/moltly/moltly"
                     target="_blank"
                     rel="noreferrer"
                     className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
@@ -906,7 +906,7 @@ export default function MobileDashboard() {
                     <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
                   </a>
                   <a
-                    href="https://github.com/0xgingi/moltly/blob/main/TERMS.md"
+                    href="https://github.com/moltly/moltly/blob/main/TERMS.md"
                     target="_blank"
                     rel="noreferrer"
                     className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
@@ -915,7 +915,7 @@ export default function MobileDashboard() {
                     <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
                   </a>
                   <a
-                    href="https://github.com/0xgingi/moltly/blob/main/PRIVACY.md"
+                    href="https://github.com/moltly/moltly/blob/main/PRIVACY.md"
                     target="_blank"
                     rel="noreferrer"
                     className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
@@ -942,7 +942,7 @@ export default function MobileDashboard() {
                     <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
                   </a>
                                     <a
-                    href="https://github.com/0xgingi/moltly/releases/latest"
+                    href="https://github.com/moltly/moltly/releases/latest"
                     target="_blank"
                     rel="noreferrer"
                     className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors sm:col-span-2"
