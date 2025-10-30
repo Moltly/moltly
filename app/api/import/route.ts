@@ -33,6 +33,7 @@ type IncomingEntry = {
   newSize?: number;
   humidity?: number;
   temperature?: number;
+  temperatureUnit?: "C" | "F";
   notes?: string;
   reminderDate?: string | null;
   feedingPrey?: string;
@@ -48,6 +49,7 @@ type IncomingHealthEntry = {
   weight?: number | string;
   weightUnit?: string;
   temperature?: number | string;
+  temperatureUnit?: "C" | "F";
   humidity?: number | string;
   condition?: string;
   behavior?: string;
@@ -232,6 +234,7 @@ export async function POST(request: Request) {
           newSize: typeof raw.newSize === "number" ? raw.newSize : undefined,
           humidity: typeof raw.humidity === "number" ? raw.humidity : undefined,
           temperature: typeof raw.temperature === "number" ? raw.temperature : undefined,
+          temperatureUnit: raw.temperatureUnit === "F" ? "F" : raw.temperatureUnit === "C" ? "C" : undefined,
           notes: raw.notes?.trim() || undefined,
           reminderDate: raw.reminderDate || undefined,
           feedingPrey: entryType === "feeding" ? raw.feedingPrey?.trim() || undefined : undefined,
@@ -264,6 +267,7 @@ export async function POST(request: Request) {
           weight: parseNumber(raw.weight),
           weightUnit: raw.weightUnit === "oz" ? "oz" : "g",
           temperature: parseNumber(raw.temperature),
+          temperatureUnit: raw.temperatureUnit === "F" ? "F" : raw.temperatureUnit === "C" ? "C" : undefined,
           humidity: parseNumber(raw.humidity),
           condition: normalizedCondition,
           behavior: raw.behavior?.trim() || undefined,

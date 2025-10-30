@@ -21,6 +21,7 @@ export type MoltEntry = {
   newSize?: number;
   humidity?: number;
   temperature?: number;
+  temperatureUnit?: "C" | "F";
   notes?: string;
   reminderDate?: string;
   feedingPrey?: string;
@@ -41,6 +42,7 @@ export type FormState = {
   newSize: string;
   humidity: string;
   temperature: string;
+  temperatureUnit: "C" | "F";
   notes: string;
   reminderDate: string;
   feedingPrey: string;

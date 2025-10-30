@@ -68,6 +68,7 @@ export async function POST(request: Request) {
       weight,
       weightUnit,
       temperature,
+      temperatureUnit,
       humidity,
       condition,
       behavior,
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
       weight: toNumber(weight),
       weightUnit: normalizedWeightUnit,
       temperature: toNumber(temperature),
+      temperatureUnit: temperatureUnit === "F" ? "F" : temperatureUnit === "C" ? "C" : undefined,
       humidity: toNumber(humidity),
       condition: normalizedCondition,
       behavior: normalizedBehavior,
@@ -131,4 +133,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unable to create health entry." }, { status: 500 });
   }
 }
-

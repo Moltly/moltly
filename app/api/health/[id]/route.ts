@@ -106,6 +106,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       entry.temperature = toNumber(updates.temperature);
     }
 
+    if ("temperatureUnit" in updates) {
+      if (updates.temperatureUnit === "C" || updates.temperatureUnit === "F") {
+        entry.temperatureUnit = updates.temperatureUnit;
+      } else if (updates.temperatureUnit === null) {
+        entry.temperatureUnit = undefined;
+      }
+    }
+
     if ("humidity" in updates) {
       entry.humidity = toNumber(updates.humidity);
     }
@@ -225,4 +233,3 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Unable to delete health entry." }, { status: 500 });
   }
 }
-

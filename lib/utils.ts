@@ -61,3 +61,11 @@ export function getReminderStatus(
   return "upcoming";
 }
 
+// Temperature conversions to keep storage canonical while allowing UI preference
+export function cToF(celsius: number): number {
+  return (celsius * 9) / 5 + 32;
+}
+
+export function fToC(fahrenheit: number): number {
+  return ((fahrenheit - 32) * 5) / 9;
+}

@@ -101,6 +101,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         typeof updates.temperature === "number" && Number.isFinite(updates.temperature) ? updates.temperature : undefined;
     }
 
+    if ("temperatureUnit" in updates) {
+      if (updates.temperatureUnit === "C" || updates.temperatureUnit === "F") {
+        entry.temperatureUnit = updates.temperatureUnit;
+      } else if (updates.temperatureUnit === null) {
+        entry.temperatureUnit = undefined;
+      }
+    }
+
     if ("notes" in updates) {
       entry.notes = typeof updates.notes === "string" && updates.notes.trim().length > 0 ? updates.notes.trim() : undefined;
     }

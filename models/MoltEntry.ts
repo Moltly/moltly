@@ -27,6 +27,10 @@ const MoltEntrySchema = new Schema(
     newSize: Number,
     humidity: Number,
     temperature: Number,
+    temperatureUnit: {
+      type: String,
+      enum: ["C", "F"],
+    },
     reminderDate: Date,
     notes: String,
     feedingPrey: String,

@@ -10,6 +10,7 @@ const HealthEntrySchema = new Schema(
     weight: Number,
     weightUnit: { type: String, enum: ["g", "oz"], default: "g" },
     temperature: Number,
+    temperatureUnit: { type: String, enum: ["C", "F"] },
     humidity: Number,
     condition: {
       type: String,
@@ -29,4 +30,3 @@ const HealthEntrySchema = new Schema(
 const HealthEntryModel = models.HealthEntry || model("HealthEntry", HealthEntrySchema);
 
 export default HealthEntryModel;
-

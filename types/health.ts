@@ -11,6 +11,7 @@ export type HealthEntry = {
   weight?: number;
   weightUnit: WeightUnit;
   temperature?: number;
+  temperatureUnit?: "C" | "F";
   humidity?: number;
   condition: HealthCondition;
   behavior?: string;
@@ -30,6 +31,7 @@ export type HealthFormState = {
   weight: string;
   weightUnit: WeightUnit;
   temperature: string;
+  temperatureUnit: "C" | "F";
   humidity: string;
   condition: HealthCondition;
   behavior: string;
@@ -38,4 +40,3 @@ export type HealthFormState = {
   followUpDate: string;
   notes: string;
 };
-

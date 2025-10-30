@@ -307,7 +307,9 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
                     {entry.temperature && (
                       <div className="flex items-center gap-1.5 text-sm">
                         <Thermometer className="w-4 h-4 text-[rgb(var(--danger))]" />
-                        <span className="text-[rgb(var(--text))]">{entry.temperature}°C</span>
+                        <span className="text-[rgb(var(--text))]">
+                          {typeof entry.temperature === "number" ? `${entry.temperature}°${entry.temperatureUnit === "F" ? "F" : "C"}` : "—"}
+                        </span>
                       </div>
                     )}
                   </div>

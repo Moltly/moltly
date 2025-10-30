@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.6.1",
+    date: "2025-10-30",
+    highlights: [
+      "Add Dark/Theme Toggle.",
+      "Set Dark Theme as default.",
+      "Change C to F in molt entries."
+    ]
+  },
+  {
     version: "1.6.0",
     date: "2025-10-30",
     highlights: [

@@ -24,6 +24,7 @@ import { readLocalBreedingEntries, writeLocalBreedingEntries } from "@/lib/local
 import { readLocalResearchStacks, writeLocalResearchStacks } from "@/lib/local-research";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
+import { getSavedTempUnit } from "@/lib/temperature";
 import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/notifications";
 
 const defaultForm = (): FormState => ({
@@ -36,6 +37,7 @@ const defaultForm = (): FormState => ({
   newSize: "",
   humidity: "",
   temperature: "",
+  temperatureUnit: getSavedTempUnit(),
   notes: "",
   reminderDate: "",
   feedingPrey: "",
@@ -297,6 +299,7 @@ export default function MobileDashboard() {
       newSize: entry.newSize?.toString() ?? "",
       humidity: entry.humidity?.toString() ?? "",
       temperature: entry.temperature?.toString() ?? "",
+      temperatureUnit: entry.temperatureUnit === "F" ? "F" : "C",
       notes: entry.notes ?? "",
       reminderDate: entry.reminderDate ? entry.reminderDate.slice(0, 10) : "",
       feedingPrey: entry.feedingPrey ?? "",
@@ -342,6 +345,7 @@ export default function MobileDashboard() {
       newSize: isMolt && formState.newSize ? Number(formState.newSize) : undefined,
       humidity: formState.humidity ? Number(formState.humidity) : undefined,
       temperature: formState.temperature ? Number(formState.temperature) : undefined,
+      temperatureUnit: formState.temperature ? formState.temperatureUnit : undefined,
       notes: formState.notes.trim() || undefined,
       reminderDate: formState.reminderDate || undefined,
       feedingPrey: isFeeding ? formState.feedingPrey.trim() || undefined : undefined,
@@ -393,9 +397,10 @@ export default function MobileDashboard() {
         stage: payload.stage as Stage | undefined,
         oldSize: payload.oldSize,
         newSize: payload.newSize,
-        humidity: payload.humidity,
-        temperature: payload.temperature,
-        notes: payload.notes,
+      humidity: payload.humidity,
+      temperature: payload.temperature,
+      temperatureUnit: payload.temperatureUnit as MoltEntry["temperatureUnit"],
+      notes: payload.notes,
         reminderDate: payload.reminderDate,
         feedingPrey: payload.feedingPrey,
         feedingOutcome: payload.feedingOutcome as MoltEntry["feedingOutcome"],
@@ -442,6 +447,7 @@ export default function MobileDashboard() {
       weight: parseNumber(form.weight),
       weightUnit: form.weightUnit,
       temperature: parseNumber(form.temperature),
+      temperatureUnit: form.temperature ? form.temperatureUnit : undefined,
       humidity: parseNumber(form.humidity),
       condition: form.condition,
       behavior: form.behavior.trim() || undefined,
@@ -489,6 +495,7 @@ export default function MobileDashboard() {
       weight: payload.weight,
       weightUnit: payload.weightUnit,
       temperature: payload.temperature,
+      temperatureUnit: payload.temperatureUnit as HealthEntry["temperatureUnit"],
       humidity: payload.humidity,
       condition: payload.condition,
       behavior: payload.behavior,

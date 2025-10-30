@@ -7,6 +7,8 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import { formatDate, formatRelativeDate } from "@/lib/utils";
+import { cToF, fToC } from "@/lib/utils";
+import { getSavedTempUnit, saveTempUnit } from "@/lib/temperature";
 
 interface HealthViewProps {
   entries: HealthEntry[];
@@ -22,6 +24,7 @@ const defaultForm = (): HealthFormState => ({
   weight: "",
   weightUnit: "g",
   temperature: "",
+  temperatureUnit: getSavedTempUnit(),
   humidity: "",
   condition: "Stable",
   behavior: "",
@@ -199,14 +202,46 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                 </select>
               </div>
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))] mb-1.5">
-                  <Thermometer className="w-4 h-4" />
-                  Temperature
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))]">
+                    <Thermometer className="w-4 h-4" />
+                    Temperature ({form.temperatureUnit === "F" ? "°F" : "°C"})
+                  </label>
+                  <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
+                    <button
+                      type="button"
+                      className={`px-2 py-0.5 text-xs ${form.temperatureUnit === "C" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                      onClick={() => {
+                        if (form.temperatureUnit !== "C") {
+                          const next = form.temperature ? (Math.round(fToC(Number(form.temperature)) * 10) / 10).toString() : form.temperature;
+                          setForm((prev) => ({ ...prev, temperatureUnit: "C", temperature: next }));
+                          saveTempUnit("C");
+                        }
+                      }}
+                      aria-label="Use Celsius"
+                    >
+                      °C
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-2 py-0.5 text-xs ${form.temperatureUnit === "F" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                      onClick={() => {
+                        if (form.temperatureUnit !== "F") {
+                          const next = form.temperature ? (Math.round(cToF(Number(form.temperature)) * 10) / 10).toString() : form.temperature;
+                          setForm((prev) => ({ ...prev, temperatureUnit: "F", temperature: next }));
+                          saveTempUnit("F");
+                        }
+                      }}
+                      aria-label="Use Fahrenheit"
+                    >
+                      °F
+                    </button>
+                  </div>
+                </div>
                 <Input
                   type="number"
                   inputMode="decimal"
-                  placeholder="°F"
+                  placeholder={form.temperatureUnit === "F" ? "°F" : "°C"}
                   value={form.temperature}
                   onChange={(e) => handleChange("temperature")(e.target.value)}
                 />
@@ -452,7 +487,7 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                         Temperature
                       </p>
                       <p className="text-base font-semibold text-[rgb(var(--text))]">
-                        {typeof entry.temperature === "number" ? `${entry.temperature}°` : "—"}
+                        {typeof entry.temperature === "number" ? `${entry.temperature}°${entry.temperatureUnit === "F" ? "F" : "C"}` : "—"}
                       </p>
                     </div>
                     <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
@@ -535,4 +570,3 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
     </div>
   );
 }
-

@@ -15,20 +15,18 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = "theme";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Default to dark for first paint
-  const [theme, setThemeState] = useState<Theme>("dark");
-
-  // Initialize from persisted preference, if present
-  useEffect(() => {
+  // Default to dark for first paint; lazily read persisted preference
+  const [theme, setThemeState] = useState<Theme>(() => {
     try {
       const saved = (localStorage.getItem(STORAGE_KEY) || "").toLowerCase();
       if (saved === "light" || saved === "dark") {
-        setThemeState(saved);
+        return saved as Theme;
       }
     } catch {
       // ignore
     }
-  }, []);
+    return "dark";
+  });
 
   // Apply to <html data-theme> and persist
   useEffect(() => {
@@ -55,4 +53,3 @@ export function useTheme(): ThemeContextValue {
   if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
   return ctx;
 }
-

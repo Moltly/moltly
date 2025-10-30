@@ -5,6 +5,8 @@ import { X, Upload, Trash2, Calendar, Droplets, Thermometer } from "lucide-react
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { FormState, Attachment, Stage, FeedingOutcome } from "@/types/molt";
+import { cToF, fToC } from "@/lib/utils";
+import { saveTempUnit } from "@/lib/temperature";
 
 interface EntryFormModalProps {
   isOpen: boolean;
@@ -312,14 +314,46 @@ export default function EntryFormModal({
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block flex items-center gap-1.5">
-                    <Thermometer className="w-4 h-4" />
-                    Temp (°C)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-sm font-medium text-[rgb(var(--text))] flex items-center gap-1.5">
+                      <Thermometer className="w-4 h-4" />
+                      Temp ({formState.temperatureUnit === "F" ? "°F" : "°C"})
+                    </label>
+                    <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
+                      <button
+                        type="button"
+                        className={`px-2 py-0.5 text-xs ${formState.temperatureUnit === "C" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                        onClick={() => {
+                          if (formState.temperatureUnit !== "C") {
+                            const next = formState.temperature ? (Math.round(fToC(Number(formState.temperature)) * 10) / 10).toString() : formState.temperature;
+                            onFormChange({ temperatureUnit: "C", temperature: next });
+                            saveTempUnit("C");
+                          }
+                        }}
+                        aria-label="Use Celsius"
+                      >
+                        °C
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-2 py-0.5 text-xs ${formState.temperatureUnit === "F" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                        onClick={() => {
+                          if (formState.temperatureUnit !== "F") {
+                            const next = formState.temperature ? (Math.round(cToF(Number(formState.temperature)) * 10) / 10).toString() : formState.temperature;
+                            onFormChange({ temperatureUnit: "F", temperature: next });
+                            saveTempUnit("F");
+                          }
+                        }}
+                        aria-label="Use Fahrenheit"
+                      >
+                        °F
+                      </button>
+                    </div>
+                  </div>
                   <Input
                     type="number"
                     step="0.1"
-                    placeholder="0"
+                    placeholder={formState.temperatureUnit === "F" ? "°F" : "°C"}
                     value={formState.temperature}
                     onChange={(e) => onFormChange({ temperature: e.target.value })}
                   />
