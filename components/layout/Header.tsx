@@ -1,8 +1,9 @@
 "use client";
 
-import { Plus, LogOut, LogIn, Info } from "lucide-react";
+import { Plus, LogOut, LogIn, Info, Moon, Sun } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { DataMode } from "@/types/molt";
+import { useTheme } from "@/lib/theme";
 
 interface HeaderProps {
   mode: DataMode;
@@ -12,6 +13,7 @@ interface HeaderProps {
 }
 
 export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: HeaderProps) {
+  const { theme, toggleTheme } = useTheme();
   return (
     <header className="sticky top-0 z-40 w-full bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-b border-[rgb(var(--border))] safe-top">
       <div className="flex items-center justify-between px-4 py-3 max-w-screen-lg mx-auto">
@@ -32,6 +34,15 @@ export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: Head
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </Button>
           <Button
             variant="ghost"
             size="icon"

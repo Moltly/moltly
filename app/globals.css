@@ -62,6 +62,57 @@
     }
   }
 
+  /* Explicit overrides via data-theme attribute take precedence over system preferences */
+  :root[data-theme="light"] {
+    --bg: 245 246 251;
+    --bg-muted: 238 240 246;
+    --surface: 255 255 255;
+    --border: 226 232 240;
+    --border-strong: 203 213 225;
+    --text: 15 23 42;
+    --text-soft: 100 116 139;
+    --text-subtle: 148 163 184;
+    --primary: 59 130 246;
+    --primary-soft: 219 234 254;
+    --primary-strong: 29 78 216;
+    --danger: 239 68 68;
+    --danger-soft: 254 202 202;
+    --success: 34 197 94;
+    --success-soft: 187 247 208;
+    --warning: 251 191 36;
+    --warning-soft: 254 243 199;
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+    --shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.1), 0 2px 4px -2px rgba(15, 23, 42, 0.1);
+    --shadow-md: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.1);
+    --shadow-lg: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+  }
+
+  :root[data-theme="dark"] {
+    --bg: 15 17 23;
+    --bg-muted: 17 21 31;
+    --surface: 24 28 36;
+    --border: 51 65 85;
+    --border-strong: 71 85 105;
+    --text: 236 241 255;
+    --text-soft: 148 163 184;
+    --text-subtle: 100 116 139;
+    --primary: 96 165 250;
+    --primary-soft: 30 58 138;
+    --primary-strong: 147 197 253;
+    --danger: 248 113 113;
+    --danger-soft: 127 29 29;
+    --success: 74 222 128;
+    --success-soft: 20 83 45;
+    --warning: 253 224 71;
+    --warning-soft: 113 63 18;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+  }
+
   * {
     border-color: rgb(var(--border));
   }

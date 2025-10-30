@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { ReactNode } from "react";
+import { ThemeProvider } from "@/lib/theme";
 
 function useCapacitorUniversalLinks() {
   useEffect(() => {
@@ -61,5 +62,9 @@ export default function Providers({ children }: { children: ReactNode }) {
       // Plugin not available; ignore
     });
   }, []);
-  return <SessionProvider>{children}</SessionProvider>;
+  return (
+    <SessionProvider>
+      <ThemeProvider>{children}</ThemeProvider>
+    </SessionProvider>
+  );
 }
