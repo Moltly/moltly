@@ -10,14 +10,14 @@ Contact: contact@moltly.xyz
 If you deploy the Moltly software yourself, you are the data controller for your deployment. This Policy describes the hosted Service operated by the operator named above.
 
 1) Information We Collect
-- Account information: Email address, password (stored as a bcrypt hash), optional display name and profile image. If you sign in with Discord, we receive basic profile information from Discord (e.g., account identifier, email, avatar) and may store OAuth tokens required to facilitate sign‑in.
+- Account information: Email address, password (stored as a bcrypt hash), optional display name and profile image. If you sign in with Discord, Apple, or Google, we receive basic profile information from the provider (e.g., account identifier, email, avatar) and may store OAuth tokens required to facilitate sign‑in.
 - Content you add: Molt and feeding entries (including specimen name, species, dates, stage, sizes, humidity/temperature, notes, reminders), photo attachments you upload, and research notebook data (stacks, notes, tags, and optional labels/descriptions).
 - Technical and security data: Session cookies; limited IP address data derived from request headers for login rate limiting and security; basic request logs needed to operate the Service. Because we proxy the Service through Cloudflare (our CDN and security provider), Cloudflare also processes technical information necessary to deliver the Service and protect it, including your IP address, approximate location (e.g., country/region), User‑Agent, referrer, request identifiers (e.g., CF‑Ray), error and firewall events, and challenge/verification results used to distinguish bots from legitimate traffic.
 - Guest mode data: If you use Moltly without signing in, entries and research notes you create in “guest mode” are stored only in your browser’s local storage and are not synced to our servers.
 
 2) How We Use Information
 - Provide and operate the Service, including syncing your data when signed in and rendering your content in the app.
-- Authenticate users via email/password and OAuth providers (e.g., Discord, Apple) and maintain session security.
+- Authenticate users via email/password and OAuth providers (e.g., Discord, Apple, Google) and maintain session security.
 - Protect the Service (e.g., rate limiting and detecting abusive behavior); we combine an email and an IP address to enforce short‑term sign‑in lockouts. We also use Cloudflare’s reverse proxy, CDN, and security features (including DDoS mitigation and web application firewall) to filter malicious traffic and keep the Service reliable.
 - Improve the reliability and user experience of the Service.
 
@@ -36,7 +36,7 @@ Where GDPR/UK GDPR applies, we process personal data on these bases:
 5) Sharing of Information
 - Service providers: We use hosting and infrastructure providers to operate the Service and store data (e.g., a MongoDB database). These providers act on our behalf and follow our instructions.
 - Network/CDN and security provider (Cloudflare): We route incoming and outgoing traffic through Cloudflare for content delivery, DDoS protection, and firewall services. Cloudflare processes technical and security data to provide these services and may temporarily cache content. Cloudflare acts as our service provider/processor. For details, see Cloudflare’s Privacy Policy: https://www.cloudflare.com/privacypolicy/ and Cloudflare Cookies: https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/
-- Authentication providers: If you use Discord to sign in, we share and receive authentication data with Discord to facilitate login. Your use of Discord is subject to its own terms and privacy policy.
+- Authentication providers: If you use Discord, Apple, or Google to sign in, we share and receive authentication data with that provider to facilitate login. Your use of each provider is subject to its own terms and privacy policy.
 - Legal and safety: We may disclose information if required by law or to protect the rights, safety, and security of users, the public, or the Service.
 - We do not sell personal information.
 

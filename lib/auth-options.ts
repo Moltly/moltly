@@ -5,6 +5,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import DiscordProvider from "next-auth/providers/discord";
 import AppleProvider from "next-auth/providers/apple";
+import GoogleProvider from "next-auth/providers/google";
 import getMongoClientPromise from "./mongodb";
 import fs from "node:fs";
 import path from "node:path";
@@ -90,6 +91,11 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.DISCORD_CLIENT_ID ?? "",
       clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
       authorization: { params: { scope: "identify email" } }
+    }),
+    // Google OAuth
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
     // Email/password credentials
     CredentialsProvider({
@@ -183,7 +189,7 @@ export const authOptions: NextAuthOptions = {
   events: {
     async signIn({ user, account }) {
       try {
-        if (!account || !["discord", "apple"].includes(account.provider)) {
+        if (!account || !["discord", "apple", "google"].includes(account.provider)) {
           return;
         }
         if (!user.email) {

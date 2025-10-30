@@ -66,7 +66,7 @@ export type SpecimenDashboard = {
   latestEntry: MoltEntry | null;
 };
 
-export type ViewKey = "overview" | "activity" | "specimens" | "reminders" | "notebook";
+export type ViewKey = "overview" | "activity" | "specimens" | "reminders" | "notebook" | "health" | "breeding";
 export type DataMode = "sync" | "local" | null;
 
 export type Filters = {

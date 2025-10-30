@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, History, Users, Bell, BookOpen } from "lucide-react";
+import { Home, History, Users, Bell, BookOpen, HeartPulse, Egg } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ViewKey } from "@/types/molt";
 
@@ -26,6 +26,16 @@ const navItems = [
     icon: Users,
   },
   {
+    key: "health" as ViewKey,
+    label: "Health",
+    icon: HeartPulse,
+  },
+  {
+    key: "breeding" as ViewKey,
+    label: "Breeding",
+    icon: Egg,
+  },
+  {
     key: "reminders" as ViewKey,
     label: "Reminders",
     icon: Bell,
@@ -40,17 +50,18 @@ const navItems = [
 export default function BottomNav({ activeView, onViewChange }: BottomNavProps) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-t border-[rgb(var(--border))] safe-bottom">
-      <div className="flex items-center justify-around max-w-screen-lg mx-auto px-2 py-2">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.key;
+      <div className="max-w-screen-lg mx-auto px-2">
+        <div className="flex items-center gap-2 py-2 overflow-x-auto overflow-y-hidden md:overflow-visible md:justify-center scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.key;
 
-          return (
-            <button
-              key={item.key}
-              onClick={() => onViewChange(item.key)}
-              className={cn(
-                "flex flex-col items-center justify-center gap-1 px-4 py-2 rounded-[var(--radius)] transition-all min-w-[60px]",
+            return (
+              <button
+                key={item.key}
+                onClick={() => onViewChange(item.key)}
+                className={cn(
+                "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-[var(--radius)] transition-all min-w-[70px] flex-shrink-0 snap-center",
                 isActive
                   ? "text-[rgb(var(--primary))]"
                   : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
@@ -73,7 +84,8 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
               </span>
             </button>
           );
-        })}
+          })}
+        </div>
       </div>
     </nav>
   );

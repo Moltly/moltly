@@ -1,0 +1,538 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { HeartPulse, PlusCircle, Thermometer, Droplets, RefreshCw, Trash2, Stethoscope } from "lucide-react";
+import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import type { HealthEntry, HealthFormState } from "@/types/health";
+import { formatDate, formatRelativeDate } from "@/lib/utils";
+
+interface HealthViewProps {
+  entries: HealthEntry[];
+  onCreate: (form: HealthFormState) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onScheduleFollowUpRetry: (entry: HealthEntry) => Promise<void>;
+}
+
+const defaultForm = (): HealthFormState => ({
+  specimen: "",
+  species: "",
+  date: new Date().toISOString().slice(0, 10),
+  weight: "",
+  weightUnit: "g",
+  temperature: "",
+  humidity: "",
+  condition: "Stable",
+  behavior: "",
+  healthIssues: "",
+  treatment: "",
+  followUpDate: "",
+  notes: "",
+});
+
+function conditionBadgeClass(condition: HealthEntry["condition"]): string {
+  switch (condition) {
+    case "Critical":
+      return "bg-[rgb(var(--danger-soft))] text-[rgb(var(--danger))]";
+    case "Observation":
+      return "bg-yellow-100 text-yellow-700";
+    default:
+      return "bg-emerald-100 text-emerald-700";
+  }
+}
+
+export default function HealthView({ entries, onCreate, onDelete, onScheduleFollowUpRetry }: HealthViewProps) {
+  const [form, setForm] = useState<HealthFormState>(defaultForm);
+  const [saving, setSaving] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reschedulingId, setReschedulingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const stats = useMemo(() => {
+    const sorted = [...entries].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    const conditionCounts: Record<HealthEntry["condition"], number> = {
+      Stable: 0,
+      Observation: 0,
+      Critical: 0,
+    };
+    let weightTotal = 0;
+    let weightSamples = 0;
+    let latestWeightEntry: HealthEntry | null = null;
+
+    for (const entry of sorted) {
+      conditionCounts[entry.condition] = (conditionCounts[entry.condition] ?? 0) + 1;
+      if (typeof entry.weight === "number" && Number.isFinite(entry.weight)) {
+        weightTotal += entry.weight;
+        weightSamples += 1;
+        if (!latestWeightEntry) {
+          latestWeightEntry = entry;
+        }
+      }
+    }
+
+    const averageWeight =
+      weightSamples > 0 ? Math.round((weightTotal / weightSamples) * 10) / 10 : null;
+
+    const upcomingFollowUps = sorted
+      .filter((entry) => entry.followUpDate)
+      .sort(
+        (a, b) =>
+          new Date(a.followUpDate as string).getTime() -
+          new Date(b.followUpDate as string).getTime()
+      )
+      .slice(0, 3);
+
+    return {
+      sorted,
+      latest: sorted[0] ?? null,
+      conditionCounts,
+      averageWeight,
+      latestWeightEntry,
+      upcomingFollowUps,
+    };
+  }, [entries]);
+
+  const handleChange = (key: keyof HealthFormState) => (value: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    if (statusMessage) setStatusMessage(null);
+    if (error) setError(null);
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await onCreate(form);
+      setStatusMessage("Health log saved.");
+      setForm(defaultForm());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save entry.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    setError(null);
+    try {
+      await onDelete(id);
+      setStatusMessage("Health entry removed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete entry.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleReschedule = async (entry: HealthEntry) => {
+    if (!entry.followUpDate) return;
+    setReschedulingId(entry.id);
+    setError(null);
+    try {
+      await onScheduleFollowUpRetry(entry);
+      setStatusMessage("Reminder scheduled.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to schedule reminder.");
+    } finally {
+      setReschedulingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card elevated className="overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-emerald-600/20 via-emerald-500/10 to-transparent border-b border-[rgb(var(--border))]">
+          <div className="flex items-center gap-3">
+            <HeartPulse className="w-6 h-6 text-emerald-600" />
+            <div>
+              <CardTitle className="text-xl">Health Tracking</CardTitle>
+              <p className="text-sm text-[rgb(var(--text-subtle))]">
+                Log weight, behavior, and treatment notes to monitor specimen wellness.
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Specimen
+                </label>
+                <Input
+                  placeholder="e.g., Rosie"
+                  value={form.specimen}
+                  onChange={(e) => handleChange("specimen")(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Species
+                </label>
+                <Input
+                  placeholder="e.g., Brachypelma hamorii"
+                  value={form.species}
+                  onChange={(e) => handleChange("species")(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))] mb-1.5">
+                  <Stethoscope className="w-4 h-4" />
+                  Condition
+                </label>
+                <select
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={form.condition}
+                  onChange={(e) => handleChange("condition")(e.target.value)}
+                >
+                  <option value="Stable">Stable</option>
+                  <option value="Observation">Observation</option>
+                  <option value="Critical">Critical</option>
+                </select>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))] mb-1.5">
+                  <Thermometer className="w-4 h-4" />
+                  Temperature
+                </label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="°F"
+                  value={form.temperature}
+                  onChange={(e) => handleChange("temperature")(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))] mb-1.5">
+                  <Droplets className="w-4 h-4" />
+                  Humidity
+                </label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="%"
+                  value={form.humidity}
+                  onChange={(e) => handleChange("humidity")(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Log Date
+                </label>
+                <Input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => handleChange("date")(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Weight
+                </label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="e.g., 18"
+                    value={form.weight}
+                    onChange={(e) => handleChange("weight")(e.target.value)}
+                  />
+                  <select
+                    className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                    value={form.weightUnit}
+                    onChange={(e) => handleChange("weightUnit")(e.target.value)}
+                  >
+                    <option value="g">g</option>
+                    <option value="oz">oz</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Follow-up date
+                </label>
+                <Input
+                  type="date"
+                  value={form.followUpDate}
+                  onChange={(e) => handleChange("followUpDate")(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Behavior notes
+                </label>
+                <textarea
+                  value={form.behavior}
+                  onChange={(e) => handleChange("behavior")(e.target.value)}
+                  className="w-full min-h-[90px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
+                  placeholder="Activity changes, appetite, temperament…"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Health concerns / treatment
+                </label>
+                <textarea
+                  value={form.healthIssues}
+                  onChange={(e) => handleChange("healthIssues")(e.target.value)}
+                  className="w-full min-h-[90px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
+                  placeholder="Visible issues, medical notes…"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                Treatment details
+              </label>
+              <textarea
+                value={form.treatment}
+                onChange={(e) => handleChange("treatment")(e.target.value)}
+                className="w-full min-h-[70px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
+                placeholder="Medication, vet visits, supportive care…"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                Additional notes
+              </label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => handleChange("notes")(e.target.value)}
+                className="w-full min-h-[70px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
+                placeholder="General observations or reminders."
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Button type="submit" disabled={saving} className="gap-2">
+                <PlusCircle className="w-4 h-4" />
+                {saving ? "Saving…" : "Save health log"}
+              </Button>
+              {statusMessage && <span className="text-sm text-emerald-700">{statusMessage}</span>}
+              {error && <span className="text-sm text-[rgb(var(--danger))]">{error}</span>}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {stats.sorted.length === 0 ? (
+        <Card className="p-6 text-center">
+          <div className="flex flex-col items-center gap-3 text-[rgb(var(--text-soft))]">
+            <HeartPulse className="w-10 h-10 opacity-70" />
+            <p className="text-base font-medium text-[rgb(var(--text))]">No health entries yet</p>
+            <p className="text-sm max-w-md">
+              Start logging weight, behavior, and medical notes to catch trends early and keep your tarantulas thriving.
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-0">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <HeartPulse className="w-4 h-4 text-emerald-600" />
+                  Condition overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-3 gap-2 pt-3">
+                {(["Stable", "Observation", "Critical"] as HealthEntry["condition"][]).map((key) => (
+                  <div key={key} className="text-center">
+                    <div className="text-2xl font-semibold text-[rgb(var(--text))]">{stats.conditionCounts[key]}</div>
+                    <div className="text-xs text-[rgb(var(--text-subtle))]">{key}</div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-0">
+                <CardTitle className="text-base">Average weight</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3">
+                <p className="text-3xl font-semibold text-[rgb(var(--text))]">
+                  {stats.averageWeight !== null ? `${stats.averageWeight}${stats.latestWeightEntry?.weightUnit ?? "g"}` : "—"}
+                </p>
+                <p className="text-xs text-[rgb(var(--text-subtle))]">
+                  Based on {stats.latestWeightEntry ? "recent logs" : "available entries"}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-0">
+                <CardTitle className="text-base">Upcoming follow-ups</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-3 space-y-2">
+                {stats.upcomingFollowUps.length === 0 ? (
+                  <p className="text-sm text-[rgb(var(--text-subtle))]">No follow-up reminders scheduled.</p>
+                ) : (
+                  stats.upcomingFollowUps.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between text-sm">
+                      <div>
+                        <p className="font-medium text-[rgb(var(--text))]">
+                          {entry.specimen || entry.species || "Unnamed"}
+                        </p>
+                        <p className="text-xs text-[rgb(var(--text-subtle))]">
+                          {formatDate(entry.followUpDate as string)} • {formatRelativeDate(entry.followUpDate as string)}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[rgb(var(--bg-muted))] text-xs">
+                        {entry.condition}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
+            {stats.sorted.map((entry) => (
+              <Card key={entry.id} elevated>
+                <CardHeader className="flex-row items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold text-[rgb(var(--text))]">
+                        {entry.specimen || entry.species || "Unnamed specimen"}
+                      </h3>
+                      <span
+                        className={`text-xs font-medium px-2 py-1 rounded-full ${conditionBadgeClass(entry.condition)}`}
+                      >
+                        {entry.condition}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[rgb(var(--text-subtle))]">
+                      {formatDate(entry.date)} • {formatRelativeDate(entry.date)}
+                    </p>
+                    {entry.species && (
+                      <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
+                        {entry.species}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={deletingId === entry.id}
+                      className="text-[rgb(var(--danger))]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid sm:grid-cols-4 gap-3 text-sm">
+                    <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
+                      <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
+                        Weight
+                      </p>
+                      <p className="text-base font-semibold text-[rgb(var(--text))]">
+                        {typeof entry.weight === "number"
+                          ? `${entry.weight}${entry.weightUnit ?? "g"}`
+                          : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
+                      <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
+                        Temperature
+                      </p>
+                      <p className="text-base font-semibold text-[rgb(var(--text))]">
+                        {typeof entry.temperature === "number" ? `${entry.temperature}°` : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
+                      <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
+                        Humidity
+                      </p>
+                      <p className="text-base font-semibold text-[rgb(var(--text))]">
+                        {typeof entry.humidity === "number" ? `${entry.humidity}%` : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
+                      <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
+                        Follow-up
+                      </p>
+                      {entry.followUpDate ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-base font-semibold text-[rgb(var(--text))]">
+                            {formatDate(entry.followUpDate)}
+                          </span>
+                          <span className="text-xs text-[rgb(var(--text-subtle))]">
+                            {formatRelativeDate(entry.followUpDate)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="justify-start text-xs text-[rgb(var(--primary))] px-0"
+                            onClick={() => handleReschedule(entry)}
+                            disabled={reschedulingId === entry.id}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            {reschedulingId === entry.id ? "Scheduling…" : "Reschedule reminder"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-base text-[rgb(var(--text-subtle))]">—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                    {entry.behavior && (
+                      <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 bg-[rgb(var(--bg-muted))]">
+                        <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
+                          Behavior
+                        </p>
+                        <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.behavior}</p>
+                      </div>
+                    )}
+                    {entry.healthIssues && (
+                      <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 bg-[rgb(var(--danger-soft))]/20">
+                        <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
+                          Health notes
+                        </p>
+                        <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.healthIssues}</p>
+                      </div>
+                    )}
+                  </div>
+                  {entry.treatment && (
+                    <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 text-sm">
+                      <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
+                        Treatment
+                      </p>
+                      <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.treatment}</p>
+                    </div>
+                  )}
+                  {entry.notes && (
+                    <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 text-sm">
+                      <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
+                        Additional notes
+                      </p>
+                      <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+

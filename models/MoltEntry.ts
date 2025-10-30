@@ -1,14 +1,5 @@
 import { Schema, model, models, Types } from "mongoose";
-
-const AttachmentSchema = new Schema(
-  {
-    name: String,
-    url: String,
-    type: String,
-    addedAt: { type: Date, default: Date.now }
-  },
-  { _id: false }
-);
+import { AttachmentSchema } from "./shared";
 
 const MoltEntrySchema = new Schema(
   {

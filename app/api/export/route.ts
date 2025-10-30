@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth-options";
 import { connectMongoose } from "../../../lib/mongoose";
 import MoltEntry from "../../../models/MoltEntry";
+import HealthEntry from "../../../models/HealthEntry";
+import BreedingEntry from "../../../models/BreedingEntry";
 import ResearchStack from "../../../models/ResearchStack";
 import { normalizeStack } from "../../../lib/research-stacks";
 import path from "path";
@@ -58,6 +60,22 @@ async function embedDataUrl(att: ExportAttachment): Promise<ExportAttachment> {
   }
 }
 
+async function normalizeAttachmentsForExport(
+  raw: any[],
+  embed: boolean,
+  contextId: string
+): Promise<ExportAttachment[]> {
+  const normalized: ExportAttachment[] = (Array.isArray(raw) ? raw : []).map((a: any, index: number) => ({
+    id: a?.id || a?._id?.toString?.() || crypto.randomUUID?.() || `${contextId}-att-${index}`,
+    name: a?.name,
+    url: a?.url,
+    type: a?.type,
+    addedAt: typeof a?.addedAt === "string" ? a?.addedAt : a?.addedAt?.toISOString?.() || undefined,
+  }));
+
+  return embed ? Promise.all(normalized.map((att) => embedDataUrl(att))) : normalized;
+}
+
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -74,16 +92,7 @@ export async function GET(request: Request) {
     entriesDocs.map(async (doc) => {
       const obj = doc.toObject();
       const entryType = obj.entryType === "feeding" ? "feeding" : obj.entryType === "molt" ? "molt" : "water";
-      const attachments = Array.isArray(obj.attachments) ? obj.attachments : [];
-      const normalizedAtts: ExportAttachment[] = attachments.map((a: any) => ({
-        id: a.id || a._id?.toString?.() || crypto.randomUUID?.() || `${doc._id}-att`,
-        name: a.name,
-        url: a.url,
-        type: a.type,
-        addedAt: typeof a.addedAt === "string" ? a.addedAt : a.addedAt?.toISOString?.() || undefined,
-      }));
-
-      const withData = embed ? await Promise.all(normalizedAtts.map(embedDataUrl)) : normalizedAtts;
+      const attachments = await normalizeAttachmentsForExport(obj.attachments, embed, doc._id.toString());
 
       return {
         id: doc._id.toString(),
@@ -101,7 +110,61 @@ export async function GET(request: Request) {
         feedingPrey: obj.feedingPrey ?? undefined,
         feedingOutcome: obj.feedingOutcome ?? undefined,
         feedingAmount: obj.feedingAmount ?? undefined,
-        attachments: withData,
+        attachments,
+        createdAt: obj.createdAt ? new Date(obj.createdAt).toISOString() : undefined,
+        updatedAt: obj.updatedAt ? new Date(obj.updatedAt).toISOString() : undefined,
+      };
+    })
+  );
+
+  const healthDocs = await HealthEntry.find({ userId: session.user.id }).sort({ date: -1 });
+  const health = await Promise.all(
+    healthDocs.map(async (doc) => {
+      const obj = doc.toObject();
+      const attachments = await normalizeAttachmentsForExport(obj.attachments, embed, `health-${doc._id.toString()}`);
+      return {
+        id: doc._id.toString(),
+        specimen: obj.specimen ?? undefined,
+        species: obj.species ?? undefined,
+        date: (obj.date instanceof Date ? obj.date : new Date(obj.date)).toISOString(),
+        weight: typeof obj.weight === "number" ? obj.weight : undefined,
+        weightUnit: obj.weightUnit === "oz" ? "oz" : "g",
+        temperature: typeof obj.temperature === "number" ? obj.temperature : undefined,
+        humidity: typeof obj.humidity === "number" ? obj.humidity : undefined,
+        condition: obj.condition ?? "Stable",
+        behavior: obj.behavior ?? undefined,
+        healthIssues: obj.healthIssues ?? undefined,
+        treatment: obj.treatment ?? undefined,
+        followUpDate: obj.followUpDate ? new Date(obj.followUpDate).toISOString() : undefined,
+        notes: obj.notes ?? undefined,
+        attachments,
+        createdAt: obj.createdAt ? new Date(obj.createdAt).toISOString() : undefined,
+        updatedAt: obj.updatedAt ? new Date(obj.updatedAt).toISOString() : undefined,
+      };
+    })
+  );
+
+  const breedingDocs = await BreedingEntry.find({ userId: session.user.id }).sort({ pairingDate: -1 });
+  const breeding = await Promise.all(
+    breedingDocs.map(async (doc) => {
+      const obj = doc.toObject();
+      const attachments = await normalizeAttachmentsForExport(obj.attachments, embed, `breeding-${doc._id.toString()}`);
+      return {
+        id: doc._id.toString(),
+        femaleSpecimen: obj.femaleSpecimen ?? undefined,
+        maleSpecimen: obj.maleSpecimen ?? undefined,
+        species: obj.species ?? undefined,
+        pairingDate: (obj.pairingDate instanceof Date ? obj.pairingDate : new Date(obj.pairingDate)).toISOString(),
+        status: obj.status ?? "Planned",
+        pairingNotes: obj.pairingNotes ?? undefined,
+        eggSacDate: obj.eggSacDate ? new Date(obj.eggSacDate).toISOString() : undefined,
+        eggSacStatus: obj.eggSacStatus ?? "Not Laid",
+        eggSacCount: typeof obj.eggSacCount === "number" ? obj.eggSacCount : undefined,
+        hatchDate: obj.hatchDate ? new Date(obj.hatchDate).toISOString() : undefined,
+        slingCount: typeof obj.slingCount === "number" ? obj.slingCount : undefined,
+        followUpDate: obj.followUpDate ? new Date(obj.followUpDate).toISOString() : undefined,
+        notes: obj.notes ?? undefined,
+        attachments,
         createdAt: obj.createdAt ? new Date(obj.createdAt).toISOString() : undefined,
         updatedAt: obj.updatedAt ? new Date(obj.updatedAt).toISOString() : undefined,
       };
@@ -114,10 +177,12 @@ export async function GET(request: Request) {
     .filter((s): s is NonNullable<ReturnType<typeof normalizeStack>> => Boolean(s));
 
   const payload = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     entries,
     research,
+    health,
+    breeding,
   };
 
   const body = JSON.stringify(payload);

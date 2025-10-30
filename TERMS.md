@@ -11,7 +11,7 @@ Contact: contact@moltly.xyz
 
 1. Eligibility and Accounts
 - You must be at least 13 years old to use the Service. If you are under the age of majority in your jurisdiction, you may only use the Service with a parent or legal guardian’s consent.
-- To access certain features, you must create an account using an email and password or sign in via Discord. You are responsible for maintaining the confidentiality of your credentials and for all activities under your account.
+- To access certain features, you must create an account using an email and password or sign in via Discord, Apple, or Google. You are responsible for maintaining the confidentiality of your credentials and for all activities under your account.
 - You must provide accurate information and keep it up to date. We may suspend or terminate your account if information is inaccurate, misleading, or if you violate these Terms.
 
 2. The Service
@@ -32,7 +32,7 @@ You agree not to:
 - Reverse engineer, decompile, or attempt to derive the source code of the Service except to the extent such restrictions are prohibited by law.
 
 5. Third‑Party Services
-- The Service offers sign‑in via third‑party providers such as Discord and Apple. Your use of those providers is governed by their own terms and privacy policies. We are not responsible for third‑party services.
+- The Service offers sign‑in via third‑party providers such as Discord, Apple, and Google. Your use of those providers is governed by their own terms and privacy policies. We are not responsible for third‑party services.
 - We may use infrastructure and service providers (e.g., hosting and database providers) to operate the Service.
 - Content delivery and security: We use Cloudflare as a reverse proxy, content delivery network (CDN), DNS, and security provider (including DDoS protection and web application firewall). By using the Service, your requests may be routed through Cloudflare, which may temporarily cache content and process technical information such as your IP address, country/region, and request metadata to provide its services. For details about Cloudflare’s practices, see Cloudflare’s Privacy Policy: https://www.cloudflare.com/privacypolicy/ and Cloudflare Cookies: https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/
 

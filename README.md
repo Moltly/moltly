@@ -55,6 +55,15 @@ docker compose up --build
 
 * Save your changes
 
+## Google Authentication (optional)
+
+1. Open Google Cloud Console and select or create a project.
+2. Configure OAuth consent screen (External or Internal) and add your domain to Authorized domains.
+3. Create Credentials → OAuth client ID → Web application.
+   - Authorized redirect URI: `https://your-domain/api/auth/callback/google` (and `http://localhost:5777/api/auth/callback/google` for local dev)
+4. Copy Client ID and Client Secret into `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+5. Ensure `NEXTAUTH_URL` matches your site origin (e.g., `https://moltly.xyz` for production or `http://localhost:5777` for local).
+
 ## Apple Authentication (optional)
 
 Add “Sign in with Apple” for web:

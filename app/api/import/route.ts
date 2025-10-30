@@ -5,6 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth-options";
 import { connectMongoose } from "../../../lib/mongoose";
 import MoltEntry from "../../../models/MoltEntry";
+import HealthEntry from "../../../models/HealthEntry";
+import BreedingEntry from "../../../models/BreedingEntry";
 import ResearchStack from "../../../models/ResearchStack";
 import { sanitizeStackCreate, type StackPayload } from "../../../lib/research-stacks";
 import path from "path";
@@ -39,9 +41,45 @@ type IncomingEntry = {
   attachments?: IncomingAttachment[];
 };
 
+type IncomingHealthEntry = {
+  specimen?: string;
+  species?: string;
+  date?: string;
+  weight?: number | string;
+  weightUnit?: string;
+  temperature?: number | string;
+  humidity?: number | string;
+  condition?: string;
+  behavior?: string;
+  healthIssues?: string;
+  treatment?: string;
+  followUpDate?: string | null;
+  notes?: string;
+  attachments?: IncomingAttachment[];
+};
+
+type IncomingBreedingEntry = {
+  femaleSpecimen?: string;
+  maleSpecimen?: string;
+  species?: string;
+  pairingDate?: string;
+  status?: string;
+  pairingNotes?: string;
+  eggSacDate?: string | null;
+  eggSacStatus?: string;
+  eggSacCount?: number | string;
+  hatchDate?: string | null;
+  slingCount?: number | string;
+  followUpDate?: string | null;
+  notes?: string;
+  attachments?: IncomingAttachment[];
+};
+
 type ImportPayload = {
   entries?: IncomingEntry[];
   research?: StackPayload[];
+  health?: IncomingHealthEntry[];
+  breeding?: IncomingBreedingEntry[];
 };
 
 function parseDataUrl(dataUrl: string): { mime: string; buffer: Buffer } | null {
@@ -70,6 +108,82 @@ function extFromMime(mime?: string): string {
   return mime && map[mime] ? map[mime] : "jpg";
 }
 
+function parseNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+async function normalizeAttachments(
+  raw: IncomingAttachment[] | undefined,
+  userId: string,
+  uploadsDir: string | null,
+  useS3: boolean
+): Promise<any[]> {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [];
+  }
+
+  const attachments: any[] = [];
+  for (const a of raw) {
+    try {
+      let buffer: Buffer | null = null;
+      let mime: string | undefined = a.type;
+      if (a?.dataUrl) {
+        const parsed = parseDataUrl(a.dataUrl);
+        if (parsed) {
+          buffer = parsed.buffer;
+          mime = mime || parsed.mime;
+        }
+      } else if (a?.url) {
+        try {
+          const res = await fetch(a.url);
+          if (res.ok) {
+            const arr = await res.arrayBuffer();
+            buffer = Buffer.from(arr);
+            mime = mime || res.headers.get("content-type") || undefined;
+          }
+        } catch {}
+      }
+
+      let url = a?.url || "";
+      const filenameBase =
+        (a?.name && a.name.replace(/\\|\//g, " ").replace(/[^a-zA-Z0-9._-]/g, "_")) || "attachment";
+      const ext = extFromMime(mime);
+      const filename = `${crypto.randomUUID()}.${ext}`;
+
+      if (buffer) {
+        if (useS3) {
+          const key = objectKeyFor(userId, filename);
+          const { url: putUrl } = await putObject({ key, body: buffer, contentType: mime || `image/${ext}` });
+          url = putUrl;
+        } else if (uploadsDir) {
+          const dest = path.join(uploadsDir, filename);
+          await writeFile(dest, buffer);
+          url = `/uploads/${userId}/${filename}`;
+        }
+      }
+
+      attachments.push({
+        id: a?.id || crypto.randomUUID(),
+        name: a?.name || filenameBase,
+        url,
+        type: mime || a?.type || `image/${ext}`,
+        addedAt: a?.addedAt || new Date().toISOString(),
+      });
+    } catch {}
+  }
+
+  return attachments;
+}
+
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -91,6 +205,8 @@ export async function POST(request: Request) {
   if (!useS3 && uploadsDir) await mkdir(uploadsDir, { recursive: true });
 
   let createdEntries = 0;
+  let createdHealth = 0;
+  let createdBreeding = 0;
   let createdStacks = 0;
 
   // Import entries
@@ -103,56 +219,7 @@ export async function POST(request: Request) {
           return t === "feeding" ? "feeding" : t === "water" ? "water" : "molt";
         })();
 
-        const attachments: any[] = [];
-        if (Array.isArray(raw.attachments)) {
-          for (const a of raw.attachments) {
-            try {
-              let buffer: Buffer | null = null;
-              let mime: string | undefined = a.type;
-              if (a.dataUrl) {
-                const parsed = parseDataUrl(a.dataUrl);
-                if (parsed) {
-                  buffer = parsed.buffer;
-                  mime = mime || parsed.mime;
-                }
-              } else if (a.url) {
-                try {
-                  const res = await fetch(a.url);
-                  if (res.ok) {
-                    const arr = await res.arrayBuffer();
-                    buffer = Buffer.from(arr);
-                    mime = mime || res.headers.get("content-type") || undefined;
-                  }
-                } catch {}
-              }
-
-              let url = a.url || "";
-              const filenameBase = (a.name && a.name.replace(/\\|\//g, " ").replace(/[^a-zA-Z0-9._-]/g, "_")) || "attachment";
-              const ext = extFromMime(mime);
-              const filename = `${crypto.randomUUID()}.${ext}`;
-
-              if (buffer) {
-                if (useS3) {
-                  const key = objectKeyFor(userId, filename);
-                  const { url: putUrl } = await putObject({ key, body: buffer, contentType: mime || `image/${ext}` });
-                  url = putUrl;
-                } else if (uploadsDir) {
-                  const dest = path.join(uploadsDir, filename);
-                  await writeFile(dest, buffer);
-                  url = `/uploads/${userId}/${filename}`;
-                }
-              }
-
-              attachments.push({
-                id: a.id || crypto.randomUUID(),
-                name: a.name || filenameBase,
-                url,
-                type: mime || a.type || `image/${ext}`,
-                addedAt: a.addedAt || new Date().toISOString(),
-              });
-            } catch {}
-          }
-        }
+        const attachments = await normalizeAttachments(raw.attachments, userId, uploadsDir, useS3);
 
         const entry = await MoltEntry.create({
           userId,
@@ -175,8 +242,78 @@ export async function POST(request: Request) {
         if (entry) createdEntries += 1;
       } catch (err) {
         // Continue on individual entry failures
-        // eslint-disable-next-line no-console
         console.warn("Entry import failed", err);
+      }
+    }
+  }
+
+  // Import health entries
+  if (Array.isArray(payload.health)) {
+    const allowedConditions = new Set(["Stable", "Observation", "Critical"]);
+    for (const raw of payload.health) {
+      try {
+        if (!raw?.date) continue;
+        const attachments = await normalizeAttachments(raw.attachments, userId, uploadsDir, useS3);
+        const normalizedCondition =
+          typeof raw.condition === "string" && allowedConditions.has(raw.condition) ? raw.condition : "Stable";
+        const entry = await HealthEntry.create({
+          userId,
+          specimen: raw.specimen?.trim() || undefined,
+          species: raw.species?.trim() || undefined,
+          date: raw.date,
+          weight: parseNumber(raw.weight),
+          weightUnit: raw.weightUnit === "oz" ? "oz" : "g",
+          temperature: parseNumber(raw.temperature),
+          humidity: parseNumber(raw.humidity),
+          condition: normalizedCondition,
+          behavior: raw.behavior?.trim() || undefined,
+          healthIssues: raw.healthIssues?.trim() || undefined,
+          treatment: raw.treatment?.trim() || undefined,
+          followUpDate: raw.followUpDate || undefined,
+          notes: raw.notes?.trim() || undefined,
+          attachments,
+        });
+        if (entry) createdHealth += 1;
+      } catch (err) {
+        console.warn("Health entry import failed", err);
+      }
+    }
+  }
+
+  // Import breeding entries
+  if (Array.isArray(payload.breeding)) {
+    const allowedStatuses = new Set(["Planned", "Attempted", "Successful", "Failed", "Observation"]);
+    const allowedEggStatuses = new Set(["Not Laid", "Laid", "Pulled", "Failed", "Hatched"]);
+    for (const raw of payload.breeding) {
+      try {
+        if (!raw?.pairingDate) continue;
+        const attachments = await normalizeAttachments(raw.attachments, userId, uploadsDir, useS3);
+        const normalizedStatus =
+          typeof raw.status === "string" && allowedStatuses.has(raw.status) ? raw.status : "Planned";
+        const normalizedEggStatus =
+          typeof raw.eggSacStatus === "string" && allowedEggStatuses.has(raw.eggSacStatus)
+            ? raw.eggSacStatus
+            : "Not Laid";
+        const entry = await BreedingEntry.create({
+          userId,
+          femaleSpecimen: raw.femaleSpecimen?.trim() || undefined,
+          maleSpecimen: raw.maleSpecimen?.trim() || undefined,
+          species: raw.species?.trim() || undefined,
+          pairingDate: raw.pairingDate,
+          status: normalizedStatus,
+          pairingNotes: raw.pairingNotes?.trim() || undefined,
+          eggSacDate: raw.eggSacDate || undefined,
+          eggSacStatus: normalizedEggStatus,
+          eggSacCount: parseNumber(raw.eggSacCount),
+          hatchDate: raw.hatchDate || undefined,
+          slingCount: parseNumber(raw.slingCount),
+          followUpDate: raw.followUpDate || undefined,
+          notes: raw.notes?.trim() || undefined,
+          attachments,
+        });
+        if (entry) createdBreeding += 1;
+      } catch (err) {
+        console.warn("Breeding entry import failed", err);
       }
     }
   }
@@ -189,12 +326,10 @@ export async function POST(request: Request) {
         const created = await ResearchStack.create({ userId, ...sanitized });
         if (created) createdStacks += 1;
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn("Stack import failed", err);
       }
     }
   }
 
-  return NextResponse.json({ success: true, createdEntries, createdStacks });
+  return NextResponse.json({ success: true, createdEntries, createdHealth, createdBreeding, createdStacks });
 }
-

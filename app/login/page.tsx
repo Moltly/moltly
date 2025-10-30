@@ -188,6 +188,25 @@ function LoginForm() {
       </Button>
       )}
 
+      {/* Google OAuth */}
+      {!!providers?.google && (
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => signIn("google", { callbackUrl })}
+        className="w-full gap-2 mb-2"
+      >
+        {/* Google "G" icon */}
+        <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden>
+          <path fill="#EA4335" d="M12 10.2v3.84h5.38c-.24 1.26-.97 2.33-2.07 3.05l3.35 2.6c1.96-1.8 3.09-4.45 3.09-7.65c0-.74-.07-1.45-.21-2.14H12z"/>
+          <path fill="#34A853" d="M6.64 14.32L5.8 14.96l-2.68 2.06C4.73 19.98 8.09 22 12 22c2.7 0 4.97-.89 6.63-2.41l-3.35-2.6c-.93.63-2.12 1.01-3.28 1.01c-2.52 0-4.66-1.7-5.36-4.01z"/>
+          <path fill="#4A90E2" d="M3.12 7.02A9.98 9.98 0 0 0 2 12c0 1.73.42 3.36 1.16 4.78l3.48-2.7A5.95 5.95 0 0 1 6 12c0-.87.2-1.69.55-2.42z"/>
+          <path fill="#FBBC05" d="M12 6.02c1.47 0 2.79.51 3.83 1.5l2.87-2.87C16.96 2.9 14.7 2 12 2C8.09 2 4.73 4.02 3.12 7.02l3.43 2.56C7.34 7.7 9.48 6.02 12 6.02z"/>
+        </svg>
+        Continue with Google
+      </Button>
+      )}
+
       {/* Discord OAuth */}
       {!!providers?.discord && (
       <Button

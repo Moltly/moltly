@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.6.0",
+    date: "2025-10-30",
+    highlights: [
+      "Introduce dedicated Health Tracking with follow-up reminders.",
+      "Add Breeding Logs for pairings, egg sacs, and sling outcomes.",
+      "Include health and breeding data in export/import workflows.",
+      "Add Google Authentication."
+    ]
+  },
+  {
     version: "1.5.1",
     date: "2025-10-28",
     highlights: [

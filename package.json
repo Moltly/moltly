@@ -1,6 +1,6 @@
 {
   "name": "molt-log",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,7 +16,7 @@
     "mobile:run:android": "bunx cap run android --no-sync"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.919.0",
+    "@aws-sdk/client-s3": "^3.920.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/app": "^7.1.0",
     "@capacitor/core": "^7.4.4",
@@ -33,7 +33,7 @@
     "mongodb": "^6.20.0",
     "mongoose": "^8.19.2",
     "next": "16.0.1",
-    "next-auth": "^4.24.12",
+    "next-auth": "^4.24.13",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "tailwind-merge": "^3.3.1"

@@ -12,9 +12,15 @@ import SpecimensView from "@/components/dashboard/SpecimensView";
 import RemindersView from "@/components/dashboard/RemindersView";
 import EntryFormModal from "@/components/dashboard/EntryFormModal";
 import NotebookView from "@/components/dashboard/NotebookView";
+import HealthView from "@/components/dashboard/HealthView";
+import BreedingView from "@/components/dashboard/BreedingView";
 import type { MoltEntry, ViewKey, DataMode, Stage, EntryType, FormState, Attachment } from "@/types/molt";
+import type { HealthEntry, HealthFormState } from "@/types/health";
+import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import type { ResearchStack, ResearchNote } from "@/types/research";
 import { readLocalEntries, writeLocalEntries } from "@/lib/local-entries";
+import { readLocalHealthEntries, writeLocalHealthEntries } from "@/lib/local-health";
+import { readLocalBreedingEntries, writeLocalBreedingEntries } from "@/lib/local-breeding";
 import { readLocalResearchStacks, writeLocalResearchStacks } from "@/lib/local-research";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
@@ -37,6 +43,15 @@ const defaultForm = (): FormState => ({
   feedingAmount: "",
 });
 
+const parseNumber = (value: string): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const healthReminderKey = (id: string) => `health:${id}`;
+const breedingReminderKey = (id: string) => `breeding:${id}`;
+
 export default function MobileDashboard() {
   const { data: session, status } = useSession();
   const mode: DataMode | null = status === "loading" ? null : session?.user?.id ? "sync" : "local";
@@ -44,6 +59,8 @@ export default function MobileDashboard() {
 
   const [activeView, setActiveView] = useState<ViewKey>("overview");
   const [entries, setEntries] = useState<MoltEntry[]>([]);
+  const [healthEntries, setHealthEntries] = useState<HealthEntry[]>([]);
+  const [breedingEntries, setBreedingEntries] = useState<BreedingEntry[]>([]);
   const [, setLoading] = useState(true); // internal fetch state
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState<FormState>(defaultForm);
@@ -116,6 +133,20 @@ export default function MobileDashboard() {
     [mode]
   );
 
+  const persistHealthLocal = useCallback(
+    (list: HealthEntry[]) => {
+      if (mode === "local") writeLocalHealthEntries(list as unknown as Record<string, unknown>[]);
+    },
+    [mode]
+  );
+
+  const persistBreedingLocal = useCallback(
+    (list: BreedingEntry[]) => {
+      if (mode === "local") writeLocalBreedingEntries(list as unknown as Record<string, unknown>[]);
+    },
+    [mode]
+  );
+
   // Load entries
   useEffect(() => {
     const load = async () => {
@@ -138,6 +169,52 @@ export default function MobileDashboard() {
       }
     };
     void load();
+  }, [mode, isSync]);
+
+  useEffect(() => {
+    const loadHealth = async () => {
+      if (!mode) return;
+      setLoading(true);
+      try {
+        if (isSync) {
+          const res = await fetch("/api/health", { credentials: "include" });
+          if (!res.ok) throw new Error("Failed to load health entries");
+          const data = await res.json();
+          setHealthEntries(Array.isArray(data) ? (data as HealthEntry[]) : []);
+        } else {
+          setHealthEntries(readLocalHealthEntries() as unknown as HealthEntry[]);
+        }
+      } catch (err) {
+        console.error(err);
+        setHealthEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadHealth();
+  }, [mode, isSync]);
+
+  useEffect(() => {
+    const loadBreeding = async () => {
+      if (!mode) return;
+      setLoading(true);
+      try {
+        if (isSync) {
+          const res = await fetch("/api/breeding", { credentials: "include" });
+          if (!res.ok) throw new Error("Failed to load breeding entries");
+          const data = await res.json();
+          setBreedingEntries(Array.isArray(data) ? (data as BreedingEntry[]) : []);
+        } else {
+          setBreedingEntries(readLocalBreedingEntries() as unknown as BreedingEntry[]);
+        }
+      } catch (err) {
+        console.error(err);
+        setBreedingEntries([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadBreeding();
   }, [mode, isSync]);
 
   // Load research stacks
@@ -353,6 +430,222 @@ export default function MobileDashboard() {
     setEditingId(null);
     setFormState(defaultForm());
     setAttachments([]);
+  };
+
+  const createHealthEntry = async (form: HealthFormState) => {
+    if (!mode) throw new Error("Please wait until the session is ready.");
+
+    const payload = {
+      specimen: form.specimen.trim() || undefined,
+      species: form.species.trim() || undefined,
+      date: form.date,
+      weight: parseNumber(form.weight),
+      weightUnit: form.weightUnit,
+      temperature: parseNumber(form.temperature),
+      humidity: parseNumber(form.humidity),
+      condition: form.condition,
+      behavior: form.behavior.trim() || undefined,
+      healthIssues: form.healthIssues.trim() || undefined,
+      treatment: form.treatment.trim() || undefined,
+      followUpDate: form.followUpDate || undefined,
+      notes: form.notes.trim() || undefined,
+      attachments: [] as Attachment[],
+    };
+
+    if (isSync) {
+      const res = await fetch("/api/health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || "Unable to save health entry.");
+      }
+      const saved = (await res.json()) as HealthEntry;
+      setHealthEntries((prev) => [saved, ...prev]);
+      if (saved.followUpDate) {
+        try {
+          await scheduleReminderNotification({
+            id: healthReminderKey(saved.id),
+            dateISO: saved.followUpDate.slice(0, 10),
+            title: `Health follow-up: ${saved.specimen || saved.species || "Tarantula"}`,
+            body: saved.healthIssues || saved.notes || "Check on specimen health.",
+          });
+        } catch (err) {
+          console.warn("Unable to schedule health reminder", err);
+        }
+      }
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const saved: HealthEntry = {
+      id: crypto.randomUUID(),
+      specimen: payload.specimen,
+      species: payload.species,
+      date: payload.date,
+      weight: payload.weight,
+      weightUnit: payload.weightUnit,
+      temperature: payload.temperature,
+      humidity: payload.humidity,
+      condition: payload.condition,
+      behavior: payload.behavior,
+      healthIssues: payload.healthIssues,
+      treatment: payload.treatment,
+      followUpDate: payload.followUpDate,
+      notes: payload.notes,
+      attachments: payload.attachments,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const next = [saved, ...healthEntries];
+    setHealthEntries(next);
+    persistHealthLocal(next);
+    if (saved.followUpDate) {
+      try {
+        await scheduleReminderNotification({
+          id: healthReminderKey(saved.id),
+          dateISO: saved.followUpDate.slice(0, 10),
+          title: `Health follow-up: ${saved.specimen || saved.species || "Tarantula"}`,
+          body: saved.healthIssues || saved.notes || "Check on specimen health.",
+        });
+      } catch (err) {
+        console.warn("Unable to schedule health reminder", err);
+      }
+    }
+  };
+
+  const deleteHealthEntry = async (id: string) => {
+    if (!mode) throw new Error("Please wait until the session is ready.");
+
+    const existing = healthEntries.find((entry) => entry.id === id);
+
+    if (isSync) {
+      const res = await fetch(`/api/health/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || "Unable to delete entry.");
+      }
+    }
+
+    const next = healthEntries.filter((entry) => entry.id !== id);
+    setHealthEntries(next);
+    persistHealthLocal(next);
+    if (existing?.followUpDate) {
+      try {
+        await cancelReminderNotification(healthReminderKey(id));
+      } catch {}
+    }
+  };
+
+  const createBreedingEntry = async (form: BreedingFormState) => {
+    if (!mode) throw new Error("Please wait until the session is ready.");
+
+    const payload = {
+      femaleSpecimen: form.femaleSpecimen.trim() || undefined,
+      maleSpecimen: form.maleSpecimen.trim() || undefined,
+      species: form.species.trim() || undefined,
+      pairingDate: form.pairingDate,
+      status: form.status,
+      pairingNotes: form.pairingNotes.trim() || undefined,
+      eggSacDate: form.eggSacDate || undefined,
+      eggSacStatus: form.eggSacStatus,
+      eggSacCount: parseNumber(form.eggSacCount),
+      hatchDate: form.hatchDate || undefined,
+      slingCount: parseNumber(form.slingCount),
+      followUpDate: form.followUpDate || undefined,
+      notes: form.notes.trim() || undefined,
+      attachments: [] as Attachment[],
+    };
+
+    if (isSync) {
+      const res = await fetch("/api/breeding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || "Unable to save breeding entry.");
+      }
+      const saved = (await res.json()) as BreedingEntry;
+      setBreedingEntries((prev) => [saved, ...prev]);
+      if (saved.followUpDate) {
+        try {
+          await scheduleReminderNotification({
+            id: breedingReminderKey(saved.id),
+            dateISO: saved.followUpDate.slice(0, 10),
+            title: `Breeding follow-up: ${saved.femaleSpecimen || saved.species || "Specimen"}`,
+            body: saved.notes || saved.pairingNotes || "Check breeding progress.",
+          });
+        } catch (err) {
+          console.warn("Unable to schedule breeding reminder", err);
+        }
+      }
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const saved: BreedingEntry = {
+      id: crypto.randomUUID(),
+      femaleSpecimen: payload.femaleSpecimen,
+      maleSpecimen: payload.maleSpecimen,
+      species: payload.species,
+      pairingDate: payload.pairingDate,
+      status: payload.status,
+      pairingNotes: payload.pairingNotes,
+      eggSacDate: payload.eggSacDate,
+      eggSacStatus: payload.eggSacStatus,
+      eggSacCount: payload.eggSacCount,
+      hatchDate: payload.hatchDate,
+      slingCount: payload.slingCount,
+      followUpDate: payload.followUpDate,
+      notes: payload.notes,
+      attachments: payload.attachments,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const next = [saved, ...breedingEntries];
+    setBreedingEntries(next);
+    persistBreedingLocal(next);
+    if (saved.followUpDate) {
+      try {
+        await scheduleReminderNotification({
+          id: breedingReminderKey(saved.id),
+          dateISO: saved.followUpDate.slice(0, 10),
+          title: `Breeding follow-up: ${saved.femaleSpecimen || saved.species || "Specimen"}`,
+          body: saved.notes || saved.pairingNotes || "Check breeding progress.",
+        });
+      } catch (err) {
+        console.warn("Unable to schedule breeding reminder", err);
+      }
+    }
+  };
+
+  const deleteBreedingEntry = async (id: string) => {
+    if (!mode) throw new Error("Please wait until the session is ready.");
+
+    const existing = breedingEntries.find((entry) => entry.id === id);
+
+    if (isSync) {
+      const res = await fetch(`/api/breeding/${id}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || "Unable to delete breeding entry.");
+      }
+    }
+
+    const next = breedingEntries.filter((entry) => entry.id !== id);
+    setBreedingEntries(next);
+    persistBreedingLocal(next);
+    if (existing?.followUpDate) {
+      try {
+        await cancelReminderNotification(breedingReminderKey(id));
+      } catch {}
+    }
   };
 
   // Research stack actions (work in sync and local modes)
@@ -742,11 +1035,15 @@ export default function MobileDashboard() {
                               setImportSuccess("Import complete. Reloading data…");
                               // Reload entries and research
                               try {
-                                const [eRes, rRes] = await Promise.all([
+                                const [eRes, hRes, bRes, rRes] = await Promise.all([
                                   fetch("/api/logs", { credentials: "include" }),
+                                  fetch("/api/health", { credentials: "include" }),
+                                  fetch("/api/breeding", { credentials: "include" }),
                                   fetch("/api/research", { credentials: "include" }),
                                 ]);
                                 if (eRes.ok) setEntries(await eRes.json());
+                                if (hRes.ok) setHealthEntries(await hRes.json());
+                                if (bRes.ok) setBreedingEntries(await bRes.json());
                                 if (rRes.ok) {
                                   const r = (await rRes.json()) as ResearchStack[];
                                   setStacks(Array.isArray(r) ? r : []);
@@ -798,11 +1095,15 @@ export default function MobileDashboard() {
                           try {
                             // Build local export payload
                             const localEntries = readLocalEntries();
+                            const localHealth = readLocalHealthEntries();
+                            const localBreeding = readLocalBreedingEntries();
                             const localResearch = readLocalResearchStacks();
                             const payload = {
-                              version: 1,
+                              version: 2,
                               exportedAt: new Date().toISOString(),
                               entries: localEntries,
+                              health: localHealth,
+                              breeding: localBreeding,
                               research: localResearch,
                             };
                             const text = JSON.stringify(payload);
@@ -961,6 +1262,52 @@ export default function MobileDashboard() {
           <ActivityView entries={entries} onEdit={onEdit} onDelete={onDelete} />
         )}
         {activeView === "specimens" && <SpecimensView entries={entries} />}
+        {activeView === "health" && (
+          <HealthView
+            entries={healthEntries}
+            onCreate={createHealthEntry}
+            onDelete={async (id) => {
+              if (!confirm("Delete this health entry?")) return;
+              await deleteHealthEntry(id);
+            }}
+            onScheduleFollowUpRetry={async (entry) => {
+              if (!entry.followUpDate) return;
+              try {
+                await scheduleReminderNotification({
+                  id: healthReminderKey(entry.id),
+                  dateISO: entry.followUpDate.slice(0, 10),
+                  title: `Health follow-up: ${entry.specimen || entry.species || "Tarantula"}`,
+                  body: entry.healthIssues || entry.notes || "Check on specimen health.",
+                });
+              } catch (err) {
+                console.warn("Unable to reschedule health reminder", err);
+              }
+            }}
+          />
+        )}
+        {activeView === "breeding" && (
+          <BreedingView
+            entries={breedingEntries}
+            onCreate={createBreedingEntry}
+            onDelete={async (id) => {
+              if (!confirm("Delete this breeding entry?")) return;
+              await deleteBreedingEntry(id);
+            }}
+            onScheduleFollowUpRetry={async (entry) => {
+              if (!entry.followUpDate) return;
+              try {
+                await scheduleReminderNotification({
+                  id: breedingReminderKey(entry.id),
+                  dateISO: entry.followUpDate.slice(0, 10),
+                  title: `Breeding follow-up: ${entry.femaleSpecimen || entry.species || "Specimen"}`,
+                  body: entry.notes || entry.pairingNotes || "Check breeding progress.",
+                });
+              } catch (err) {
+                console.warn("Unable to reschedule breeding reminder", err);
+              }
+            }}
+          />
+        )}
         {activeView === "reminders" && (
           <RemindersView entries={entries} onMarkDone={onMarkDone} onSnooze={onSnooze} onEdit={onEdit} />
         )}
