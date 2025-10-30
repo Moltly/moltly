@@ -23,8 +23,6 @@ Create a `.env` file with:
 ```
 MONGODB_URI=mongodb://mongo:13777/molt-log
 NEXTAUTH_SECRET=replace-with-strong-secret
-DISCORD_CLIENT_ID=your-discord-client-id
-DISCORD_CLIENT_SECRET=your-discord-client-secret
 NEXTAUTH_URL=http://localhost:5777
 
 S3_BUCKET=molt-uploads
@@ -45,7 +43,7 @@ TRAEFIK_MINIO_HOST=localhost
 docker compose up --build
 ```
 
-## Discord Authentication
+## Discord Authentication (optional)
 
 1. Head to the Applications section in the Discord Developer Portal, and click on “New Application” (https://discord.com/developers/applications)
 
