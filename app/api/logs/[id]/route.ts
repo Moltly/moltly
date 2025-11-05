@@ -1,9 +1,12 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Types } from "mongoose";
 import { authOptions } from "../../../../lib/auth-options";
 import { connectMongoose } from "../../../../lib/mongoose";
 import MoltEntry from "../../../../models/MoltEntry";
+import getMongoClientPromise from "../../../../lib/mongodb";
+import { ObjectId } from "mongodb";
 import path from "path";
 import { unlink } from "fs/promises";
 import { isS3Configured, keyFromS3Url, deleteObject } from "../../../../lib/s3";
@@ -48,7 +51,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
     const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
 
-    let effectiveEntryType: "molt" | "feeding" | "water" = (entry.entryType as any) ?? "molt";
+    // Capture previous key for WSCA sync if this was a molt
+    const prevType: "molt" | "feeding" | "water" = (entry.entryType as any) ?? "molt";
+    const prevSpecies = entry.species as string | undefined;
+    const prevSpecimen = entry.specimen as string | undefined;
+    const prevDateIso = new Date(entry.date).toISOString().slice(0, 10);
+    const prevStage = entry.stage as string | undefined;
+
+    let effectiveEntryType: "molt" | "feeding" | "water" = prevType;
     if (typeof updates.entryType === "string" && allowedEntryTypes.has(updates.entryType)) {
       effectiveEntryType = updates.entryType as "molt" | "feeding" | "water";
     }
@@ -165,6 +175,78 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     await entry.save();
 
+    // Outbound WSCA sync logic
+    try {
+      const syncUrl = process.env.WSCA_SYNC_URL;
+      const syncSecret = process.env.WSCA_SYNC_SECRET;
+      if (syncUrl && syncSecret) {
+        const client = await getMongoClientPromise();
+        const db = client.db();
+        const accounts = db.collection("accounts");
+        const account =
+          (await accounts.findOne({ provider: "discord", userId: new ObjectId(session.user.id) })) ||
+          (await accounts.findOne({ provider: "discord", userId: session.user.id })) ||
+          null;
+        const discordId = account?.providerAccountId;
+        if (discordId) {
+          const newDateIso = new Date(entry.date).toISOString().slice(0, 10);
+          if (prevType === "molt" && effectiveEntryType !== "molt") {
+            // If changed from molt -> not molt, delete on WSCA
+            const res = await fetch(syncUrl, {
+              method: "DELETE",
+              headers: { "content-type": "application/json", "X-Sync-Secret": syncSecret },
+              body: JSON.stringify({
+                discord_user_id: String(discordId),
+                canonical: prevSpecies,
+                specimen_name: prevSpecimen ?? undefined,
+                date: prevDateIso,
+                stage: prevStage ?? undefined,
+              }),
+            }).catch((err) => { if (process.env.WSCA_SYNC_DEBUG === "true") console.error("[WSCA_SYNC] DELETE failed:", err); return undefined as any; });
+            if (process.env.WSCA_SYNC_DEBUG === "true" && res) { try { console.log("[WSCA_SYNC] DELETE status=", res.status, await res.text()); } catch {} }
+          } else if (prevType !== "molt" && effectiveEntryType === "molt") {
+            // not molt -> molt, create on WSCA
+            const res = await fetch(syncUrl, {
+              method: "POST",
+              headers: { "content-type": "application/json", "X-Sync-Secret": syncSecret },
+              body: JSON.stringify({
+                discord_user_id: String(discordId),
+                canonical: entry.species,
+                specimen_name: entry.specimen ?? undefined,
+                date: newDateIso,
+                stage: entry.stage ?? undefined,
+                notes: entry.notes ?? undefined,
+              }),
+            }).catch((err) => { if (process.env.WSCA_SYNC_DEBUG === "true") console.error("[WSCA_SYNC] POST failed:", err); return undefined as any; });
+            if (process.env.WSCA_SYNC_DEBUG === "true" && res) { try { console.log("[WSCA_SYNC] POST status=", res.status, await res.text()); } catch {} }
+          } else if (effectiveEntryType === "molt") {
+            // molt -> molt, update key fields
+            const res = await fetch(syncUrl, {
+              method: "PUT",
+              headers: { "content-type": "application/json", "X-Sync-Secret": syncSecret },
+              body: JSON.stringify({
+                discord_user_id: String(discordId),
+                old: {
+                  canonical: prevSpecies,
+                  specimen_name: prevSpecimen ?? undefined,
+                  date: prevDateIso,
+                  stage: prevStage ?? undefined,
+                },
+                new: {
+                  canonical: entry.species,
+                  specimen_name: entry.specimen ?? undefined,
+                  date: newDateIso,
+                  stage: entry.stage ?? undefined,
+                  notes: entry.notes ?? undefined,
+                },
+              }),
+            }).catch((err) => { if (process.env.WSCA_SYNC_DEBUG === "true") console.error("[WSCA_SYNC] PUT failed:", err); return undefined as any; });
+            if (process.env.WSCA_SYNC_DEBUG === "true" && res) { try { console.log("[WSCA_SYNC] PUT status=", res.status, await res.text()); } catch {} }
+          }
+        }
+      }
+    } catch {}
+
     if (removedAttachmentUrls.length > 0) {
       const useS3 = isS3Configured();
       await Promise.all(
@@ -228,6 +310,38 @@ export async function DELETE(_request: Request, context: RouteContext) {
           }
         })
       );
+    } catch {}
+
+    // Sync delete to WSCA if it was a molt
+    try {
+            if (entry.entryType === "molt") {
+              const syncUrl = process.env.WSCA_SYNC_URL;
+              const syncSecret = process.env.WSCA_SYNC_SECRET;
+              if (syncUrl && syncSecret) {
+          const client = await getMongoClientPromise();
+          const db = client.db();
+          const accounts = db.collection("accounts");
+          const account =
+            (await accounts.findOne({ provider: "discord", userId: new ObjectId(session.user.id) })) ||
+            (await accounts.findOne({ provider: "discord", userId: session.user.id })) ||
+            null;
+          const discordId = account?.providerAccountId;
+          if (discordId) {
+                const res = await fetch(syncUrl, {
+                  method: "DELETE",
+                  headers: { "content-type": "application/json", "X-Sync-Secret": syncSecret },
+                  body: JSON.stringify({
+                    discord_user_id: String(discordId),
+                    canonical: entry.species,
+                    specimen_name: entry.specimen ?? undefined,
+                    date: new Date(entry.date).toISOString().slice(0, 10),
+                    stage: entry.stage ?? undefined,
+                  }),
+                }).catch((err) => { if (process.env.WSCA_SYNC_DEBUG === "true") console.error("[WSCA_SYNC] DELETE failed:", err); return undefined as any; });
+                if (process.env.WSCA_SYNC_DEBUG === "true" && res) { try { console.log("[WSCA_SYNC] DELETE status=", res.status, await res.text()); } catch {} }
+          }
+        }
+      }
     } catch {}
 
     return NextResponse.json({ success: true });

@@ -85,6 +85,8 @@ export default function MobileDashboard() {
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [wscaSyncing, setWscaSyncing] = useState(false);
+  const [wscaSyncStatus, setWscaSyncStatus] = useState<string | null>(null);
   const importInputId = "moltly-import-input";
 
   // Cross-platform export helper: uses Capacitor on native platforms, falls back to web download
@@ -986,6 +988,36 @@ export default function MobileDashboard() {
                       >
                         <LogOut className="w-4 h-4" /> Sign out
                       </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setWscaSyncing(true);
+                          setWscaSyncStatus(null);
+                          try {
+                            const res = await fetch("/api/sync/wsca/me", { method: "POST", credentials: "include" });
+                            const text = await res.text();
+                            try {
+                              const data = JSON.parse(text);
+                              if (res.ok) {
+                                setWscaSyncStatus("WSCA sync triggered successfully.");
+                              } else {
+                                setWscaSyncStatus(`WSCA sync failed: ${data?.error || res.status}`);
+                              }
+                            } catch {
+                              setWscaSyncStatus(res.ok ? "WSCA sync triggered successfully." : `WSCA sync failed (${res.status}).`);
+                            }
+                            try { console.log("WSCA sync response:", text); } catch {}
+                          } catch (err) {
+                            setWscaSyncStatus("WSCA sync failed. Please try again.");
+                          } finally {
+                            setWscaSyncing(false);
+                          }
+                        }}
+                        className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                        disabled={wscaSyncing}
+                      >
+                        {wscaSyncing ? "Syncing…" : "Sync WSC now"}
+                      </button>
                       {hasPasswordAccount === true ? (
                         <button
                           type="button"
@@ -1085,8 +1117,15 @@ export default function MobileDashboard() {
                         {accountDeleting ? "Deleting…" : "Delete account"}
                       </button>
                     </div>
-                    {(importError || importSuccess) && (
-                      <div className={"text-sm " + (importError ? "text-[rgb(var(--danger))]" : "text-[rgb(var(--success))]")}>{importError || importSuccess}</div>
+                    {(importError || importSuccess || wscaSyncStatus) && (
+                      <div className="space-y-1">
+                        {(importError || importSuccess) ? (
+                          <div className={"text-sm " + (importError ? "text-[rgb(var(--danger))]" : "text-[rgb(var(--success))]")}>{importError || importSuccess}</div>
+                        ) : null}
+                        {wscaSyncStatus ? (
+                          <div className="text-sm text-[rgb(var(--text-soft))]">{wscaSyncStatus}</div>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                 ) : (
