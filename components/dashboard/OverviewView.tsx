@@ -12,9 +12,10 @@ import { formatDate, formatRelativeDate, getReminderStatus } from "@/lib/utils";
 interface OverviewViewProps {
   entries: MoltEntry[];
   onViewChange: (view: ViewKey) => void;
+  covers?: Record<string, string>;
 }
 
-export default function OverviewView({ entries, onViewChange }: OverviewViewProps) {
+export default function OverviewView({ entries, onViewChange, covers }: OverviewViewProps) {
   const stats = useMemo(() => {
     const uniqueSpecimens = new Set(entries.map((e) => e.specimen ?? "Unnamed")).size;
 
@@ -137,9 +138,22 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="font-semibold text-[rgb(var(--text))] mb-1">
-                {stats.nextReminder.specimen || "Unnamed"}
-              </p>
+              <div className="flex items-center gap-2 mb-1">
+                {(() => {
+                  const key = stats.nextReminder.specimen || "Unnamed";
+                  const coverUrl = covers?.[key];
+                  if (!coverUrl) return null;
+                  return (
+                    <div className="w-8 h-8 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  );
+                })()}
+                <p className="font-semibold text-[rgb(var(--text))] truncate">
+                  {stats.nextReminder.specimen || "Unnamed"}
+                </p>
+              </div>
               {stats.nextReminder.species && (
                 <p className="text-sm text-[rgb(var(--text-soft))] mb-2">
                   {stats.nextReminder.species}
@@ -190,13 +204,26 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
                     key={entry.id}
                     className="flex items-center justify-between p-3 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))] transition-colors"
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
-                        {entry.specimen || "Unnamed"}
-                      </p>
-                      <p className="text-xs text-[rgb(var(--text-subtle))]">
-                        {formatDate(entry.reminderDate!)}
-                      </p>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {(() => {
+                        const key = entry.specimen || "Unnamed";
+                        const coverUrl = covers?.[key];
+                        if (!coverUrl) return null;
+                        return (
+                          <div className="w-7 h-7 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                          </div>
+                        );
+                      })()}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
+                          {entry.specimen || "Unnamed"}
+                        </p>
+                        <p className="text-xs text-[rgb(var(--text-subtle))]">
+                          {formatDate(entry.reminderDate!)}
+                        </p>
+                      </div>
                     </div>
                     <Badge variant={getVariantForReminderStatus(status)}>
                       {formatRelativeDate(entry.reminderDate!)}
@@ -245,6 +272,17 @@ export default function OverviewView({ entries, onViewChange }: OverviewViewProp
                     <Droplets className="w-4 h-4" />
                   )}
                 </div>
+                {(() => {
+                  const key = entry.specimen || "Unnamed";
+                  const coverUrl = covers?.[key];
+                  if (!coverUrl) return null;
+                  return (
+                    <div className="w-8 h-8 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                    </div>
+                  );
+                })()}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-1">
                       <p className="font-medium text-sm text-[rgb(var(--text))] truncate">

@@ -54,6 +54,8 @@ export type SpecimenDashboard = {
   key: string;
   specimen: string;
   species?: string;
+  // Optional cover image URL for this specimen, derived from attachments
+  imageUrl?: string;
   totalMolts: number;
   totalFeedings: number;
   stageCounts: Record<Stage, number>;
@@ -76,4 +78,9 @@ export type Filters = {
   stage: "all" | Stage;
   type: "all" | EntryType;
   order: "asc" | "desc";
+};
+
+export type SpecimenCover = {
+  key: string;
+  imageUrl: string;
 };

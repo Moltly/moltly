@@ -14,9 +14,12 @@ interface ActivityViewProps {
   entries: MoltEntry[];
   onEdit: (entry: MoltEntry) => void;
   onDelete: (id: string) => void;
+  onSetCover?: (specimenKey: string, image: GalleryImage) => void;
+  covers?: Record<string, string>;
+  onUnsetCover?: (specimenKey: string) => void;
 }
 
-export default function ActivityView({ entries, onEdit, onDelete }: ActivityViewProps) {
+export default function ActivityView({ entries, onEdit, onDelete, onSetCover, covers, onUnsetCover }: ActivityViewProps) {
   const [filters, setFilters] = useState<Filters>({
     search: "",
     stage: "all",
@@ -28,6 +31,7 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [currentSpecimenKey, setCurrentSpecimenKey] = useState<string | null>(null);
 
   const filteredEntries = useMemo(() => {
     let filtered = [...entries];
@@ -210,6 +214,17 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
               <div className="space-y-3">
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3">
+                  {(() => {
+                    const key = entry.specimen ?? "Unnamed";
+                    const coverUrl = covers?.[key];
+                    if (!coverUrl) return null;
+                    return (
+                      <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-[rgb(var(--text))] truncate">
@@ -331,6 +346,7 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
                       const imgs: GalleryImage[] = entry.attachments!.map((a) => ({ id: a.id, url: a.url, name: a.name }));
                       setGalleryImages(imgs);
                       setGalleryIndex(0);
+                      setCurrentSpecimenKey(entry.specimen ?? "Unnamed");
                       setGalleryOpen(true);
                     }}
                     aria-label="View attachments"
@@ -376,6 +392,9 @@ export default function ActivityView({ entries, onEdit, onDelete }: ActivityView
       index={galleryIndex}
       onClose={() => setGalleryOpen(false)}
       onIndexChange={(i) => setGalleryIndex(i)}
+      onSetCover={onSetCover ? (img) => onSetCover(currentSpecimenKey ?? "Unnamed", img) : undefined}
+      currentCoverUrl={currentSpecimenKey ? covers?.[currentSpecimenKey] : undefined}
+      onUnsetCover={onUnsetCover ? () => onUnsetCover(currentSpecimenKey ?? "Unnamed") : undefined}
     />
     </>
   );

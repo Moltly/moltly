@@ -17,6 +17,9 @@ interface EntryFormModalProps {
   attachments: Attachment[];
   onAttachmentsChange: (attachments: Attachment[]) => void;
   isEditing: boolean;
+  onSetCover?: (att: Attachment) => void;
+  onUnsetCover?: () => void;
+  currentCoverUrl?: string;
 }
 
 export default function EntryFormModal({
@@ -28,6 +31,9 @@ export default function EntryFormModal({
   attachments,
   onAttachmentsChange,
   isEditing,
+  onSetCover,
+  onUnsetCover,
+  currentCoverUrl,
 }: EntryFormModalProps) {
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
@@ -418,26 +424,53 @@ export default function EntryFormModal({
 
                 {attachments.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="relative group aspect-square rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))]"
-                      >
-                        <img
-                          src={attachment.url}
-                          alt={attachment.name}
-                          className="object-cover w-full h-full"
-                          loading="lazy"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAttachment(attachment.id)}
-                          className="absolute top-1 right-1 p-1 rounded-full bg-[rgb(var(--danger))] text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    {attachments.map((attachment) => {
+                      const isCover = !!currentCoverUrl && currentCoverUrl === attachment.url;
+                      return (
+                        <div
+                          key={attachment.id}
+                          className="relative group aspect-square rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))]"
                         >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                          <img
+                            src={attachment.url}
+                            alt={attachment.name}
+                            className="object-cover w-full h-full"
+                            loading="lazy"
+                          />
+                          <div className="absolute inset-x-1 top-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttachment(attachment.id)}
+                              className="p-1 rounded bg-[rgb(var(--danger))] text-white"
+                              title="Remove"
+                              aria-label="Remove attachment"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                            {onSetCover && !isCover && (
+                              <button
+                                type="button"
+                                onClick={() => onSetCover(attachment)}
+                                className="px-1.5 py-0.5 rounded bg-[rgb(var(--surface))] text-[rgb(var(--text))] text-[10px] border border-[rgb(var(--border))]"
+                                title="Set as cover"
+                              >
+                                Set cover
+                              </button>
+                            )}
+                            {onUnsetCover && isCover && (
+                              <button
+                                type="button"
+                                onClick={() => onUnsetCover()}
+                                className="px-1.5 py-0.5 rounded bg-[rgb(var(--surface))] text-[rgb(var(--text))] text-[10px] border border-[rgb(var(--border))]"
+                                title="Unset cover"
+                              >
+                                Unset cover
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

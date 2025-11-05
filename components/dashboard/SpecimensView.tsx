@@ -11,13 +11,16 @@ import { cn } from "@/lib/utils";
 
 interface SpecimensViewProps {
   entries: MoltEntry[];
+  covers?: Record<string, string>;
 }
 
-export default function SpecimensView({ entries }: SpecimensViewProps) {
+export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
   const specimenDashboards = useMemo(() => {
     const dashboardMap = new Map<string, SpecimenDashboard>();
+    // Track the most-recent attachment timestamp per specimen to pick a cover image
+    const imageTs = new Map<string, number>();
 
     entries.forEach((entry) => {
       const key = entry.specimen ?? "Unnamed";
@@ -26,6 +29,7 @@ export default function SpecimensView({ entries }: SpecimensViewProps) {
           key,
           specimen: key,
           species: entry.species,
+          imageUrl: undefined,
           totalMolts: 0,
           totalFeedings: 0,
           stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
@@ -70,6 +74,16 @@ export default function SpecimensView({ entries }: SpecimensViewProps) {
 
       if (entry.attachments) {
         dashboard.attachmentsCount += entry.attachments.length;
+        // Attempt to pick an image attachment as the specimen cover image
+        const att = entry.attachments.find((a) => !!a.url && (!a.type || a.type.startsWith("image/")));
+        if (att && att.url) {
+          const ts = new Date(entry.createdAt).getTime();
+          const prevTs = imageTs.get(key) ?? -Infinity;
+          if (!dashboard.imageUrl || ts > prevTs) {
+            dashboard.imageUrl = att.url;
+            imageTs.set(key, ts);
+          }
+        }
       }
 
       if (entry.reminderDate) {
@@ -121,6 +135,11 @@ export default function SpecimensView({ entries }: SpecimensViewProps) {
 
       // Keep only 5 most recent
       dashboard.recentEntries = dashboard.recentEntries.slice(0, 5);
+
+      // Override with pinned cover if available
+      if (covers && covers[dashboard.key]) {
+        dashboard.imageUrl = covers[dashboard.key]!;
+      }
     });
 
     return Array.from(dashboardMap.values()).sort((a, b) =>
@@ -188,6 +207,17 @@ export default function SpecimensView({ entries }: SpecimensViewProps) {
                 className="w-full p-4 text-left hover:bg-[rgb(var(--bg-muted))] transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
+                  {dashboard.imageUrl && (
+                    <div className="w-12 h-12 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={dashboard.imageUrl}
+                        alt={`${dashboard.specimen} photo`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-semibold text-lg text-[rgb(var(--text))] truncate">

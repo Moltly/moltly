@@ -13,6 +13,7 @@ interface RemindersViewProps {
   onMarkDone: (id: string) => void;
   onSnooze: (id: string, days: number) => void;
   onEdit: (entry: MoltEntry) => void;
+  covers?: Record<string, string>;
 }
 
 export default function RemindersView({
@@ -20,6 +21,7 @@ export default function RemindersView({
   onMarkDone,
   onSnooze,
   onEdit,
+  covers,
 }: RemindersViewProps) {
   const reminders = useMemo(() => {
     const withReminders = entries
@@ -121,6 +123,17 @@ export default function RemindersView({
                   >
                     <Icon className="w-5 h-5" strokeWidth={2.5} />
                   </div>
+                  {(() => {
+                    const key = reminder.specimen || "Unnamed";
+                    const coverUrl = covers?.[key];
+                    if (!coverUrl) return null;
+                    return (
+                      <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-[rgb(var(--text))] mb-1 truncate">
                       {reminder.specimen || "Unnamed"}

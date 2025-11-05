@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Download, Star, StarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 
@@ -17,9 +17,12 @@ interface ImageGalleryProps {
   index: number;
   onClose: () => void;
   onIndexChange: (i: number) => void;
+  onSetCover?: (img: GalleryImage) => void;
+  currentCoverUrl?: string;
+  onUnsetCover?: () => void;
 }
 
-export default function ImageGallery({ open, images, index, onClose, onIndexChange }: ImageGalleryProps) {
+export default function ImageGallery({ open, images, index, onClose, onIndexChange, onSetCover, currentCoverUrl, onUnsetCover }: ImageGalleryProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -122,8 +125,32 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
     <div className="fixed inset-0 z-[70] flex flex-col bg-black/90">
       {/* Top bar */}
       <div className="flex items-center justify-between p-3 text-white">
-        <div className="text-sm truncate max-w-[60%]">{current.name || current.url}</div>
+        <div className="text-sm truncate max-w-[50%]">{current.name || current.url}</div>
         <div className="flex items-center gap-2">
+          {onSetCover && currentCoverUrl !== current.url && (
+            <button
+              type="button"
+              onClick={() => onSetCover(current)}
+              className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-sm flex items-center gap-1"
+              title="Set as cover"
+              aria-label="Set as cover"
+            >
+              <Star className="w-4 h-4" />
+              <span className="hidden sm:inline">Set as cover</span>
+            </button>
+          )}
+          {onUnsetCover && currentCoverUrl === current.url && (
+            <button
+              type="button"
+              onClick={() => onUnsetCover()}
+              className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-sm flex items-center gap-1"
+              title="Unset cover"
+              aria-label="Unset cover"
+            >
+              <StarOff className="w-4 h-4" />
+              <span className="hidden sm:inline">Unset cover</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleDownload()}

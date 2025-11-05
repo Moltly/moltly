@@ -26,6 +26,8 @@ import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
 import { getSavedTempUnit } from "@/lib/temperature";
 import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/notifications";
+import type { GalleryImage } from "@/components/ui/ImageGallery";
+import { readLocalSpecimenCovers, writeLocalSpecimenCovers } from "@/lib/local-specimens";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
@@ -68,6 +70,7 @@ export default function MobileDashboard() {
   const [formState, setFormState] = useState<FormState>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [specimenCovers, setSpecimenCovers] = useState<Record<string, string>>({});
   const [stacks, setStacks] = useState<ResearchStack[]>([]);
   const [selectedStackId, setSelectedStackId] = useState<string | null>(null);
   const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
@@ -174,6 +177,85 @@ export default function MobileDashboard() {
     };
     void load();
   }, [mode, isSync]);
+
+  // Load specimen covers
+  useEffect(() => {
+    const loadCovers = async () => {
+      if (!mode) return;
+      try {
+        if (isSync) {
+          const res = await fetch("/api/specimens", { credentials: "include" });
+          if (res.ok) {
+            const arr = (await res.json()) as Array<{ key: string; imageUrl: string }>;
+            const map: Record<string, string> = {};
+            for (const it of arr) if (it?.key && it?.imageUrl) map[it.key] = it.imageUrl;
+            setSpecimenCovers(map);
+          } else {
+            setSpecimenCovers({});
+          }
+        } else {
+          setSpecimenCovers(readLocalSpecimenCovers());
+        }
+      } catch (e) {
+        console.error(e);
+        setSpecimenCovers({});
+      }
+    };
+    void loadCovers();
+  }, [mode, isSync]);
+
+  const handleSetSpecimenCover = useCallback(
+    async (specimenKey: string, img: GalleryImage) => {
+      const key = specimenKey || "Unnamed";
+      const url = img.url;
+      if (!url) return;
+      try {
+        if (isSync) {
+          const res = await fetch("/api/specimens", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ key, imageUrl: url }),
+          });
+          if (!res.ok) throw new Error("Failed to set cover");
+        }
+        setSpecimenCovers((prev) => {
+          const next = { ...prev, [key]: url };
+          if (!isSync) writeLocalSpecimenCovers(next);
+          return next;
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [isSync]
+  );
+
+  const handleUnsetSpecimenCover = useCallback(
+    async (specimenKey: string) => {
+      const key = specimenKey || "Unnamed";
+      try {
+        if (isSync) {
+          const res = await fetch("/api/specimens", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ key, imageUrl: null }),
+          });
+          if (!res.ok) throw new Error("Failed to unset cover");
+        }
+        setSpecimenCovers((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          if (!isSync) writeLocalSpecimenCovers(next);
+          return next;
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [isSync]
+  );
 
   useEffect(() => {
     const loadHealth = async () => {
@@ -1303,11 +1385,18 @@ export default function MobileDashboard() {
       />
 
       <div className="max-w-screen-lg mx-auto px-4 py-4 pb-28">
-        {activeView === "overview" && <OverviewView entries={entries} onViewChange={setActiveView} />}
+        {activeView === "overview" && <OverviewView entries={entries} onViewChange={setActiveView} covers={specimenCovers} />}
         {activeView === "activity" && (
-          <ActivityView entries={entries} onEdit={onEdit} onDelete={onDelete} />
+          <ActivityView
+            entries={entries}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onSetCover={handleSetSpecimenCover}
+            onUnsetCover={handleUnsetSpecimenCover}
+            covers={specimenCovers}
+          />
         )}
-        {activeView === "specimens" && <SpecimensView entries={entries} />}
+        {activeView === "specimens" && <SpecimensView entries={entries} covers={specimenCovers} />}
         {activeView === "health" && (
           <HealthView
             entries={healthEntries}
@@ -1355,7 +1444,7 @@ export default function MobileDashboard() {
           />
         )}
         {activeView === "reminders" && (
-          <RemindersView entries={entries} onMarkDone={onMarkDone} onSnooze={onSnooze} onEdit={onEdit} />
+          <RemindersView entries={entries} onMarkDone={onMarkDone} onSnooze={onSnooze} onEdit={onEdit} covers={specimenCovers} />
         )}
         {activeView === "notebook" && (
           <NotebookView
@@ -1383,6 +1472,9 @@ export default function MobileDashboard() {
         onSubmit={onSubmit}
         attachments={attachments}
         onAttachmentsChange={setAttachments}
+        onSetCover={(att) => handleSetSpecimenCover(formState.specimen || "Unnamed", { id: att.id, url: att.url, name: att.name })}
+        onUnsetCover={() => handleUnsetSpecimenCover(formState.specimen || "Unnamed")}
+        currentCoverUrl={specimenCovers[formState.specimen || "Unnamed"]}
         isEditing={Boolean(editingId)}
       />
 
