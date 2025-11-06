@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, History, Users, Bell, BookOpen, HeartPulse, Egg } from "lucide-react";
+import { Home, History, Users, Bell, BookOpen, HeartPulse, Egg, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ViewKey } from "@/types/molt";
 
@@ -34,6 +34,11 @@ const navItems = [
     key: "breeding" as ViewKey,
     label: "Breeding",
     icon: Egg,
+  },
+  {
+    key: "analytics" as ViewKey,
+    label: "Analytics",
+    icon: BarChart3,
   },
   {
     key: "reminders" as ViewKey,

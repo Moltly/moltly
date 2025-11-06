@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download } from "lucide-react";
+import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import Header from "@/components/layout/Header";
@@ -14,6 +14,7 @@ import EntryFormModal from "@/components/dashboard/EntryFormModal";
 import NotebookView from "@/components/dashboard/NotebookView";
 import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
+import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
@@ -1256,6 +1257,7 @@ export default function MobileDashboard() {
             }}
           />
         )}
+        {activeView === "analytics" && <AnalyticsView entries={entries} />}
         {activeView === "reminders" && (
           <RemindersView entries={entries} onMarkDone={onMarkDone} onSnooze={onSnooze} onEdit={onEdit} covers={specimenCovers} />
         )}

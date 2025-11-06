@@ -9,6 +9,7 @@ import { readLocalHealthEntries, writeLocalHealthEntries } from "@/lib/local-hea
 import { readLocalBreedingEntries, writeLocalBreedingEntries } from "@/lib/local-breeding";
 import { readLocalResearchStacks, writeLocalResearchStacks } from "@/lib/local-research";
 import { readLocalSpecimenCovers, writeLocalSpecimenCovers } from "@/lib/local-specimens";
+import { warmCachedImage } from "@/lib/image-cache";
 
 type SetStateAction<T> = T | ((prev: T) => T);
 
@@ -242,6 +243,18 @@ export function useDashboardData() {
     });
   }, [stacks]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urls = Object.values(specimenCovers ?? {});
+    if (urls.length === 0) return;
+    const timeout = window.setTimeout(() => {
+      urls.forEach((url) => warmCachedImage(url));
+    }, 0);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [specimenCovers]);
+
   return {
     session,
     status,
@@ -265,4 +278,3 @@ export function useDashboardData() {
     setSelectedStackId
   };
 }
-
