@@ -43,6 +43,17 @@ TRAEFIK_MINIO_HOST=localhost
 docker compose up --build
 ```
 
+### Species Autocomplete (optional)
+
+To enable species autocomplete using `species.csv` (columns: genus, species, subspecies, etc.), import it into MongoDB:
+
+```bash
+# From the repo root
+./scripts/import-species.sh species.csv
+```
+
+This creates a `species` collection with a `fullName` and `fullNameLC` field and an index optimized for prefix search.
+
 ## Discord Authentication (optional)
 
 1. Head to the Applications section in the Discord Developer Portal, and click on “New Application” (https://discord.com/developers/applications)

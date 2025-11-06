@@ -5,6 +5,7 @@ import { Egg, PlusCircle, RefreshCw, Trash2, CalendarDays, Users, LineChart } fr
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import { formatDate, formatRelativeDate } from "@/lib/utils";
 
@@ -209,10 +210,10 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
                 <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
                   Species
                 </label>
-                <Input
+                <SpeciesAutosuggest
                   placeholder="e.g., Poecilotheria metallica"
                   value={form.species}
-                  onChange={(e) => handleChange("species")(e.target.value)}
+                  onChange={(next) => handleChange("species")(next)}
                 />
               </div>
               <div>

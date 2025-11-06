@@ -5,6 +5,7 @@ import Image from "next/image";
 import { X, Upload, Trash2, Calendar, Droplets, Thermometer } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
 import { FormState, Attachment, Stage, FeedingOutcome } from "@/types/molt";
 import { cToF, fToC } from "@/lib/utils";
 import { saveTempUnit } from "@/lib/temperature";
@@ -183,11 +184,11 @@ export default function EntryFormModal({
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
                 Species {isMolt && "*"}
               </label>
-              <Input
+              <SpeciesAutosuggest
                 required={isMolt}
                 placeholder="e.g., Brachypelma hamorii"
-                value={formState.species}
-                onChange={(e) => onFormChange({ species: e.target.value })}
+                value={formState.species ?? ""}
+                onChange={(next) => onFormChange({ species: next })}
               />
             </div>
 

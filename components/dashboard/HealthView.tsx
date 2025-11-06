@@ -5,6 +5,7 @@ import { HeartPulse, PlusCircle, Thermometer, Droplets, RefreshCw, Trash2, Steth
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import { formatDate, formatRelativeDate } from "@/lib/utils";
 import { cToF, fToC } from "@/lib/utils";
@@ -178,10 +179,10 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                 <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
                   Species
                 </label>
-                <Input
+                <SpeciesAutosuggest
                   placeholder="e.g., Brachypelma hamorii"
                   value={form.species}
-                  onChange={(e) => handleChange("species")(e.target.value)}
+                  onChange={(next) => handleChange("species")(next)}
                 />
               </div>
             </div>
