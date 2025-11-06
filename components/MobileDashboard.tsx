@@ -1199,8 +1199,12 @@ export default function MobileDashboard() {
       />
 
       <div className="max-w-screen-lg mx-auto px-4 py-4 pb-28">
-        {activeView === "overview" && <OverviewView entries={entries} onViewChange={setActiveView} covers={specimenCovers} />}
-        {activeView === "activity" && (
+        {/* Keep views mounted to avoid reloading images on tab swap */}
+        <div style={{ display: activeView === "overview" ? undefined : "none" }}>
+          <OverviewView entries={entries} onViewChange={setActiveView} covers={specimenCovers} />
+        </div>
+
+        <div style={{ display: activeView === "activity" ? undefined : "none" }}>
           <ActivityView
             entries={entries}
             onEdit={onEdit}
@@ -1209,9 +1213,13 @@ export default function MobileDashboard() {
             onUnsetCover={handleUnsetSpecimenCover}
             covers={specimenCovers}
           />
-        )}
-        {activeView === "specimens" && <SpecimensView entries={entries} covers={specimenCovers} />}
-        {activeView === "health" && (
+        </div>
+
+        <div style={{ display: activeView === "specimens" ? undefined : "none" }}>
+          <SpecimensView entries={entries} covers={specimenCovers} />
+        </div>
+
+        <div style={{ display: activeView === "health" ? undefined : "none" }}>
           <HealthView
             entries={healthEntries}
             onCreate={createHealthEntry}
@@ -1233,8 +1241,9 @@ export default function MobileDashboard() {
               }
             }}
           />
-        )}
-        {activeView === "breeding" && (
+        </div>
+
+        <div style={{ display: activeView === "breeding" ? undefined : "none" }}>
           <BreedingView
             entries={breedingEntries}
             onCreate={createBreedingEntry}
@@ -1256,12 +1265,17 @@ export default function MobileDashboard() {
               }
             }}
           />
-        )}
-        {activeView === "analytics" && <AnalyticsView entries={entries} />}
-        {activeView === "reminders" && (
+        </div>
+
+        <div style={{ display: activeView === "analytics" ? undefined : "none" }}>
+          <AnalyticsView entries={entries} />
+        </div>
+
+        <div style={{ display: activeView === "reminders" ? undefined : "none" }}>
           <RemindersView entries={entries} onMarkDone={onMarkDone} onSnooze={onSnooze} onEdit={onEdit} covers={specimenCovers} />
-        )}
-        {activeView === "notebook" && (
+        </div>
+
+        <div style={{ display: activeView === "notebook" ? undefined : "none" }}>
           <NotebookView
             stacks={stacks}
             selectedStackId={selectedStackId}
@@ -1274,7 +1288,7 @@ export default function MobileDashboard() {
             onDeleteNote={onDeleteNote}
             onDuplicateNote={onDuplicateNote}
           />
-        )}
+        </div>
       </div>
 
       {/* Footer links moved into Info modal */}

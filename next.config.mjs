@@ -6,6 +6,13 @@ const nextConfig = {
   },
   async headers() {
     return [
+      // Strong caching for static uploads served from `public/uploads`
+      {
+        source: '/uploads/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
       {
         source: '/.well-known/apple-app-site-association',
         headers: [

@@ -19,8 +19,9 @@ export default function CachedImage({ src, alt = "", className, ...rest }: Cache
       src={resolvedSrc}
       alt={alt}
       className={clsx(className)}
+      loading={(rest as any).loading ?? "lazy"}
+      decoding={(rest as any).decoding ?? "async"}
       {...rest}
     />
   );
 }
-

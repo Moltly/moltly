@@ -2,10 +2,34 @@ import { APP_VERSION } from "./app-version";
 
 const CACHE_PREFIX = "moltly-image-cache";
 const CURRENT_CACHE_NAME = `${CACHE_PREFIX}-${APP_VERSION}`;
-const MAX_MEMORY_ENTRIES = 24;
+const MAX_MEMORY_ENTRIES = 64;
 
 const memoryCache = new Map<string, string>();
 const inflight = new Map<string, Promise<string>>();
+
+function sameOrigin(u: URL): boolean {
+  try {
+    return typeof window !== "undefined" && u.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+export function toCacheableUrl(url: string): string {
+  if (typeof window === "undefined") return url;
+  try {
+    const u = new URL(url, window.location.href);
+    if (u.protocol === "http:" || u.protocol === "https:") {
+      if (!sameOrigin(u)) {
+        // Route external images through our proxy for consistent caching and CORS
+        return `/api/image?url=${encodeURIComponent(u.toString())}`;
+      }
+    }
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
 
 function pruneMemoryCache() {
   if (memoryCache.size <= MAX_MEMORY_ENTRIES) return;
@@ -40,17 +64,18 @@ async function ensureVersionedCache(): Promise<Cache | null> {
 }
 
 export async function resolveCachedImage(url: string): Promise<string> {
-  if (memoryCache.has(url)) {
-    return memoryCache.get(url)!;
+  const key = toCacheableUrl(url);
+  if (memoryCache.has(key)) {
+    return memoryCache.get(key)!;
   }
 
-  if (inflight.has(url)) {
-    return inflight.get(url)!;
+  if (inflight.has(key)) {
+    return inflight.get(key)!;
   }
 
   const promise = (async () => {
     if (typeof window === "undefined") {
-      return url;
+      return key;
     }
 
     let response: Response | undefined;
@@ -58,17 +83,17 @@ export async function resolveCachedImage(url: string): Promise<string> {
     try {
       const cache = await ensureVersionedCache();
       if (cache) {
-        response = await cache.match(url);
+        response = await cache.match(key);
         if (!response) {
-          const fetched = await fetch(url, { cache: "force-cache" });
+          const fetched = await fetch(key, { cache: "force-cache" });
           if (!fetched.ok) {
             throw new Error(`Failed to fetch image: ${fetched.status}`);
           }
           response = fetched.clone();
-          await cache.put(url, fetched);
+          await cache.put(key, fetched);
         }
       } else {
-        const fetched = await fetch(url);
+        const fetched = await fetch(key);
         if (!fetched.ok) {
           throw new Error(`Failed to fetch image: ${fetched.status}`);
         }
@@ -76,30 +101,31 @@ export async function resolveCachedImage(url: string): Promise<string> {
       }
 
       if (!response) {
-        return url;
+        return key;
       }
 
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
-      memoryCache.set(url, objectUrl);
+      memoryCache.set(key, objectUrl);
       pruneMemoryCache();
       return objectUrl;
     } catch (error) {
       console.warn("[image-cache] using original url due to error:", error);
-      return url;
+      return key;
     }
   })().finally(() => {
-    inflight.delete(url);
+    inflight.delete(key);
   });
 
-  inflight.set(url, promise);
+  inflight.set(key, promise);
   return promise;
 }
 
 export function warmCachedImage(url: string | null | undefined): void {
   if (!url) return;
   if (typeof window === "undefined") return;
+  const key = toCacheableUrl(url);
   window.setTimeout(() => {
-    void resolveCachedImage(url);
+    void resolveCachedImage(key);
   }, 0);
 }
