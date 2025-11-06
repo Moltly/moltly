@@ -8,6 +8,14 @@ type ResearchNoteDocument = {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
+  externalSource?: string;
+  externalId?: string;
+  entryType?: string;
+  url?: string;
+  sourceMessageId?: string;
+  sourceChannelId?: string;
+  sourceGuildId?: string;
+  authorId?: string;
 };
 
 const ResearchNoteSchema = new Schema<ResearchNoteDocument>(
@@ -27,7 +35,15 @@ const ResearchNoteSchema = new Schema<ResearchNoteDocument>(
     updatedAt: {
       type: Date,
       default: Date.now
-    }
+    },
+    externalSource: { type: String, trim: true },
+    externalId: { type: String, trim: true },
+    entryType: { type: String, trim: true },
+    url: { type: String, trim: true },
+    sourceMessageId: { type: String, trim: true },
+    sourceChannelId: { type: String, trim: true },
+    sourceGuildId: { type: String, trim: true },
+    authorId: { type: String, trim: true }
   },
   { _id: false }
 );
@@ -43,6 +59,11 @@ const ResearchStackSchema = new Schema(
       type: [String],
       default: []
     },
+    externalSource: { type: String, trim: true },
+    externalId: { type: String, trim: true, index: true },
+    isPublic: { type: Boolean },
+    alias: { type: String, trim: true },
+    saveCount: { type: Number, default: 0 },
     notes: {
       type: [ResearchNoteSchema],
       default: []

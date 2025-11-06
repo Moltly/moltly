@@ -7,6 +7,11 @@ export type StackPayload = {
   description?: string;
   tags?: unknown;
   notes?: unknown;
+  externalSource?: unknown;
+  externalId?: unknown;
+  isPublic?: unknown;
+  alias?: unknown;
+  saveCount?: unknown;
 };
 
 type SanitizedResearchNote = {
@@ -17,6 +22,14 @@ type SanitizedResearchNote = {
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
+  externalSource?: string;
+  externalId?: string;
+  entryType?: string;
+  url?: string;
+  sourceMessageId?: string;
+  sourceChannelId?: string;
+  sourceGuildId?: string;
+  authorId?: string;
 };
 
 type SanitizedStackCreate = {
@@ -26,6 +39,11 @@ type SanitizedStackCreate = {
   description?: string;
   tags: string[];
   notes: SanitizedResearchNote[];
+  externalSource?: string;
+  externalId?: string;
+  isPublic?: boolean;
+  alias?: string;
+  saveCount?: number;
 };
 
 type SanitizedStackUpdate = Partial<Omit<SanitizedStackCreate, "notes">> & {
@@ -40,6 +58,14 @@ type NormalizedResearchNote = {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  externalSource?: string;
+  externalId?: string;
+  entryType?: string;
+  url?: string;
+  sourceMessageId?: string;
+  sourceChannelId?: string;
+  sourceGuildId?: string;
+  authorId?: string;
 };
 
 type NormalizedResearchStack = {
@@ -52,6 +78,11 @@ type NormalizedResearchStack = {
   notes: NormalizedResearchNote[];
   createdAt: string;
   updatedAt: string;
+  externalSource?: string;
+  externalId?: string;
+  isPublic?: boolean;
+  alias?: string;
+  saveCount?: number;
 };
 
 function normalizeDate(value: unknown, fallback: string) {
@@ -114,6 +145,35 @@ function sanitizeNote(note: unknown): SanitizedResearchNote | null {
   const tags = ensureStringArray(record.tags);
   const createdAt = ensureDate(record.createdAt, now);
   const updatedAt = ensureDate(record.updatedAt, createdAt);
+  const externalSource =
+    typeof record.externalSource === "string" && record.externalSource.trim().length > 0
+      ? record.externalSource.trim()
+      : undefined;
+  const externalId =
+    typeof record.externalId === "string" && record.externalId.trim().length > 0
+      ? record.externalId.trim()
+      : undefined;
+  const entryType =
+    typeof record.entryType === "string" && record.entryType.trim().length > 0
+      ? record.entryType.trim()
+      : undefined;
+  const url =
+    typeof record.url === "string" && record.url.trim().length > 0 ? record.url.trim() : undefined;
+
+  const toStringId = (value: unknown) => {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+    return undefined;
+  };
+
+  const sourceMessageId = toStringId(record.sourceMessageId);
+  const sourceChannelId = toStringId(record.sourceChannelId);
+  const sourceGuildId = toStringId(record.sourceGuildId);
+  const authorId = toStringId(record.authorId);
 
   return {
     id,
@@ -122,7 +182,15 @@ function sanitizeNote(note: unknown): SanitizedResearchNote | null {
     content,
     tags,
     createdAt,
-    updatedAt
+    updatedAt,
+    ...(externalSource ? { externalSource } : {}),
+    ...(externalId ? { externalId } : {}),
+    ...(entryType ? { entryType } : {}),
+    ...(url ? { url } : {}),
+    ...(sourceMessageId ? { sourceMessageId } : {}),
+    ...(sourceChannelId ? { sourceChannelId } : {}),
+    ...(sourceGuildId ? { sourceGuildId } : {}),
+    ...(authorId ? { authorId } : {})
   };
 }
 
@@ -151,7 +219,20 @@ export function sanitizeStackCreate(payload: StackPayload): SanitizedStackCreate
         ? payload.description.trim()
         : undefined,
     tags: ensureStringArray(payload.tags),
-    notes
+    notes,
+    ...(typeof payload.externalSource === "string" && payload.externalSource.trim().length > 0
+      ? { externalSource: payload.externalSource.trim() }
+      : {}),
+    ...(typeof payload.externalId === "string" && payload.externalId.trim().length > 0
+      ? { externalId: payload.externalId.trim() }
+      : {}),
+    ...(typeof payload.isPublic === "boolean" ? { isPublic: payload.isPublic } : {}),
+    ...(typeof payload.alias === "string" && payload.alias.trim().length > 0
+      ? { alias: payload.alias.trim() }
+      : {}),
+    ...(typeof payload.saveCount === "number" && Number.isFinite(payload.saveCount)
+      ? { saveCount: payload.saveCount }
+      : {})
   };
 }
 
@@ -185,6 +266,35 @@ export function sanitizeStackUpdate(payload: StackPayload): SanitizedStackUpdate
     update.notes = Array.isArray(payload.notes)
       ? payload.notes.map(sanitizeNote).filter((note): note is SanitizedResearchNote => Boolean(note))
       : [];
+  }
+
+  if (typeof payload.externalSource === "string") {
+    const trimmed = payload.externalSource.trim();
+    update.externalSource = trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof payload.externalId === "string") {
+    const trimmed = payload.externalId.trim();
+    update.externalId = trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof payload.isPublic === "boolean") {
+    update.isPublic = payload.isPublic;
+  }
+
+  if (typeof payload.alias === "string") {
+    const trimmed = payload.alias.trim();
+    update.alias = trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (payload.saveCount !== undefined) {
+    const num =
+      typeof payload.saveCount === "number" && Number.isFinite(payload.saveCount)
+        ? payload.saveCount
+        : Number.parseInt(String(payload.saveCount), 10);
+    if (!Number.isNaN(num)) {
+      update.saveCount = num;
+    }
   }
 
   return update;
@@ -243,6 +353,46 @@ export function normalizeStack(document: unknown): NormalizedResearchStack | nul
             updatedAt: noteUpdatedAt,
             ...(individualLabel ? { individualLabel } : {})
           };
+          const externalSource =
+            typeof noteRecord.externalSource === "string" && noteRecord.externalSource.trim().length > 0
+              ? noteRecord.externalSource.trim()
+              : undefined;
+          const externalId =
+            typeof noteRecord.externalId === "string" && noteRecord.externalId.trim().length > 0
+              ? noteRecord.externalId.trim()
+              : undefined;
+          const entryType =
+            typeof noteRecord.entryType === "string" && noteRecord.entryType.trim().length > 0
+              ? noteRecord.entryType.trim()
+              : undefined;
+          const url =
+            typeof noteRecord.url === "string" && noteRecord.url.trim().length > 0
+              ? noteRecord.url.trim()
+              : undefined;
+
+          const toStringId = (value: unknown) => {
+            if (typeof value === "string" && value.trim().length > 0) {
+              return value.trim();
+            }
+            if (typeof value === "number" && Number.isFinite(value)) {
+              return String(value);
+            }
+            return undefined;
+          };
+
+          const sourceMessageId = toStringId(noteRecord.sourceMessageId);
+          const sourceChannelId = toStringId(noteRecord.sourceChannelId);
+          const sourceGuildId = toStringId(noteRecord.sourceGuildId);
+          const authorId = toStringId(noteRecord.authorId);
+
+          if (externalSource) normalizedNote.externalSource = externalSource;
+          if (externalId) normalizedNote.externalId = externalId;
+          if (entryType) normalizedNote.entryType = entryType;
+          if (url) normalizedNote.url = url;
+          if (sourceMessageId) normalizedNote.sourceMessageId = sourceMessageId;
+          if (sourceChannelId) normalizedNote.sourceChannelId = sourceChannelId;
+          if (sourceGuildId) normalizedNote.sourceGuildId = sourceGuildId;
+          if (authorId) normalizedNote.authorId = authorId;
 
           return normalizedNote;
         })
@@ -270,6 +420,19 @@ export function normalizeStack(document: unknown): NormalizedResearchStack | nul
     tags: ensureStringArray(record.tags),
     notes,
     createdAt,
-    updatedAt
+    updatedAt,
+    ...(typeof record.externalSource === "string" && record.externalSource.trim().length > 0
+      ? { externalSource: record.externalSource.trim() }
+      : {}),
+    ...(typeof record.externalId === "string" && record.externalId.trim().length > 0
+      ? { externalId: record.externalId.trim() }
+      : {}),
+    ...(typeof record.isPublic === "boolean" ? { isPublic: record.isPublic } : {}),
+    ...(typeof record.alias === "string" && record.alias.trim().length > 0
+      ? { alias: record.alias.trim() }
+      : {}),
+    ...(typeof record.saveCount === "number" && Number.isFinite(record.saveCount)
+      ? { saveCount: record.saveCount }
+      : {})
   };
 }

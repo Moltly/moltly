@@ -6,6 +6,14 @@ export type ResearchNote = {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  externalSource?: string;
+  externalId?: string;
+  entryType?: string;
+  url?: string;
+  sourceMessageId?: string;
+  sourceChannelId?: string;
+  sourceGuildId?: string;
+  authorId?: string;
 };
 
 export type ResearchStack = {
@@ -18,4 +26,9 @@ export type ResearchStack = {
   notes: ResearchNote[];
   createdAt: string;
   updatedAt: string;
+  externalSource?: string;
+  externalId?: string;
+  isPublic?: boolean;
+  alias?: string;
+  saveCount?: number;
 };

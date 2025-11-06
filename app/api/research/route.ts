@@ -5,11 +5,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth-options";
 import { connectMongoose } from "../../../lib/mongoose";
 import ResearchStack from "../../../models/ResearchStack";
-import {
-  normalizeStack,
-  sanitizeStackCreate,
-  type StackPayload
-} from "../../../lib/research-stacks";
+import { normalizeStack, sanitizeStackCreate, type StackPayload } from "../../../lib/research-stacks";
+import { trySyncResearchStackToWSCA } from "../../../lib/wsca-notes-sync";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -44,6 +41,9 @@ export async function POST(request: Request) {
     if (!normalized) {
       throw new Error("Unable to load research stack.");
     }
+
+    trySyncResearchStackToWSCA(session.user.id, stack).catch(() => undefined);
+
     return NextResponse.json(normalized, { status: 201 });
   } catch (error) {
     console.error(error);

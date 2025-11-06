@@ -4,11 +4,8 @@ import { Types } from "mongoose";
 import { authOptions } from "../../../../lib/auth-options";
 import { connectMongoose } from "../../../../lib/mongoose";
 import ResearchStack from "../../../../models/ResearchStack";
-import {
-  normalizeStack,
-  sanitizeStackUpdate,
-  type StackPayload
-} from "../../../../lib/research-stacks";
+import { normalizeStack, sanitizeStackUpdate, type StackPayload } from "../../../../lib/research-stacks";
+import { tryDeleteResearchStackOnWSCA, trySyncResearchStackToWSCA } from "../../../../lib/wsca-notes-sync";
 
 type RouteContext = {
   params: Promise<{ id?: string | string[] }>;
@@ -81,6 +78,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!normalized) {
       throw new Error("Unable to load stack after update.");
     }
+
+    trySyncResearchStackToWSCA(session.user.id, stack).catch(() => undefined);
+
     return NextResponse.json(normalized);
   } catch (error) {
     console.error(error);
@@ -108,6 +108,8 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (!result) {
       return NextResponse.json({ error: "Stack not found." }, { status: 404 });
     }
+
+    tryDeleteResearchStackOnWSCA(session.user.id, result).catch(() => undefined);
 
     return NextResponse.json({ success: true });
   } catch (error) {
