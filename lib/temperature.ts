@@ -1,6 +1,6 @@
 "use client";
 
-export type TempUnit = "C" | "F";
+type TempUnit = "C" | "F";
 
 const STORAGE_KEY = "moltly:tempUnit";
 
@@ -19,4 +19,3 @@ export function saveTempUnit(unit: TempUnit) {
     localStorage.setItem(STORAGE_KEY, unit);
   } catch {}
 }
-

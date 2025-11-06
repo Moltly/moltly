@@ -12,7 +12,7 @@ export function isS3Configured() {
   return Boolean(bucket && (endpoint || region) && accessKeyId && secretAccessKey);
 }
 
-export function getS3Client() {
+function getS3Client() {
   if (!isS3Configured()) return null;
   return new S3Client({
     region,
@@ -41,7 +41,7 @@ export async function deleteObject(key: string) {
   await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
-export function isS3Url(url: string) {
+function isS3Url(url: string) {
   if (!bucket) return false;
   try {
     const u = new URL(url, publicUrl || endpoint || "http://local");

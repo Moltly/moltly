@@ -7,6 +7,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { isS3Configured, putObject, objectKeyFor } from "../../../lib/s3";
+import { UploadedImageSchema } from "@/lib/schemas/upload";
 
 function sanitizeFilename(name: string) {
   const base = name.replace(/\\|\//g, " ").trim();
@@ -52,12 +53,19 @@ export async function POST(request: Request) {
 
     for (const item of files) {
       if (!(item instanceof File)) continue;
-      const isImage = (item.type || "").startsWith("image/");
-      const ext = getExt(item.name, item.type || null);
-      const safeName = sanitizeFilename(item.name || `upload.${ext}`);
-      if (!isImage && !["jpg", "jpeg", "png", "webp", "gif", "heic", "heif", "avif"].includes(ext)) {
-        return NextResponse.json({ error: `Unsupported file type for ${safeName}` }, { status: 415 });
+      const metaResult = UploadedImageSchema.safeParse({
+        name: item.name,
+        type: item.type,
+        size: item.size
+      });
+      if (!metaResult.success) {
+        const message = metaResult.error.issues[0]?.message ?? "Invalid upload.";
+        return NextResponse.json({ error: message }, { status: 400 });
       }
+
+      const meta = metaResult.data;
+      const ext = getExt(meta.name ?? "", meta.type ?? null);
+      const safeName = sanitizeFilename(meta.name ?? `upload.${ext}`);
 
       const id = crypto.randomUUID();
       const filename = `${id}.${ext}`;
@@ -77,7 +85,7 @@ export async function POST(request: Request) {
         throw new Error("No upload destination available");
       }
 
-      attachments.push({ id, name: safeName, url, type: item.type || `image/${ext}` , addedAt: nowIso });
+      attachments.push({ id, name: safeName, url, type: meta.type ?? `image/${ext}`, addedAt: nowIso });
     }
 
     return NextResponse.json({ attachments }, { status: 201 });

@@ -145,7 +145,7 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
     return Array.from(dashboardMap.values()).sort((a, b) =>
       a.specimen.localeCompare(b.specimen)
     );
-  }, [entries]);
+  }, [entries, covers]);
 
   const toggleExpand = (key: string) => {
     setExpandedKeys((prev) =>

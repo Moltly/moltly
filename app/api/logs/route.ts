@@ -8,6 +8,7 @@ import { connectMongoose } from "../../../lib/mongoose";
 import MoltEntry from "../../../models/MoltEntry";
 import getMongoClientPromise from "../../../lib/mongodb";
 import { ObjectId } from "mongodb";
+import { MoltEntryCreateSchema } from "@/lib/schemas/molt";
 
 async function trySyncToWSCA(userId: string, entry: any) {
   try {
@@ -89,70 +90,23 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    const {
-      specimen,
-      species,
-      date,
-      entryType: rawEntryType,
-      stage,
-      oldSize,
-      newSize,
-      humidity,
-      temperature,
-      temperatureUnit,
-      notes,
-      reminderDate,
-      feedingPrey,
-      feedingOutcome,
-      feedingAmount,
-      attachments = []
-    } = payload;
-
-    if (!date) {
-      return NextResponse.json({ error: "Date is required." }, { status: 400 });
+    const parsed = MoltEntryCreateSchema.safeParse(payload);
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          error: "Invalid request body.",
+          details: parsed.error.flatten()
+        },
+        { status: 400 }
+      );
     }
 
-    const allowedEntryTypes = new Set(["molt", "feeding", "water"]);
-    const entryType: "molt" | "feeding" | "water" = allowedEntryTypes.has(rawEntryType) ? rawEntryType : "molt";
-
-    const trimmedSpecimen = typeof specimen === "string" ? specimen.trim() : "";
-    const normalizedSpecimen = trimmedSpecimen.length > 0 ? trimmedSpecimen : undefined;
-
-    const trimmedSpecies = typeof species === "string" ? species.trim() : "";
-    const normalizedSpecies = trimmedSpecies.length > 0 ? trimmedSpecies : undefined;
-
-    if (entryType === "molt" && !normalizedSpecies) {
-      return NextResponse.json({ error: "Species is required for molt entries." }, { status: 400 });
-    }
-
-    const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
-    const normalizedStage = entryType === "molt" ? (allowedStages.has(stage) ? stage : "Molt") : undefined;
-
-    const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
-    const normalizedOutcome =
-      entryType === "feeding" && typeof feedingOutcome === "string" && allowedOutcomes.has(feedingOutcome)
-        ? feedingOutcome
-        : undefined;
+    const data = parsed.data;
 
     await connectMongoose();
     const entry = await MoltEntry.create({
       userId: session.user.id,
-      specimen: normalizedSpecimen,
-      species: normalizedSpecies,
-      date,
-      entryType,
-      stage: normalizedStage,
-      oldSize,
-      newSize,
-      humidity,
-      temperature,
-      temperatureUnit: temperatureUnit === "F" ? "F" : temperatureUnit === "C" ? "C" : undefined,
-      notes,
-      reminderDate,
-      feedingPrey: entryType === "feeding" ? feedingPrey : undefined,
-      feedingOutcome: normalizedOutcome,
-      feedingAmount: entryType === "feeding" ? feedingAmount : undefined,
-      attachments
+      ...data
     });
 
     // Fire-and-forget sync to WSCA if configured

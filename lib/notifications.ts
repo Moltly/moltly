@@ -1,4 +1,4 @@
-export function stringHashToInt(id: string): number {
+function stringHashToInt(id: string): number {
   let hash = 2166136261 >>> 0;
   for (let i = 0; i < id.length; i += 1) {
     hash ^= id.charCodeAt(i);
@@ -16,7 +16,7 @@ async function getLocalNotifications() {
   }
 }
 
-export async function ensureNotificationPermission(): Promise<boolean> {
+async function ensureNotificationPermission(): Promise<boolean> {
   const LocalNotifications = await getLocalNotifications();
   if (!LocalNotifications) return false;
   try {
@@ -29,7 +29,7 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   }
 }
 
-export type ReminderInfo = {
+type ReminderInfo = {
   id: string;
   dateISO: string;
   title: string;
@@ -75,4 +75,3 @@ export async function cancelReminderNotification(entryId: string): Promise<void>
     await LocalNotifications.cancel({ notifications: [{ id }] });
   } catch {}
 }
-

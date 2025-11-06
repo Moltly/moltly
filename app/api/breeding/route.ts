@@ -5,40 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { connectMongoose } from "@/lib/mongoose";
 import BreedingEntry from "@/models/BreedingEntry";
-
-function toNumber(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number.parseFloat(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-  return undefined;
-}
-
-function toDate(value: unknown) {
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed;
-    }
-  }
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-  return undefined;
-}
-
-function sanitizeString(value: unknown) {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }
-  return undefined;
-}
+import { BreedingEntryCreateSchema } from "@/lib/schemas/breeding";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -69,47 +36,18 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
-    const {
-      femaleSpecimen,
-      maleSpecimen,
-      species,
-      pairingDate,
-      status,
-      pairingNotes,
-      eggSacDate,
-      eggSacStatus,
-      eggSacCount,
-      hatchDate,
-      slingCount,
-      followUpDate,
-      notes,
-      attachments = []
-    } = payload;
-
-    if (!pairingDate) {
-      return NextResponse.json({ error: "Pairing date is required." }, { status: 400 });
+    const parsed = BreedingEntryCreateSchema.safeParse(payload);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request body.", details: parsed.error.flatten() },
+        { status: 400 }
+      );
     }
-
-    const allowedStatuses = new Set(["Planned", "Attempted", "Successful", "Failed", "Observation"]);
-    const allowedEggStatuses = new Set(["Not Laid", "Laid", "Pulled", "Failed", "Hatched"]);
 
     await connectMongoose();
     const entry = await BreedingEntry.create({
       userId: session.user.id,
-      femaleSpecimen: sanitizeString(femaleSpecimen),
-      maleSpecimen: sanitizeString(maleSpecimen),
-      species: sanitizeString(species),
-      pairingDate,
-      status: allowedStatuses.has(status) ? status : "Planned",
-      pairingNotes: sanitizeString(pairingNotes),
-      eggSacDate: toDate(eggSacDate),
-      eggSacStatus: allowedEggStatuses.has(eggSacStatus) ? eggSacStatus : "Not Laid",
-      eggSacCount: toNumber(eggSacCount),
-      hatchDate: toDate(hatchDate),
-      slingCount: toNumber(slingCount),
-      followUpDate: toDate(followUpDate),
-      notes: sanitizeString(notes),
-      attachments
+      ...parsed.data
     });
 
     return NextResponse.json(
@@ -125,4 +63,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unable to create breeding entry." }, { status: 500 });
   }
 }
-

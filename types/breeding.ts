@@ -1,7 +1,7 @@
 import type { Attachment } from "./molt";
 
-export type BreedingStatus = "Planned" | "Attempted" | "Successful" | "Failed" | "Observation";
-export type EggSacStatus = "Not Laid" | "Laid" | "Pulled" | "Failed" | "Hatched";
+type BreedingStatus = "Planned" | "Attempted" | "Successful" | "Failed" | "Observation";
+type EggSacStatus = "Not Laid" | "Laid" | "Pulled" | "Failed" | "Hatched";
 
 export type BreedingEntry = {
   id: string;
@@ -38,4 +38,3 @@ export type BreedingFormState = {
   followUpDate: string;
   notes: string;
 };
-

@@ -79,8 +79,3 @@ export type Filters = {
   type: "all" | EntryType;
   order: "asc" | "desc";
 };
-
-export type SpecimenCover = {
-  key: string;
-  imageUrl: string;
-};

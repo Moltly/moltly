@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-export type Theme = "light" | "dark";
+type Theme = "light" | "dark";
 
 type ThemeContextValue = {
   theme: Theme;

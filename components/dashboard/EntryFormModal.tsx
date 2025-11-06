@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { X, Upload, Trash2, Calendar, Droplets, Thermometer } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -431,10 +432,12 @@ export default function EntryFormModal({
                           key={attachment.id}
                           className="relative group aspect-square rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))]"
                         >
-                          <img
+                          <Image
                             src={attachment.url}
                             alt={attachment.name}
-                            className="object-cover w-full h-full"
+                            fill
+                            className="object-cover"
+                            sizes="96px"
                             loading="lazy"
                           />
                           <div className="absolute inset-x-1 top-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">

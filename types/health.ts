@@ -1,7 +1,7 @@
 import type { Attachment } from "./molt";
 
-export type HealthCondition = "Stable" | "Observation" | "Critical";
-export type WeightUnit = "g" | "oz";
+type HealthCondition = "Stable" | "Observation" | "Critical";
+type WeightUnit = "g" | "oz";
 
 export type HealthEntry = {
   id: string;

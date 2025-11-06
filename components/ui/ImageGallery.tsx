@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect } from "react";
 import { X, ChevronLeft, ChevronRight, Download, Star, StarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -183,12 +184,16 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
             <ChevronLeft className="w-6 h-6" />
           </button>
         )}
-        <img
-          key={current.id}
-          src={current.url}
-          alt={current.name || "Attachment"}
-          className="max-w-full max-h-full object-contain"
-        />
+        <div className="relative w-full h-full max-w-full max-h-full">
+          <Image
+            key={current.id}
+            src={current.url}
+            alt={current.name || "Attachment"}
+            fill
+            className="object-contain"
+            sizes="(min-width: 1024px) 60vw, 100vw"
+          />
+        </div>
         {canNext && (
           <button
             type="button"
@@ -216,10 +221,18 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
                 )}
                 aria-label={`View image ${i + 1}`}
               >
-                <img src={img.url} alt={img.name || `Attachment ${i + 1}`} className="w-full h-full object-cover rounded" />
-              </button>
-            ))}
-          </div>
+                <span className="relative block w-full h-full">
+                  <Image
+                    src={img.url}
+                    alt={img.name || `Attachment ${i + 1}`}
+                    fill
+                    className="object-cover rounded"
+                    sizes="64px"
+                  />
+                </span>
+             </button>
+           ))}
+         </div>
         </div>
       )}
     </div>

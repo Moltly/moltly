@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
@@ -14,20 +14,16 @@ import EntryFormModal from "@/components/dashboard/EntryFormModal";
 import NotebookView from "@/components/dashboard/NotebookView";
 import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
-import type { MoltEntry, ViewKey, DataMode, Stage, EntryType, FormState, Attachment } from "@/types/molt";
+import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import type { ResearchStack, ResearchNote } from "@/types/research";
-import { readLocalEntries, writeLocalEntries } from "@/lib/local-entries";
-import { readLocalHealthEntries, writeLocalHealthEntries } from "@/lib/local-health";
-import { readLocalBreedingEntries, writeLocalBreedingEntries } from "@/lib/local-breeding";
-import { readLocalResearchStacks, writeLocalResearchStacks } from "@/lib/local-research";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
 import { getSavedTempUnit } from "@/lib/temperature";
 import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/notifications";
 import type { GalleryImage } from "@/components/ui/ImageGallery";
-import { readLocalSpecimenCovers, writeLocalSpecimenCovers } from "@/lib/local-specimens";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
@@ -57,22 +53,30 @@ const healthReminderKey = (id: string) => `health:${id}`;
 const breedingReminderKey = (id: string) => `breeding:${id}`;
 
 export default function MobileDashboard() {
-  const { data: session, status } = useSession();
-  const mode: DataMode | null = status === "loading" ? null : session?.user?.id ? "sync" : "local";
-  const isSync = mode === "sync";
+  const {
+    session,
+    status,
+    mode,
+    isSync,
+    entries,
+    setEntries,
+    healthEntries,
+    setHealthEntries,
+    breedingEntries,
+    setBreedingEntries,
+    specimenCovers,
+    updateSpecimenCover,
+    stacks,
+    setStacks,
+    selectedStackId,
+    setSelectedStackId
+  } = useDashboardData();
 
   const [activeView, setActiveView] = useState<ViewKey>("overview");
-  const [entries, setEntries] = useState<MoltEntry[]>([]);
-  const [healthEntries, setHealthEntries] = useState<HealthEntry[]>([]);
-  const [breedingEntries, setBreedingEntries] = useState<BreedingEntry[]>([]);
-  const [, setLoading] = useState(true); // internal fetch state
   const [formOpen, setFormOpen] = useState(false);
   const [formState, setFormState] = useState<FormState>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [specimenCovers, setSpecimenCovers] = useState<Record<string, string>>({});
-  const [stacks, setStacks] = useState<ResearchStack[]>([]);
-  const [selectedStackId, setSelectedStackId] = useState<string | null>(null);
   const [pendingUpdates, setPendingUpdates] = useState<ChangelogEntry[]>([]);
   const [showChangelog, setShowChangelog] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -133,203 +137,23 @@ export default function MobileDashboard() {
     }
   }, []);
 
-  const persistLocal = useCallback(
-    (list: MoltEntry[]) => {
-      if (mode === "local") writeLocalEntries(list as unknown as Record<string, unknown>[]);
-    },
-    [mode]
-  );
-
-  const persistHealthLocal = useCallback(
-    (list: HealthEntry[]) => {
-      if (mode === "local") writeLocalHealthEntries(list as unknown as Record<string, unknown>[]);
-    },
-    [mode]
-  );
-
-  const persistBreedingLocal = useCallback(
-    (list: BreedingEntry[]) => {
-      if (mode === "local") writeLocalBreedingEntries(list as unknown as Record<string, unknown>[]);
-    },
-    [mode]
-  );
-
-  // Load entries
-  useEffect(() => {
-    const load = async () => {
-      if (!mode) return;
-      setLoading(true);
-      try {
-        if (isSync) {
-          const res = await fetch("/api/logs", { credentials: "include" });
-          if (!res.ok) throw new Error("Failed to load entries");
-          const data = await res.json();
-          setEntries(Array.isArray(data) ? (data as MoltEntry[]) : []);
-        } else {
-          setEntries(readLocalEntries() as unknown as MoltEntry[]);
-        }
-      } catch (err) {
-        console.error(err);
-        setEntries([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void load();
-  }, [mode, isSync]);
-
-  // Load specimen covers
-  useEffect(() => {
-    const loadCovers = async () => {
-      if (!mode) return;
-      try {
-        if (isSync) {
-          const res = await fetch("/api/specimens", { credentials: "include" });
-          if (res.ok) {
-            const arr = (await res.json()) as Array<{ key: string; imageUrl: string }>;
-            const map: Record<string, string> = {};
-            for (const it of arr) if (it?.key && it?.imageUrl) map[it.key] = it.imageUrl;
-            setSpecimenCovers(map);
-          } else {
-            setSpecimenCovers({});
-          }
-        } else {
-          setSpecimenCovers(readLocalSpecimenCovers());
-        }
-      } catch (e) {
-        console.error(e);
-        setSpecimenCovers({});
-      }
-    };
-    void loadCovers();
-  }, [mode, isSync]);
-
   const handleSetSpecimenCover = useCallback(
     async (specimenKey: string, img: GalleryImage) => {
-      const key = specimenKey || "Unnamed";
       const url = img.url;
       if (!url) return;
-      try {
-        if (isSync) {
-          const res = await fetch("/api/specimens", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ key, imageUrl: url }),
-          });
-          if (!res.ok) throw new Error("Failed to set cover");
-        }
-        setSpecimenCovers((prev) => {
-          const next = { ...prev, [key]: url };
-          if (!isSync) writeLocalSpecimenCovers(next);
-          return next;
-        });
-      } catch (e) {
-        console.error(e);
-      }
+      await updateSpecimenCover(specimenKey, url);
     },
-    [isSync]
+    [updateSpecimenCover]
   );
 
   const handleUnsetSpecimenCover = useCallback(
     async (specimenKey: string) => {
-      const key = specimenKey || "Unnamed";
-      try {
-        if (isSync) {
-          const res = await fetch("/api/specimens", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ key, imageUrl: null }),
-          });
-          if (!res.ok) throw new Error("Failed to unset cover");
-        }
-        setSpecimenCovers((prev) => {
-          const next = { ...prev };
-          delete next[key];
-          if (!isSync) writeLocalSpecimenCovers(next);
-          return next;
-        });
-      } catch (e) {
-        console.error(e);
-      }
+      await updateSpecimenCover(specimenKey, null);
     },
-    [isSync]
+    [updateSpecimenCover]
   );
 
-  useEffect(() => {
-    const loadHealth = async () => {
-      if (!mode) return;
-      setLoading(true);
-      try {
-        if (isSync) {
-          const res = await fetch("/api/health", { credentials: "include" });
-          if (!res.ok) throw new Error("Failed to load health entries");
-          const data = await res.json();
-          setHealthEntries(Array.isArray(data) ? (data as HealthEntry[]) : []);
-        } else {
-          setHealthEntries(readLocalHealthEntries() as unknown as HealthEntry[]);
-        }
-      } catch (err) {
-        console.error(err);
-        setHealthEntries([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadHealth();
-  }, [mode, isSync]);
-
-  useEffect(() => {
-    const loadBreeding = async () => {
-      if (!mode) return;
-      setLoading(true);
-      try {
-        if (isSync) {
-          const res = await fetch("/api/breeding", { credentials: "include" });
-          if (!res.ok) throw new Error("Failed to load breeding entries");
-          const data = await res.json();
-          setBreedingEntries(Array.isArray(data) ? (data as BreedingEntry[]) : []);
-        } else {
-          setBreedingEntries(readLocalBreedingEntries() as unknown as BreedingEntry[]);
-        }
-      } catch (err) {
-        console.error(err);
-        setBreedingEntries([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadBreeding();
-  }, [mode, isSync]);
-
   // Load research stacks
-  useEffect(() => {
-    const loadStacks = async () => {
-      if (!mode) return;
-      setLoading(true);
-      try {
-        if (isSync) {
-          const res = await fetch("/api/research", { credentials: "include" });
-          if (!res.ok) throw new Error("Failed to load research stacks");
-          const data = (await res.json()) as ResearchStack[];
-          setStacks(Array.isArray(data) ? data : []);
-          if (data.length > 0) setSelectedStackId((prev) => prev ?? data[0].id);
-        } else {
-          const localStacks = readLocalResearchStacks();
-          setStacks(localStacks);
-          if (localStacks.length > 0) setSelectedStackId((prev) => prev ?? localStacks[0].id);
-        }
-      } catch (err) {
-        console.error(err);
-        setStacks([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadStacks();
-  }, [mode, isSync]);
-
   // Changelog first-run modal
   useEffect(() => {
     const lastSeen = typeof window !== "undefined" ? window.localStorage.getItem(LAST_SEEN_VERSION_KEY) : null;
@@ -402,9 +226,7 @@ export default function MobileDashboard() {
       if (!res.ok) return;
       setEntries((prev) => prev.filter((e) => e.id !== id));
     } else {
-      const next = entries.filter((e) => e.id !== id);
-      setEntries(next);
-      persistLocal(next);
+      setEntries((prev) => prev.filter((e) => e.id !== id));
     }
     try {
       await cancelReminderNotification(id);
@@ -472,6 +294,7 @@ export default function MobileDashboard() {
       }
     } else {
       const nowIso = new Date().toISOString();
+      const existing = editingId ? entries.find((e) => e.id === editingId) : undefined;
       const saved: MoltEntry = {
         id: editingId ?? crypto.randomUUID(),
         entryType: payload.entryType as EntryType,
@@ -481,24 +304,23 @@ export default function MobileDashboard() {
         stage: payload.stage as Stage | undefined,
         oldSize: payload.oldSize,
         newSize: payload.newSize,
-      humidity: payload.humidity,
-      temperature: payload.temperature,
-      temperatureUnit: payload.temperatureUnit as MoltEntry["temperatureUnit"],
-      notes: payload.notes,
+        humidity: payload.humidity,
+        temperature: payload.temperature,
+        temperatureUnit: payload.temperatureUnit as MoltEntry["temperatureUnit"],
+        notes: payload.notes,
         reminderDate: payload.reminderDate,
         feedingPrey: payload.feedingPrey,
         feedingOutcome: payload.feedingOutcome as MoltEntry["feedingOutcome"],
         feedingAmount: payload.feedingAmount,
         attachments: payload.attachments,
-        createdAt: editingId ? entries.find((e) => e.id === editingId)?.createdAt ?? nowIso : nowIso,
+        createdAt: existing?.createdAt ?? nowIso,
         updatedAt: nowIso,
       };
-      const next = editingId ? entries.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...entries];
-      setEntries(next);
-      persistLocal(next);
+      setEntries((prev) =>
+        editingId ? prev.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...prev]
+      );
       try {
-        const prev = editingId ? entries.find((e) => e.id === editingId) : undefined;
-        const prevDate = prev?.reminderDate;
+        const prevDate = existing?.reminderDate;
         const nextDate = saved.reminderDate;
         if (prevDate && !nextDate) {
           await cancelReminderNotification(saved.id);
@@ -507,7 +329,13 @@ export default function MobileDashboard() {
             id: saved.id,
             dateISO: nextDate.slice(0, 10),
             title: `Reminder: ${saved.specimen || "Unnamed"}`,
-            body: saved.notes || (saved.entryType === "feeding" ? "Feeding due." : saved.entryType === "water" ? "Water change due." : "Care reminder."),
+            body:
+              saved.notes ||
+              (saved.entryType === "feeding"
+                ? "Feeding due."
+                : saved.entryType === "water"
+                ? "Water change due."
+                : "Care reminder."),
           });
         }
       } catch (err) {
@@ -591,9 +419,7 @@ export default function MobileDashboard() {
       createdAt: now,
       updatedAt: now,
     };
-    const next = [saved, ...healthEntries];
-    setHealthEntries(next);
-    persistHealthLocal(next);
+    setHealthEntries((prev) => [saved, ...prev]);
     if (saved.followUpDate) {
       try {
         await scheduleReminderNotification({
@@ -621,9 +447,7 @@ export default function MobileDashboard() {
       }
     }
 
-    const next = healthEntries.filter((entry) => entry.id !== id);
-    setHealthEntries(next);
-    persistHealthLocal(next);
+    setHealthEntries((prev) => prev.filter((entry) => entry.id !== id));
     if (existing?.followUpDate) {
       try {
         await cancelReminderNotification(healthReminderKey(id));
@@ -699,9 +523,7 @@ export default function MobileDashboard() {
       createdAt: now,
       updatedAt: now,
     };
-    const next = [saved, ...breedingEntries];
-    setBreedingEntries(next);
-    persistBreedingLocal(next);
+    setBreedingEntries((prev) => [saved, ...prev]);
     if (saved.followUpDate) {
       try {
         await scheduleReminderNotification({
@@ -729,9 +551,7 @@ export default function MobileDashboard() {
       }
     }
 
-    const next = breedingEntries.filter((entry) => entry.id !== id);
-    setBreedingEntries(next);
-    persistBreedingLocal(next);
+    setBreedingEntries((prev) => prev.filter((entry) => entry.id !== id));
     if (existing?.followUpDate) {
       try {
         await cancelReminderNotification(breedingReminderKey(id));
@@ -773,9 +593,7 @@ export default function MobileDashboard() {
       createdAt: now,
       updatedAt: now,
     };
-    const next = [saved, ...stacks];
-    setStacks(next);
-    writeLocalResearchStacks(next);
+    setStacks((prev) => [saved, ...prev]);
     setSelectedStackId(saved.id);
   };
 
@@ -799,17 +617,17 @@ export default function MobileDashboard() {
       setStacks((prev) => prev.map((s) => (s.id === id ? saved : s)));
       return;
     }
-    const next = stacks.map((s) =>
-      s.id === id
-        ? {
-            ...s,
-            ...updates,
-            updatedAt: new Date().toISOString(),
-          }
-        : s
+    setStacks((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              ...updates,
+              updatedAt: new Date().toISOString(),
+            }
+          : s
+      )
     );
-    setStacks(next);
-    writeLocalResearchStacks(next);
   };
 
   const onDeleteStack = async (id: string) => {
@@ -818,10 +636,7 @@ export default function MobileDashboard() {
       const res = await fetch(`/api/research/${id}`, { method: "DELETE" });
       if (!res.ok) return;
     }
-    const next = stacks.filter((s) => s.id !== id);
-    setStacks(next);
-    writeLocalResearchStacks(next);
-    if (selectedStackId === id) setSelectedStackId(next[0]?.id ?? null);
+    setStacks((prev) => prev.filter((s) => s.id !== id));
   };
 
   const onCreateNote = async (stackId: string, note: Partial<ResearchNote>) => {
@@ -880,9 +695,7 @@ export default function MobileDashboard() {
       });
       setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: undefined } : e)));
     } else {
-      const next = entries.map((e) => (e.id === id ? { ...e, reminderDate: undefined } : e));
-      setEntries(next);
-      persistLocal(next);
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: undefined } : e)));
     }
     try {
       await cancelReminderNotification(id);
@@ -902,9 +715,7 @@ export default function MobileDashboard() {
       });
       setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: value } : e)));
     } else {
-      const next = entries.map((e) => (e.id === id ? { ...e, reminderDate: value } : e));
-      setEntries(next);
-      persistLocal(next);
+      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: value } : e)));
     }
     try {
       const entry = entries.find((e) => e.id === id);
@@ -1222,17 +1033,13 @@ export default function MobileDashboard() {
                           setIsExporting(true);
                           try {
                             // Build local export payload
-                            const localEntries = readLocalEntries();
-                            const localHealth = readLocalHealthEntries();
-                            const localBreeding = readLocalBreedingEntries();
-                            const localResearch = readLocalResearchStacks();
                             const payload = {
                               version: 2,
                               exportedAt: new Date().toISOString(),
-                              entries: localEntries,
-                              health: localHealth,
-                              breeding: localBreeding,
-                              research: localResearch,
+                              entries,
+                              health: healthEntries,
+                              breeding: breedingEntries,
+                              research: stacks,
                             };
                             const text = JSON.stringify(payload);
                             await exportJsonText(text);
@@ -1261,13 +1068,19 @@ export default function MobileDashboard() {
                             setImportSuccess(null);
                             try {
                               const text = await file.text();
-                              const data = JSON.parse(text) as { entries?: any[]; research?: ResearchStack[] };
+                              const data = JSON.parse(text) as {
+                                entries?: MoltEntry[];
+                                health?: HealthEntry[];
+                                breeding?: BreedingEntry[];
+                                research?: ResearchStack[];
+                              };
                               const nextEntries = Array.isArray(data.entries) ? (data.entries as MoltEntry[]) : [];
+                              const nextHealth = Array.isArray(data.health) ? (data.health as HealthEntry[]) : [];
+                              const nextBreeding = Array.isArray(data.breeding) ? (data.breeding as BreedingEntry[]) : [];
                               const nextResearch = Array.isArray(data.research) ? (data.research as ResearchStack[]) : [];
-                              // Overwrite local stores
-                              writeLocalEntries(nextEntries as unknown as Record<string, unknown>[]);
-                              writeLocalResearchStacks(nextResearch);
                               setEntries(nextEntries as MoltEntry[]);
+                              setHealthEntries(nextHealth as HealthEntry[]);
+                              setBreedingEntries(nextBreeding as BreedingEntry[]);
                               setStacks(nextResearch);
                               if (nextResearch.length > 0) setSelectedStackId(nextResearch[0].id);
                               setImportSuccess("Import complete.");
