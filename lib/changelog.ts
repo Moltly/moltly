@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.6.2",
+    date: "2025-11-06",
+    highlights: [
+      "Add Analytics Dashboard.",
+      "Improve performance of data loading.",
+      "Add Image Caching for Gallery and Specimen Cover Images.",
+      "Add syncing with WSC (World Spider Catalog Bot) in Tarantula Addicts Discord for molt entries when signed in via Discord (discord.gg/ta)."
+    ]
+  },
+  {
     version: "1.6.1",
     date: "2025-10-30",
     highlights: [
