@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moltly – Offline</title>
+    <meta name="theme-color" content="#0B0B0B" />
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: #0B0B0B; color: #ECECEC;
+        display: grid; place-items: center; min-height: 100vh;
+      }
+      .card {
+        max-width: 520px; padding: 24px; border-radius: 12px;
+        background: #121212; border: 1px solid #262626;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+      }
+      h1 { margin: 0 0 8px; font-size: 20px; }
+      p { margin: 0 0 12px; color: #B6B6B6; }
+      .hint { font-size: 12px; color: #9A9A9A; }
+      .actions { display: flex; gap: 12px; margin-top: 16px; }
+      a, button { appearance: none; border: 0; cursor: pointer; }
+      .btn { padding: 10px 14px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+      .primary { background: #2B72FF; color: white; }
+      .secondary { background: #1A1A1A; color: #ECECEC; border: 1px solid #303030; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>You're offline</h1>
+      <p>Moltly is installed with offline support. Recent pages and images may still be available. Reconnect to sync the latest data.</p>
+      <p class="hint">Tip: Entries created in guest mode are saved locally and work offline. When signed in, previously viewed data can be read offline; new changes require a connection.</p>
+      <div class="actions">
+        <button class="btn primary" onclick="location.reload()">Retry</button>
+        <a class="btn secondary" href="/">Go home</a>
+      </div>
+    </main>
+  </body>
+  </html>
+

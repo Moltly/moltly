@@ -34,8 +34,44 @@ function useCapacitorUniversalLinks() {
   }, []);
 }
 
+function useServiceWorkerRegistration() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const isHttps = window.location.protocol === "https:";
+    if (!("serviceWorker" in navigator)) return;
+    if (!isHttps && !isLocalhost) return; // SWs need HTTPS (except on localhost)
+
+    const register = async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        reg.addEventListener?.("updatefound", () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+              // New SW installed; tell it to activate immediately
+              newWorker.postMessage("SKIP_WAITING");
+            }
+          });
+        });
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
+      } catch {
+        // ignore registration errors
+      }
+    };
+    register();
+  }, []);
+}
+
 export default function Providers({ children }: { children: ReactNode }) {
   useCapacitorUniversalLinks();
+  useServiceWorkerRegistration();
   // Ensure the Android status bar does not overlap the WebView
   useEffect(() => {
     // Run only on the client and only if the StatusBar plugin exists

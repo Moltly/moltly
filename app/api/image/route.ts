@@ -1,73 +1,48 @@
-import { NextRequest, NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-function getAllowedHosts(): Set<string> {
-  const hosts = new Set<string>();
-  const addFromEnv = (value?: string | null) => {
-    if (!value) return;
-    try {
-      const u = new URL(value);
-      if (u.hostname) hosts.add(u.hostname);
-    } catch {
-      // ignore invalid
-    }
-  };
-  addFromEnv(process.env.S3_PUBLIC_URL || null);
-  addFromEnv(process.env.S3_ENDPOINT || null);
-  // Local dev convenience: allow localhost variations
-  hosts.add("localhost");
-  hosts.add("127.0.0.1");
-  return hosts;
+import { NextResponse } from "next/server";
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
-export async function GET(req: NextRequest) {
-  const urlParam = req.nextUrl.searchParams.get("url");
-  if (!urlParam) {
-    return NextResponse.json({ error: "Missing url" }, { status: 400 });
-  }
-
-  let target: URL;
+export async function GET(request: Request) {
   try {
-    target = new URL(urlParam);
-  } catch {
-    return NextResponse.json({ error: "Invalid url" }, { status: 400 });
-  }
-
-  if (target.protocol !== "http:" && target.protocol !== "https:") {
-    return NextResponse.json({ error: "Unsupported protocol" }, { status: 400 });
-  }
-
-  const allowedHosts = getAllowedHosts();
-  if (!allowedHosts.has(target.hostname)) {
-    return NextResponse.json({ error: "Host not allowed" }, { status: 403 });
-  }
-
-  try {
-    const upstream = await fetch(target.toString(), { cache: "no-store" });
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { error: `Upstream error: ${upstream.status}` },
-        { status: upstream.status }
-      );
+    const { searchParams } = new URL(request.url);
+    const rawUrl = searchParams.get("url") || "";
+    if (!rawUrl || !isHttpUrl(rawUrl)) {
+      return NextResponse.json({ error: "Invalid url" }, { status: 400 });
     }
 
-    // Stream the body through and copy basic headers
-    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
-    const etag = upstream.headers.get("etag");
-    const lastModified = upstream.headers.get("last-modified");
-
-    const res = new NextResponse(upstream.body, {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        // Strong client caching; adjust if you plan to mutate at the same URL
-        "Cache-Control": "public, max-age=31536000, immutable",
-      },
+    const upstream = await fetch(rawUrl, {
+      // Avoid re-using client cache semantics; SW will handle runtime cache
+      cache: "no-store",
+      redirect: "follow",
     });
-    if (etag) res.headers.set("ETag", etag);
-    if (lastModified) res.headers.set("Last-Modified", lastModified);
-    return res;
+
+    if (!upstream.ok) {
+      return NextResponse.json({ error: `Upstream ${upstream.status}` }, { status: 502 });
+    }
+
+    const body = upstream.body;
+    const headers = new Headers();
+    headers.set("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
+    // Reasonable browser cache plus SW runtime cache; SW will still manage updates
+    headers.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=86400");
+    const etag = upstream.headers.get("etag");
+    const lastMod = upstream.headers.get("last-modified");
+    if (etag) headers.set("ETag", etag);
+    if (lastMod) headers.set("Last-Modified", lastMod);
+
+    return new NextResponse(body, { status: 200, headers });
   } catch (err) {
-    return NextResponse.json({ error: "Fetch failed" }, { status: 502 });
+    return NextResponse.json({ error: "Image proxy error" }, { status: 500 });
   }
 }
 

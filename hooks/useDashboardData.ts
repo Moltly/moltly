@@ -30,16 +30,39 @@ function usePersistedState<T>(initialValue: T, persist: (value: T) => void): [T,
   return [state, setPersistedState];
 }
 
+const CACHE_KEYS = {
+  entries: "moltly:cache:entries",
+  health: "moltly:cache:health",
+  breeding: "moltly:cache:breeding",
+  covers: "moltly:cache:covers",
+  stacks: "moltly:cache:stacks",
+} as const;
+
 export function useDashboardData() {
   const { data: session, status } = useSession();
   const mode: DataMode | null = status === "loading" ? null : session?.user?.id ? "sync" : "local";
   const isSync = mode === "sync";
+
+  // Simple read-through caches for sync mode (enables cold-start offline views)
+  const readCache = <T,>(key: string, fallback: T): T => {
+    if (typeof window === "undefined") return fallback;
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : fallback;
+    } catch { return fallback; }
+  };
+  const writeCache = (key: string, value: unknown) => {
+    if (typeof window === "undefined") return;
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  };
 
   const persistEntries = useCallback(
     (value: MoltEntry[]) => {
       if (mode === "local") {
         writeLocalEntries(value as unknown as Record<string, unknown>[]);
       }
+      // Also keep a read-through cache for sync mode to support offline reloads
+      writeCache(CACHE_KEYS.entries, value ?? []);
     },
     [mode]
   );
@@ -50,6 +73,7 @@ export function useDashboardData() {
       if (mode === "local") {
         writeLocalHealthEntries(value as unknown as Record<string, unknown>[]);
       }
+      writeCache(CACHE_KEYS.health, value ?? []);
     },
     [mode]
   );
@@ -60,6 +84,7 @@ export function useDashboardData() {
       if (mode === "local") {
         writeLocalBreedingEntries(value as unknown as Record<string, unknown>[]);
       }
+      writeCache(CACHE_KEYS.breeding, value ?? []);
     },
     [mode]
   );
@@ -70,6 +95,7 @@ export function useDashboardData() {
       if (mode === "local") {
         writeLocalSpecimenCovers(value);
       }
+      writeCache(CACHE_KEYS.covers, value ?? {});
     },
     [mode]
   );
@@ -80,6 +106,7 @@ export function useDashboardData() {
       if (mode === "local") {
         writeLocalResearchStacks(value);
       }
+      writeCache(CACHE_KEYS.stacks, value ?? []);
     },
     [mode]
   );
@@ -100,7 +127,11 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error(error);
-      setEntries([]);
+      // In sync mode, keep previous state and attempt cached fallback
+      if (isSync) {
+        const cached = readCache<MoltEntry[]>(CACHE_KEYS.entries, []);
+        if (cached.length > 0) setEntries(cached);
+      }
     }
   }, [mode, isSync, setEntries]);
 
@@ -118,7 +149,10 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error(error);
-      setHealthEntries([]);
+      if (isSync) {
+        const cached = readCache<HealthEntry[]>(CACHE_KEYS.health, []);
+        if (cached.length > 0) setHealthEntries(cached);
+      }
     }
   }, [mode, isSync, setHealthEntries]);
 
@@ -136,7 +170,10 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error(error);
-      setBreedingEntries([]);
+      if (isSync) {
+        const cached = readCache<BreedingEntry[]>(CACHE_KEYS.breeding, []);
+        if (cached.length > 0) setBreedingEntries(cached);
+      }
     }
   }, [mode, isSync, setBreedingEntries]);
 
@@ -159,7 +196,10 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error(error);
-      setSpecimenCovers({});
+      if (isSync) {
+        const cached = readCache<Record<string, string>>(CACHE_KEYS.covers, {});
+        if (Object.keys(cached).length > 0) setSpecimenCovers(cached);
+      }
     }
   }, [mode, isSync, setSpecimenCovers]);
 
@@ -176,7 +216,10 @@ export function useDashboardData() {
       }
     } catch (error) {
       console.error(error);
-      setStacks([]);
+      if (isSync) {
+        const cached = readCache<ResearchStack[]>(CACHE_KEYS.stacks, []);
+        if (cached.length > 0) setStacks(cached);
+      }
     }
   }, [mode, isSync, setStacks]);
 

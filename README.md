@@ -43,6 +43,21 @@ TRAEFIK_MINIO_HOST=localhost
 docker compose up --build
 ```
 
+### PWA & Offline
+
+Moltly now ships with a web app manifest and a basic service worker to enable installable PWA and offline support on the web and inside the Capacitor Android/iOS apps.
+
+- What’s cached
+  - App shell and the homepage for offline navigation fallback.
+  - Runtime caching for images, styles, scripts.
+  - GET requests to `/api/*` are cached with a stale‑while‑revalidate strategy so previously viewed data can be read offline.
+- What’s not cached (yet)
+  - Mutations (`POST/PATCH/DELETE`) are not queued offline. In guest mode, entries are stored locally and work fully offline; when signed in, new changes require a connection.
+- Install
+  - On desktop browsers use the “Install app” prompt. On Android, Chrome will offer to install after a visit. On iOS, use “Add to Home Screen”.
+
+Notes for mobile apps (Capacitor): iOS and Android WebViews support service workers; the same offline behavior applies when the app is packaged. Assets and cached API responses remain available when the device is offline.
+
 ### Species Autocomplete (optional)
 
 To enable species autocomplete using `species.csv` (columns: genus, species, subspecies, etc.), import it into MongoDB:

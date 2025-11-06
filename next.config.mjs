@@ -27,6 +27,21 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=3600' },
         ],
       },
+      // PWA assets
+      {
+        source: '/manifest.webmanifest',
+        headers: [
+          { key: 'Content-Type', value: 'application/manifest+json; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
+      {
+        source: '/sw.js',
+        headers: [
+          // Encourage the browser to revalidate the SW file for updates
+          { key: 'Cache-Control', value: 'no-cache' },
+        ],
+      },
     ];
   },
 };
