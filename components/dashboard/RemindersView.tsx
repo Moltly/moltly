@@ -7,6 +7,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { MoltEntry } from "@/types/molt";
 import { formatDate, getReminderStatus, getDaysUntil } from "@/lib/utils";
+import CachedImage from "@/components/ui/CachedImage";
 
 interface RemindersViewProps {
   entries: MoltEntry[];
@@ -129,8 +130,7 @@ export default function RemindersView({
                     if (!coverUrl) return null;
                     return (
                       <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                        <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
                       </div>
                     );
                   })()}

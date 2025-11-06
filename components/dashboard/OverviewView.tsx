@@ -8,6 +8,7 @@ import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { MoltEntry, ViewKey } from "@/types/molt";
 import { formatDate, formatRelativeDate, getReminderStatus } from "@/lib/utils";
+import CachedImage from "@/components/ui/CachedImage";
 
 interface OverviewViewProps {
   entries: MoltEntry[];
@@ -145,8 +146,7 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                   if (!coverUrl) return null;
                   return (
                     <div className="w-8 h-8 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                      <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                   );
                 })()}
@@ -211,8 +211,7 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                         if (!coverUrl) return null;
                         return (
                           <div className="w-7 h-7 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                            <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
                           </div>
                         );
                       })()}
@@ -278,8 +277,7 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                   if (!coverUrl) return null;
                   return (
                     <div className="w-8 h-8 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                      <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                   );
                 })()}

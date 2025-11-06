@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell } from "lu
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import CachedImage from "@/components/ui/CachedImage";
 import { MoltEntry, SpecimenDashboard } from "@/types/molt";
 import { formatDate, getReminderStatus } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -209,8 +210,7 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
                 <div className="flex items-start justify-between gap-3">
                   {dashboard.imageUrl && (
                     <div className="w-12 h-12 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <CachedImage
                         src={dashboard.imageUrl}
                         alt={`${dashboard.specimen} photo`}
                         className="w-full h-full object-cover"

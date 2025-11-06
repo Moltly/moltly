@@ -9,6 +9,7 @@ import Input from "@/components/ui/Input";
 import { MoltEntry, Filters } from "@/types/molt";
 import { formatDate, getReminderStatus } from "@/lib/utils";
 import ImageGallery, { type GalleryImage } from "@/components/ui/ImageGallery";
+import CachedImage from "@/components/ui/CachedImage";
 
 interface ActivityViewProps {
   entries: MoltEntry[];
@@ -220,8 +221,7 @@ export default function ActivityView({ entries, onEdit, onDelete, onSetCover, co
                     if (!coverUrl) return null;
                     return (
                       <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                        <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
                       </div>
                     );
                   })()}
