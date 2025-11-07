@@ -9,6 +9,7 @@ import MoltEntry from "../../../models/MoltEntry";
 import getMongoClientPromise from "../../../lib/mongodb";
 import { ObjectId } from "mongodb";
 import { MoltEntryCreateSchema } from "@/lib/schemas/molt";
+import { ensureSpeciesSuggestion } from "@/lib/species-utils";
 
 async function trySyncToWSCA(userId: string, entry: any) {
   try {
@@ -111,6 +112,11 @@ export async function POST(request: Request) {
 
     // Fire-and-forget sync to WSCA if configured
     trySyncToWSCA(session.user.id, entry).catch(() => undefined);
+
+    // Record species suggestion if unknown
+    if (entry.species && typeof entry.species === "string") {
+      ensureSpeciesSuggestion(entry.species, session.user.id).catch(() => undefined);
+    }
 
     return NextResponse.json(
       {

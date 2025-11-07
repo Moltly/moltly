@@ -69,6 +69,13 @@ To enable species autocomplete using `species.csv` (columns: genus, species, sub
 
 This creates a `species` collection with a `fullName` and `fullNameLC` field and an index optimized for prefix search.
 
+Admin review of unknown species:
+
+- When users enter a species not present in the `species` collection, a pending suggestion is created automatically.
+- Add comma-separated admin emails to `ADMIN_EMAILS` in `.env`.
+- (Optional) Allow Discord admins with `ADMIN_DISCORD_IDS` (comma-separated Discord user IDs).
+- Admins can review at `/admin/species-suggestions` and approve to add to the autocomplete list or reject.
+
 ## Discord Authentication (optional)
 
 1. Head to the Applications section in the Discord Developer Portal, and click on “New Application” (https://discord.com/developers/applications)

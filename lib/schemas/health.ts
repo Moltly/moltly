@@ -7,7 +7,6 @@ import {
   requiredDateString
 } from "./common";
 
-const weightUnitEnum = z.enum(["g", "oz"]);
 const temperatureUnitEnum = z.enum(["C", "F"]);
 const conditionEnum = z.enum(["Stable", "Observation", "Critical"]);
 
@@ -15,8 +14,7 @@ export const HealthEntryBaseSchema = z.object({
   specimen: optionalTrimmedString(160),
   species: optionalTrimmedString(160),
   date: requiredDateString,
-  weight: optionalNumber,
-  weightUnit: weightUnitEnum.optional(),
+  enclosureDimensions: optionalTrimmedString(120),
   temperature: optionalNumber,
   temperatureUnit: temperatureUnitEnum.optional(),
   humidity: optionalNumber,
@@ -33,8 +31,7 @@ export const HealthEntryCreateSchema = HealthEntryBaseSchema.transform((data) =>
   specimen: data.specimen,
   species: data.species,
   date: data.date,
-  weight: data.weight,
-  weightUnit: data.weightUnit ?? "g",
+  enclosureDimensions: data.enclosureDimensions,
   temperature: data.temperature,
   temperatureUnit: data.temperatureUnit,
   humidity: data.humidity,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Egg, PlusCircle, RefreshCw, Trash2, CalendarDays, Users, LineChart } from "lucide-react";
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
@@ -167,6 +167,77 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
     }
   };
 
+  // Utilities for quick note/actions insertion
+  const pairingNotesRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const ensureTrailingSpace = (s: string) => (/\s$/.test(s) ? s : s + " ");
+
+  const insertAtCursor = (text: string) => {
+    const el = pairingNotesRef.current;
+    const toInsert = ensureTrailingSpace(text);
+    if (!el) {
+      handleChange("pairingNotes")(form.pairingNotes + toInsert);
+      return;
+    }
+    const start = el.selectionStart ?? form.pairingNotes.length;
+    const end = el.selectionEnd ?? form.pairingNotes.length;
+    const next = form.pairingNotes.slice(0, start) + toInsert + form.pairingNotes.slice(end);
+    handleChange("pairingNotes")(next);
+    // Move cursor to end of inserted text
+    requestAnimationFrame(() => {
+      try {
+        el.focus();
+        const pos = start + toInsert.length;
+        el.setSelectionRange(pos, pos);
+      } catch (_) {}
+    });
+  };
+
+  const nowStamp = () => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return { date, time, both: `${date} ${time}` } as const;
+  };
+
+  const handleNewNoteLine = () => {
+    const prefix = form.pairingNotes.trim().length > 0 ? "\n" : "";
+    insertAtCursor(`${prefix}- [${nowStamp().both}] `);
+  };
+
+  const handleQuickAction = (action: string) => {
+    if (action === "date") return insertAtCursor(nowStamp().date);
+    if (action === "time") return insertAtCursor(nowStamp().time);
+    if (action === "custom") {
+       
+      const val = typeof window !== "undefined" ? window.prompt("Add custom action") : null;
+      if (val && val.trim()) insertAtCursor(val.trim());
+      return;
+    }
+    insertAtCursor(action);
+  };
+
+  const resolveTemplate = (tpl: string) =>
+    tpl
+      .replace(/%dt/g, nowStamp().both)
+      .replace(/%d/g, nowStamp().date)
+      .replace(/%t/g, nowStamp().time);
+
+  const insertTemplate = (tpl: string) => {
+    const text = resolveTemplate(tpl);
+    const needsNewline = form.pairingNotes.length > 0 && !form.pairingNotes.endsWith("\n");
+    insertAtCursor((needsNewline ? "\n" : "") + text);
+    setShowTemplates(false);
+  };
+
+  const handleCustomTemplate = () => {
+    const defaultTpl = "- [%dt] ";
+    const tpl = typeof window !== "undefined" ? window.prompt("Template (%d date, %t time, %dt both)", defaultTpl) : null;
+    if (tpl && tpl.trim()) insertTemplate(tpl.trim());
+  };
+
   return (
     <div className="space-y-6">
       <Card elevated className="overflow-hidden">
@@ -247,14 +318,87 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
             </div>
             <div>
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                Pairing notes
+                Pairing report
               </label>
               <textarea
+                ref={pairingNotesRef}
                 className="w-full min-h-[90px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
                 value={form.pairingNotes}
                 onChange={(e) => handleChange("pairingNotes")(e.target.value)}
                 placeholder="Mating behavior, inserts, observations…"
               />
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="px-2 py-1 text-xs"
+                  onClick={handleNewNoteLine}
+                >
+                  new note
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="px-2 py-1 text-xs"
+                  onClick={() => setShowTemplates((s) => !s)}
+                  aria-expanded={showTemplates}
+                  aria-controls="pairing-template-tray"
+                >
+                  add action
+                </Button>
+                {[
+                  "date",
+                  "time",
+                  "fed",
+                  "watered",
+                  "seen",
+                  "hidden",
+                  "threat posed",
+                  "stress response",
+                  "webbed increase",
+                  "burrowed",
+                ].map((key) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="px-2 py-1 text-xs"
+                    onClick={() => handleQuickAction(key)}
+                  >
+                    {key}
+                  </Button>
+                ))}
+                {showTemplates && (
+                  <div id="pairing-template-tray" className="w-full contents">
+                    {[
+                      { label: "- [%dt] fed", tpl: "- [%dt] fed" },
+                      { label: "- [%dt] watered", tpl: "- [%dt] watered" },
+                      { label: "- [%dt] observed: ", tpl: "- [%dt] observed: " },
+                      { label: "- [%dt] threat posed", tpl: "- [%dt] threat posed" },
+                      { label: "- [%dt] webbed increase", tpl: "- [%dt] webbed increase" },
+                      { label: "- [%dt] burrowed", tpl: "- [%dt] burrowed" },
+                      { label: "custom template…", tpl: "__CUSTOM__" },
+                    ].map((t) => (
+                      <Button
+                        key={t.label}
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => (t.tpl === "__CUSTOM__" ? handleCustomTemplate() : insertTemplate(t.tpl))}
+                      >
+                        {t.label}
+                      </Button>
+                    ))}
+                    <span className="w-full text-[10px] text-[rgb(var(--text-subtle))] mt-1">
+                      Tokens: %d=date, %t=time, %dt=both
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
@@ -332,7 +476,7 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
             </div>
             <div>
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                Project notes
+                Additional notes
               </label>
               <textarea
                 className="w-full min-h-[80px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
@@ -591,7 +735,7 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
                   {entry.pairingNotes && (
                     <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 bg-[rgb(var(--bg-muted))]">
                       <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
-                        Pairing notes
+                        Pairing report
                       </p>
                       <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.pairingNotes}</p>
                     </div>
@@ -599,7 +743,7 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
                   {entry.notes && (
                     <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3">
                       <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
-                        Project notes
+                        Additional notes
                       </p>
                       <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.notes}</p>
                     </div>

@@ -1,9 +1,10 @@
 "use client";
 
-import { Plus, LogOut, LogIn, Info, Moon, Sun } from "lucide-react";
+import { Plus, LogOut, LogIn, Info, Moon, Sun, Shield } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { DataMode } from "@/types/molt";
 import { useTheme } from "@/lib/theme";
+import { useEffect, useState } from "react";
 
 interface HeaderProps {
   mode: DataMode;
@@ -14,6 +15,21 @@ interface HeaderProps {
 
 export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAdmin() {
+      if (mode !== "sync") return;
+      try {
+        const res = await fetch("/api/account/admin", { credentials: "include" });
+        const data = (await res.json().catch(() => ({}))) as { isAdmin?: boolean };
+        if (!cancelled) setIsAdmin(Boolean(data.isAdmin));
+      } catch {}
+    }
+    loadAdmin();
+    return () => { cancelled = true; };
+  }, [mode]);
   return (
     <header className="sticky top-0 z-40 w-full bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-b border-[rgb(var(--border))] safe-top">
       <div className="flex items-center justify-between px-4 py-3 max-w-screen-lg mx-auto">
@@ -34,6 +50,18 @@ export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: Head
         </div>
 
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => (window.location.href = "/admin/species-suggestions")}
+              className="gap-1.5"
+              title="Admin: Species Suggestions"
+            >
+              <Shield className="w-4 h-4" />
+              Admin
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"

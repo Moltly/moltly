@@ -26,6 +26,7 @@ export default function SpeciesAutosuggest({ value, onChange, placeholder, requi
   const [items, setItems] = useState<Suggestion[]>([]);
   const [highlight, setHighlight] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastSubmittedRef = useRef<string>("");
 
   const q = useMemo(() => value.trim(), [value]);
 
@@ -93,6 +94,21 @@ export default function SpeciesAutosuggest({ value, onChange, placeholder, requi
         onFocus={() => {
           if (items.length > 0) setOpen(true);
         }}
+        onBlur={async () => {
+          const v = q;
+          if (!v || v.length < 4) return;
+          if (items.length > 0) return;
+          if (lastSubmittedRef.current === v) return;
+          lastSubmittedRef.current = v;
+          try {
+            await fetch("/api/species/suggestions", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ fullName: v })
+            });
+          } catch {}
+        }}
         onKeyDown={onKeyDown}
         aria-autocomplete="list"
         aria-expanded={open}
@@ -133,4 +149,3 @@ export default function SpeciesAutosuggest({ value, onChange, placeholder, requi
     </div>
   );
 }
-

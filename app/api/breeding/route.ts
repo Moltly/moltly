@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth-options";
 import { connectMongoose } from "@/lib/mongoose";
 import BreedingEntry from "@/models/BreedingEntry";
 import { BreedingEntryCreateSchema } from "@/lib/schemas/breeding";
+import { ensureSpeciesSuggestion } from "@/lib/species-utils";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -49,6 +50,10 @@ export async function POST(request: Request) {
       userId: session.user.id,
       ...parsed.data
     });
+
+    if (entry.species && typeof entry.species === "string") {
+      ensureSpeciesSuggestion(entry.species, session.user.id).catch(() => undefined);
+    }
 
     return NextResponse.json(
       {

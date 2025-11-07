@@ -1,15 +1,12 @@
 import type { Attachment } from "./molt";
 
 type HealthCondition = "Stable" | "Observation" | "Critical";
-type WeightUnit = "g" | "oz";
-
 export type HealthEntry = {
   id: string;
   specimen?: string;
   species?: string;
   date: string;
-  weight?: number;
-  weightUnit: WeightUnit;
+  enclosureDimensions?: string;
   temperature?: number;
   temperatureUnit?: "C" | "F";
   humidity?: number;
@@ -28,8 +25,7 @@ export type HealthFormState = {
   specimen: string;
   species: string;
   date: string;
-  weight: string;
-  weightUnit: WeightUnit;
+  enclosureDimensions: string;
   temperature: string;
   temperatureUnit: "C" | "F";
   humidity: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { HeartPulse, PlusCircle, Thermometer, Droplets, RefreshCw, Trash2, Stethoscope } from "lucide-react";
+import { HeartPulse, PlusCircle, Thermometer, Droplets, RefreshCw, Trash2, Stethoscope, Ruler } from "lucide-react";
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -22,8 +22,7 @@ const defaultForm = (): HealthFormState => ({
   specimen: "",
   species: "",
   date: new Date().toISOString().slice(0, 10),
-  weight: "",
-  weightUnit: "g",
+  enclosureDimensions: "",
   temperature: "",
   temperatureUnit: getSavedTempUnit(),
   humidity: "",
@@ -63,23 +62,14 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
       Observation: 0,
       Critical: 0,
     };
-    let weightTotal = 0;
-    let weightSamples = 0;
-    let latestWeightEntry: HealthEntry | null = null;
+    let latestEnclosureEntry: HealthEntry | null = null;
 
     for (const entry of sorted) {
       conditionCounts[entry.condition] = (conditionCounts[entry.condition] ?? 0) + 1;
-      if (typeof entry.weight === "number" && Number.isFinite(entry.weight)) {
-        weightTotal += entry.weight;
-        weightSamples += 1;
-        if (!latestWeightEntry) {
-          latestWeightEntry = entry;
-        }
+      if (!latestEnclosureEntry && entry.enclosureDimensions) {
+        latestEnclosureEntry = entry;
       }
     }
-
-    const averageWeight =
-      weightSamples > 0 ? Math.round((weightTotal / weightSamples) * 10) / 10 : null;
 
     const upcomingFollowUps = sorted
       .filter((entry) => entry.followUpDate)
@@ -94,8 +84,7 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
       sorted,
       latest: sorted[0] ?? null,
       conditionCounts,
-      averageWeight,
-      latestWeightEntry,
+      latestEnclosureEntry,
       upcomingFollowUps,
     };
   }, [entries]);
@@ -157,7 +146,7 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
             <div>
               <CardTitle className="text-xl">Health Tracking</CardTitle>
               <p className="text-sm text-[rgb(var(--text-subtle))]">
-                Log weight, behavior, and treatment notes to monitor specimen wellness.
+                Log enclosure size, behavior, and advisory notes to monitor specimen wellness.
               </p>
             </div>
           </div>
@@ -273,26 +262,15 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                  Weight
+                <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))] mb-1.5">
+                  <Ruler className="w-4 h-4" />
+                  Enclosure dimensions
                 </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="e.g., 18"
-                    value={form.weight}
-                    onChange={(e) => handleChange("weight")(e.target.value)}
-                  />
-                  <select
-                    className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
-                    value={form.weightUnit}
-                    onChange={(e) => handleChange("weightUnit")(e.target.value)}
-                  >
-                    <option value="g">g</option>
-                    <option value="oz">oz</option>
-                  </select>
-                </div>
+                <Input
+                  placeholder="L×W×H (e.g., 30×30×30 cm or 12×12×12 in)"
+                  value={form.enclosureDimensions}
+                  onChange={(e) => handleChange("enclosureDimensions")(e.target.value)}
+                />
               </div>
               <div>
                 <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
@@ -331,13 +309,13 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
             </div>
             <div>
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                Treatment details
+                Advisory notes
               </label>
               <textarea
                 value={form.treatment}
                 onChange={(e) => handleChange("treatment")(e.target.value)}
                 className="w-full min-h-[70px] rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] px-3 py-2 text-sm"
-                placeholder="Medication, vet visits, supportive care…"
+                placeholder="Medication, advisory notes, supportive care…"
               />
             </div>
             <div>
@@ -368,9 +346,9 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
           <div className="flex flex-col items-center gap-3 text-[rgb(var(--text-soft))]">
             <HeartPulse className="w-10 h-10 opacity-70" />
             <p className="text-base font-medium text-[rgb(var(--text))]">No health entries yet</p>
-            <p className="text-sm max-w-md">
-              Start logging weight, behavior, and medical notes to catch trends early and keep your tarantulas thriving.
-            </p>
+              <p className="text-sm max-w-md">
+              Start logging enclosure size, behavior, and advisory notes to catch trends early and keep your tarantulas thriving.
+              </p>
           </div>
         </Card>
       ) : (
@@ -394,15 +372,13 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
             </Card>
             <Card>
               <CardHeader className="pb-0">
-                <CardTitle className="text-base">Average weight</CardTitle>
+                <CardTitle className="text-base">Latest enclosure size</CardTitle>
               </CardHeader>
               <CardContent className="pt-3">
                 <p className="text-3xl font-semibold text-[rgb(var(--text))]">
-                  {stats.averageWeight !== null ? `${stats.averageWeight}${stats.latestWeightEntry?.weightUnit ?? "g"}` : "—"}
+                  {stats.latestEnclosureEntry?.enclosureDimensions || "—"}
                 </p>
-                <p className="text-xs text-[rgb(var(--text-subtle))]">
-                  Based on {stats.latestWeightEntry ? "recent logs" : "available entries"}
-                </p>
+                <p className="text-xs text-[rgb(var(--text-subtle))]">Most recent logged entry</p>
               </CardContent>
             </Card>
             <Card>
@@ -475,12 +451,10 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                   <div className="grid sm:grid-cols-4 gap-3 text-sm">
                     <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
                       <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
-                        Weight
+                        Enclosure
                       </p>
                       <p className="text-base font-semibold text-[rgb(var(--text))]">
-                        {typeof entry.weight === "number"
-                          ? `${entry.weight}${entry.weightUnit ?? "g"}`
-                          : "—"}
+                        {entry.enclosureDimensions || "—"}
                       </p>
                     </div>
                     <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3">
@@ -549,7 +523,7 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                   {entry.treatment && (
                     <div className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 text-sm">
                       <p className="text-xs font-semibold text-[rgb(var(--text))] uppercase tracking-wide">
-                        Treatment
+                        Advisory notes
                       </p>
                       <p className="mt-1 text-[rgb(var(--text))] leading-relaxed">{entry.treatment}</p>
                     </div>

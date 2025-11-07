@@ -357,8 +357,7 @@ export default function MobileDashboard() {
       specimen: form.specimen.trim() || undefined,
       species: form.species.trim() || undefined,
       date: form.date,
-      weight: parseNumber(form.weight),
-      weightUnit: form.weightUnit,
+      enclosureDimensions: form.enclosureDimensions.trim() || undefined,
       temperature: parseNumber(form.temperature),
       temperatureUnit: form.temperature ? form.temperatureUnit : undefined,
       humidity: parseNumber(form.humidity),
@@ -405,8 +404,7 @@ export default function MobileDashboard() {
       specimen: payload.specimen,
       species: payload.species,
       date: payload.date,
-      weight: payload.weight,
-      weightUnit: payload.weightUnit,
+      enclosureDimensions: payload.enclosureDimensions,
       temperature: payload.temperature,
       temperatureUnit: payload.temperatureUnit as HealthEntry["temperatureUnit"],
       humidity: payload.humidity,
@@ -1216,7 +1214,30 @@ export default function MobileDashboard() {
         </div>
 
         <div style={{ display: activeView === "specimens" ? undefined : "none" }}>
-          <SpecimensView entries={entries} covers={specimenCovers} />
+          <SpecimensView
+            entries={entries}
+            covers={specimenCovers}
+            healthEntries={healthEntries}
+            breedingEntries={breedingEntries}
+            onQuickAction={(specimen, species, label) => {
+              const pad = (n: number) => String(n).padStart(2, "0");
+              const d = new Date();
+              const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+              const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+              const note = `- [${date} ${time}] ${label} `;
+              setEditingId(null);
+              setAttachments([]);
+              setFormState({
+                ...defaultForm(),
+                entryType: "water",
+                specimen,
+                species: species || "",
+                date: date,
+                notes: note,
+              });
+              setFormOpen(true);
+            }}
+          />
         </div>
 
         <div style={{ display: activeView === "health" ? undefined : "none" }}>
