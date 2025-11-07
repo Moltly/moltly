@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell } from "lucide-react";
+import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -13,12 +13,31 @@ import { cn } from "@/lib/utils";
 interface SpecimensViewProps {
   entries: MoltEntry[];
   covers?: Record<string, string>;
+  healthEntries?: Array<{ specimen?: string; species?: string }>;
+  breedingEntries?: Array<{ femaleSpecimen?: string; maleSpecimen?: string }>;
+  onQuickAction?: (specimen: string, species: string | undefined, action: string) => void;
 }
 
-export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
+export default function SpecimensView({ entries, covers, healthEntries = [], breedingEntries = [], onQuickAction }: SpecimensViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
 
   const specimenDashboards = useMemo(() => {
+    // Pre-compute per-specimen health and breeding counts
+    const healthCounts = new Map<string, number>();
+    const breedingCounts = new Map<string, number>();
+    for (const h of healthEntries) {
+      const key = (h.specimen ?? "").trim();
+      const species = (h.species ?? "").trim();
+      if (key) healthCounts.set(key, (healthCounts.get(key) ?? 0) + 1);
+      // If no specimen but species exists, tally by species (best-effort match)
+      if (!key && species) healthCounts.set(species, (healthCounts.get(species) ?? 0) + 1);
+    }
+    for (const b of breedingEntries) {
+      const f = (b.femaleSpecimen ?? "").trim();
+      const m = (b.maleSpecimen ?? "").trim();
+      if (f) breedingCounts.set(f, (breedingCounts.get(f) ?? 0) + 1);
+      if (m) breedingCounts.set(m, (breedingCounts.get(m) ?? 0) + 1);
+    }
     const dashboardMap = new Map<string, SpecimenDashboard>();
     // Track the most-recent attachment timestamp per specimen to pick a cover image
     const imageTs = new Map<string, number>();
@@ -43,6 +62,8 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
           reminder: null,
           recentEntries: [],
           latestEntry: null,
+          // Inject external counts lazily by key match
+          // We'll read from these maps at render time
         });
       }
 
@@ -143,10 +164,16 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
       }
     });
 
-    return Array.from(dashboardMap.values()).sort((a, b) =>
+    const dashboards = Array.from(dashboardMap.values()).sort((a, b) =>
       a.specimen.localeCompare(b.specimen)
     );
-  }, [entries, covers]);
+    // Attach helper properties on the fly for rendering
+    return dashboards.map((d) => ({
+      ...d,
+      _healthCount: healthCounts.get(d.key) ?? healthCounts.get(d.species ?? "") ?? 0,
+      _breedingCount: breedingCounts.get(d.key) ?? 0,
+    })) as Array<typeof dashboards[number] & { _healthCount: number; _breedingCount: number }>;
+  }, [entries, covers, healthEntries, breedingEntries]);
 
   const toggleExpand = (key: string) => {
     setExpandedKeys((prev) =>
@@ -234,7 +261,7 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
                         {dashboard.species}
                       </p>
                     )}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 items-center">
                       <Badge variant="primary">
                         {dashboard.totalMolts} {dashboard.totalMolts === 1 ? "molt" : "molts"}
                       </Badge>
@@ -242,11 +269,33 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
                         {dashboard.totalFeedings}{" "}
                         {dashboard.totalFeedings === 1 ? "feeding" : "feedings"}
                       </Badge>
-                      {dashboard.attachmentsCount > 0 && (
-                        <Badge variant="neutral">
-                          {dashboard.attachmentsCount}{" "}
-                          {dashboard.attachmentsCount === 1 ? "photo" : "photos"}
+                      {dashboard._healthCount > 0 && (
+                        <Badge variant="warning">
+                          <HeartPulse className="w-3 h-3" /> {dashboard._healthCount} health
                         </Badge>
+                      )}
+                      {dashboard._breedingCount > 0 && (
+                        <Badge variant="neutral">
+                          <Egg className="w-3 h-3" /> {dashboard._breedingCount} breeding
+                        </Badge>
+                      )}
+                    {dashboard.attachmentsCount > 0 && (
+                      <Badge variant="neutral">
+                        {dashboard.attachmentsCount}{" "}
+                        {dashboard.attachmentsCount === 1 ? "photo" : "photos"}
+                      </Badge>
+                    )}
+                      {onQuickAction && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="px-2 py-1 text-xs"
+                          onClick={(e) => { e.stopPropagation(); onQuickAction(dashboard.specimen, dashboard.species, "- [%dt] "); }}
+                          title="Log a quick note"
+                        >
+                          log action
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -328,6 +377,47 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
                     </div>
                   )}
 
+                  {/* Quick Actions (care notes) */}
+                  {onQuickAction && (
+                    <div>
+                      <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">Quick log</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          "watered",
+                          "seen",
+                          "hidden",
+                          "threat posed",
+                          "stress response",
+                          "webbed increase",
+                          "burrowed",
+                        ].map((label) => (
+                          <Button
+                            key={label}
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="px-2 py-1 text-xs"
+                            onClick={() => onQuickAction(dashboard.specimen, dashboard.species, label)}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="px-2 py-1 text-xs"
+                          onClick={() => {
+                            const val = typeof window !== "undefined" ? window.prompt("Custom action") : null;
+                            if (val && val.trim()) onQuickAction(dashboard.specimen, dashboard.species, val.trim());
+                          }}
+                        >
+                          custom…
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Recent Activity */}
                   <div>
                     <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">
@@ -343,18 +433,22 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
                             "p-1.5 rounded-[var(--radius-sm)]",
                             entry.entryType === "molt"
                               ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary))]"
-                              : "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
+                              : entry.entryType === "feeding"
+                              ? "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
+                              : "bg-[rgb(var(--bg-muted))] text-[rgb(var(--text-soft))]"
                           )}>
                             {entry.entryType === "molt" ? (
                               <TrendingUp className="w-3 h-3" />
-                            ) : (
+                            ) : entry.entryType === "feeding" ? (
                               <Activity className="w-3 h-3" />
+                            ) : (
+                              <Droplets className="w-3 h-3" />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-[rgb(var(--text))]">
-                                {entry.entryType === "molt" ? "Molt" : "Feeding"}
+                                {entry.entryType === "molt" ? "Molt" : entry.entryType === "feeding" ? "Feeding" : "Water"}
                               </span>
                               {entry.stage && (
                                 <Badge variant="neutral" className="text-xs">
@@ -366,6 +460,9 @@ export default function SpecimensView({ entries, covers }: SpecimensViewProps) {
                               <Calendar className="w-3 h-3" />
                               <span>{formatDate(entry.date)}</span>
                             </div>
+                            {entry.entryType === "water" && entry.notes && (
+                              <div className="text-xs text-[rgb(var(--text))] truncate">{entry.notes}</div>
+                            )}
                           </div>
                           {entry.oldSize && entry.newSize && (
                             <span className="text-xs text-[rgb(var(--text-soft))] whitespace-nowrap">
