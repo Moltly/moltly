@@ -71,7 +71,7 @@ jobs:
       - name: Read version from package.json
         id: get_version
         run: |
-          echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
+          node -e "const fs=require('fs'); const v=require('./package.json').version; fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version='+v+'\n');"
 
       - name: Collect and rename APK
         id: collect_apk
