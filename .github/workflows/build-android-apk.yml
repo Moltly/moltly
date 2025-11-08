@@ -71,12 +71,7 @@ jobs:
       - name: Read version from package.json
         id: get_version
         run: |
-          VERSION=$(python3 - <<'PY'
-import json
-print(json.load(open('package.json'))['version'])
-PY
-)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$(node -p \"require('./package.json').version\")" >> "$GITHUB_OUTPUT"
 
       - name: Collect and rename APK
         id: collect_apk
@@ -106,7 +101,7 @@ PY
           if-no-files-found: error
 
       - name: Create GitHub Release and upload APK
-        if: ${{ inputs.create_release }}
+        if: ${{ github.event.inputs.create_release == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
