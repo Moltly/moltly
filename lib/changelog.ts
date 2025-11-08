@@ -6,10 +6,15 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
-    version: "1.7.0",
-    date: "2025-11-07",
+    version: "1.7.1",
+    date: "2025-11-08",
     highlights: [
-      
+      "Allow custom entry type names.",
+      "Remove automatic timestamp from quick Notes.",
+      "Add action bar to New Entry notes.",
+      "Collapse more menu when clicking outside of it.",
+      "Hide Health/Breeding/Analytics/Reminders/Notebook tabs by default."
+
     ]
   },
   {

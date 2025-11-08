@@ -1,4 +1,5 @@
-export type EntryType = "molt" | "feeding" | "water";
+// Allow custom entry type strings beyond built-ins
+export type EntryType = string;
 export type Stage = "Pre-molt" | "Molt" | "Post-molt";
 export type FeedingOutcome = "Offered" | "Ate" | "Refused" | "Not Observed";
 

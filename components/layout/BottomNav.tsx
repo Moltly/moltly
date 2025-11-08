@@ -78,21 +78,27 @@ type NavPrefs = {
 const NAV_PREFS_KEY = "moltly:nav-prefs";
 const OPEN_CUSTOMIZE_EVENT = "moltly:open-customize-tabs";
 
+function defaultHiddenKeys(): ViewKey[] {
+  // Hide everything except Overview, Specimens, Activity by default
+  const keep = new Set<ViewKey>(["overview", "specimens", "activity"]);
+  return navItems.map((n) => n.key).filter((k) => !keep.has(k));
+}
+
 function loadPrefs(defaultOrder: ViewKey[]): NavPrefs {
   if (typeof window === "undefined") return { order: defaultOrder, hidden: [] };
   try {
     const raw = window.localStorage.getItem(NAV_PREFS_KEY);
-    if (!raw) return { order: defaultOrder, hidden: [] };
+    if (!raw) return { order: defaultOrder, hidden: defaultHiddenKeys() };
     const data = JSON.parse(raw) as Partial<NavPrefs>;
     const order = Array.isArray(data.order) && data.order.length > 0 ? (data.order as ViewKey[]) : defaultOrder;
-    const hidden = Array.isArray(data.hidden) ? (data.hidden as ViewKey[]) : [];
+    const hidden = Array.isArray(data.hidden) ? (data.hidden as ViewKey[]) : defaultHiddenKeys();
     // Sanitize values against current items
     const allowed = new Set(navItems.map((n) => n.key));
     const cleanedOrder = order.filter((k) => allowed.has(k));
     const missing = navItems.map((n) => n.key).filter((k) => !cleanedOrder.includes(k));
     return { order: [...cleanedOrder, ...missing], hidden: hidden.filter((k) => allowed.has(k)) };
   } catch {
-    return { order: defaultOrder, hidden: [] };
+    return { order: defaultOrder, hidden: defaultHiddenKeys() };
   }
 }
 
@@ -194,7 +200,7 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
   };
 
   const resetPrefs = () => {
-    const next = { order: defaultKeys, hidden: [] } as NavPrefs;
+    const next = { order: defaultKeys, hidden: defaultHiddenKeys() } as NavPrefs;
     setPrefs(next);
     savePrefs(next);
   };

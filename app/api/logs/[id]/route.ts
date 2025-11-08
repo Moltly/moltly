@@ -47,20 +47,23 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Entry not found." }, { status: 404 });
     }
 
-    const allowedEntryTypes = new Set(["molt", "feeding", "water"]);
+    // entryType can be any custom string; built-ins still control conditional fields
     const allowedStages = new Set(["Pre-molt", "Molt", "Post-molt"]);
     const allowedOutcomes = new Set(["Offered", "Ate", "Refused", "Not Observed"]);
 
     // Capture previous key for WSCA sync if this was a molt
-    const prevType: "molt" | "feeding" | "water" = (entry.entryType as any) ?? "molt";
+    const prevType: string = (entry.entryType as any) ?? "molt";
     const prevSpecies = entry.species as string | undefined;
     const prevSpecimen = entry.specimen as string | undefined;
     const prevDateIso = new Date(entry.date).toISOString().slice(0, 10);
     const prevStage = entry.stage as string | undefined;
 
-    let effectiveEntryType: "molt" | "feeding" | "water" = prevType;
-    if (typeof updates.entryType === "string" && allowedEntryTypes.has(updates.entryType)) {
-      effectiveEntryType = updates.entryType as "molt" | "feeding" | "water";
+    let effectiveEntryType: string = prevType;
+    if (typeof updates.entryType === "string") {
+      const next = updates.entryType.trim();
+      if (next.length > 0) {
+        effectiveEntryType = next;
+      }
     }
     entry.entryType = effectiveEntryType;
 

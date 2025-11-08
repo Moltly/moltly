@@ -70,7 +70,8 @@ export async function GET() {
 
   const normalized = documents.map((document) => {
     const entry = document.toObject();
-    const entryType = entry.entryType === "feeding" ? "feeding" : entry.entryType === "molt" ? "molt" : "water";
+    const rawType = typeof entry.entryType === "string" ? entry.entryType : "molt";
+    const entryType = rawType && rawType.trim().length > 0 ? rawType : "molt";
     return {
       ...entry,
       entryType,

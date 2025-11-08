@@ -1220,11 +1220,10 @@ export default function MobileDashboard() {
             healthEntries={healthEntries}
             breedingEntries={breedingEntries}
             onQuickAction={(specimen, species, label) => {
-              const pad = (n: number) => String(n).padStart(2, "0");
               const d = new Date();
+              const pad = (n: number) => String(n).padStart(2, "0");
               const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-              const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-              const note = `- [${date} ${time}] ${label} `;
+              const note = label ? `- ${label} ` : "";
               setEditingId(null);
               setAttachments([]);
               setFormState({

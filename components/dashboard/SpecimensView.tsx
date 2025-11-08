@@ -291,7 +291,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                           size="sm"
                           variant="ghost"
                           className="px-2 py-1 text-xs"
-                          onClick={(e) => { e.stopPropagation(); onQuickAction(dashboard.specimen, dashboard.species, "- [%dt] "); }}
+                          onClick={(e) => { e.stopPropagation(); onQuickAction(dashboard.specimen, dashboard.species, ""); }}
                           title="Log a quick note"
                         >
                           log action

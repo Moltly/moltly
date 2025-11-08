@@ -52,6 +52,11 @@ export default function EntryFormModal({
     };
   }, [isOpen]);
 
+  // Notes quick action helpers (borrowed from BreedingView). Must be declared
+  // before any conditional returns to preserve hook order.
+  const [showNoteTemplates, setShowNoteTemplates] = useState(false);
+  const [notesEl, setNotesEl] = useState<HTMLTextAreaElement | null>(null);
+
   if (!isOpen) return null;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,6 +115,48 @@ export default function EntryFormModal({
 
   const isMolt = formState.entryType === "molt";
   const isFeeding = formState.entryType === "feeding";
+  const isWater = formState.entryType === "water";
+  const isCustom = !isMolt && !isFeeding && !isWater;
+  const ensureTrailingSpace = (s: string) => (/\s$/.test(s) ? s : s + " ");
+  const insertAtCursor = (text: string) => {
+    const el = notesEl;
+    const toInsert = ensureTrailingSpace(text);
+    if (!el) {
+      onFormChange({ notes: (formState.notes || "") + toInsert });
+      return;
+    }
+    const start = el.selectionStart ?? (formState.notes?.length ?? 0);
+    const end = el.selectionEnd ?? (formState.notes?.length ?? 0);
+    const base = formState.notes || "";
+    const next = base.slice(0, start) + toInsert + base.slice(end);
+    onFormChange({ notes: next });
+    // Move cursor to end of inserted text
+    requestAnimationFrame(() => {
+      try {
+        el.focus();
+        const pos = start + toInsert.length;
+        el.setSelectionRange(pos, pos);
+      } catch (_) {}
+    });
+  };
+  const nowStamp = () => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return { date, time, both: `${date} ${time}` } as const;
+  };
+  const resolveTemplate = (tpl: string) =>
+    tpl.replace(/%dt/g, nowStamp().both).replace(/%d/g, nowStamp().date).replace(/%t/g, nowStamp().time);
+  const handleNewNoteLine = () => {
+    const prefix = (formState.notes || "").trim().length > 0 ? "\n" : "";
+    insertAtCursor(`${prefix}- [${nowStamp().both}] `);
+  };
+  const handleQuickAction = (action: string) => {
+    if (action === "date") return insertAtCursor(nowStamp().date);
+    if (action === "time") return insertAtCursor(nowStamp().time);
+    insertAtCursor(action);
+  };
 
   return (
     <>
@@ -139,7 +186,7 @@ export default function EntryFormModal({
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
                 Entry Type
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <Button
                   type="button"
                   variant={isMolt ? "primary" : "secondary"}
@@ -158,13 +205,31 @@ export default function EntryFormModal({
                 </Button>
                 <Button
                   type="button"
-                  variant={!isMolt && !isFeeding ? "primary" : "secondary"}
+                  variant={isWater ? "primary" : "secondary"}
                   onClick={() => onFormChange({ entryType: "water" })}
                   className="flex-1"
                 >
                   Water Change
                 </Button>
+                <Button
+                  type="button"
+                  variant={isCustom ? "primary" : "secondary"}
+                  onClick={() => onFormChange({ entryType: isCustom ? formState.entryType : "note" })}
+                  className="flex-1"
+                >
+                  Custom
+                </Button>
               </div>
+              {isCustom && (
+                <div className="mt-2">
+                  <label className="text-xs text-[rgb(var(--text-soft))] mb-1 block">Custom type</label>
+                  <Input
+                    placeholder="e.g., rehousing, enclosure, observation"
+                    value={formState.entryType}
+                    onChange={(e) => onFormChange({ entryType: e.target.value })}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Specimen Name (optional) */}
@@ -380,7 +445,67 @@ export default function EntryFormModal({
                 placeholder="Additional observations..."
                 value={formState.notes}
                 onChange={(e) => onFormChange({ notes: e.target.value })}
+                ref={(el) => setNotesEl(el)}
               />
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="px-2 py-1 text-xs"
+                  onClick={handleNewNoteLine}
+                >
+                  new note
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="px-2 py-1 text-xs"
+                  onClick={() => setShowNoteTemplates((s) => !s)}
+                  aria-expanded={showNoteTemplates}
+                >
+                  add action
+                </Button>
+                {["date", "time", "fed", "watered", "seen", "hidden", "threat posed", "stress response", "webbed increase", "burrowed"].map((key) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="px-2 py-1 text-xs"
+                    onClick={() => handleQuickAction(key)}
+                  >
+                    {key}
+                  </Button>
+                ))}
+                {showNoteTemplates && (
+                  <div className="w-full contents">
+                    {[
+                      { label: "- [%dt] fed", tpl: "- [%dt] fed" },
+                      { label: "- [%dt] watered", tpl: "- [%dt] watered" },
+                      { label: "- [%dt] observed: ", tpl: "- [%dt] observed: " },
+                      { label: "- [%dt] threat posed", tpl: "- [%dt] threat posed" },
+                      { label: "- [%dt] webbed increase", tpl: "- [%dt] webbed increase" },
+                      { label: "- [%dt] burrowed", tpl: "- [%dt] burrowed" },
+                    ].map((t) => (
+                      <Button
+                        key={t.label}
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => insertAtCursor(resolveTemplate(t.tpl))}
+                      >
+                        {t.label}
+                      </Button>
+                    ))}
+                    <span className="w-full text-[10px] text-[rgb(var(--text-subtle))] mt-1">
+                      Tokens: %d=date, %t=time, %dt=both
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Reminder Date */}

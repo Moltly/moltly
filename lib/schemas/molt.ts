@@ -7,7 +7,8 @@ import {
   requiredDateString
 } from "./common";
 
-const entryTypeEnum = z.enum(["molt", "feeding", "water"]);
+// Accept any custom entry type string; built-ins are still special-cased downstream
+const entryTypeSchema = z.string().trim().min(1).max(32);
 const stageEnum = z.enum(["Pre-molt", "Molt", "Post-molt"]);
 const feedingOutcomeEnum = z.enum(["Offered", "Ate", "Refused", "Not Observed"]);
 const temperatureUnitEnum = z.enum(["C", "F"]);
@@ -17,7 +18,7 @@ export const MoltEntryBaseSchema = z
     specimen: optionalTrimmedString(160),
     species: optionalTrimmedString(160),
     date: requiredDateString,
-    entryType: entryTypeEnum.optional(),
+    entryType: entryTypeSchema.optional(),
     stage: stageEnum.optional(),
     oldSize: optionalNumber,
     newSize: optionalNumber,
@@ -32,7 +33,7 @@ export const MoltEntryBaseSchema = z
     attachments: z.array(AttachmentInputSchema).optional()
   })
   .superRefine((data, ctx) => {
-    const entryType = data.entryType ?? "molt";
+    const entryType = (data.entryType ?? "molt");
     if (entryType === "molt" && !data.species) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

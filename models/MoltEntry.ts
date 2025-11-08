@@ -9,7 +9,7 @@ const MoltEntrySchema = new Schema(
     date: { type: Date, required: true },
     entryType: {
       type: String,
-      enum: ["molt", "feeding", "water"],
+      trim: true,
       default: "molt",
       index: true
     },
