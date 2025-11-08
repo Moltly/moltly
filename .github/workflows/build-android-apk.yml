@@ -11,12 +11,17 @@ on:
         options:
           - debug
           - release
+      create_release:
+        description: "Create GitHub release and upload APK"
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,11 +68,55 @@ jobs:
             ./gradlew --no-daemon --stacktrace assembleDebug
           fi
 
+      - name: Read version from package.json
+        id: get_version
+        run: |
+          VERSION=$(python3 - <<'PY'
+import json
+print(json.load(open('package.json'))['version'])
+PY
+)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Collect and rename APK
+        id: collect_apk
+        run: |
+          set -euo pipefail
+          BUILD_TYPE="${{ github.event.inputs.buildType }}"
+          mkdir -p dist
+          if [ "$BUILD_TYPE" = "release" ]; then
+            APK_PATH=$(ls -1 android/app/build/outputs/apk/release/*.apk | head -n 1)
+          else
+            APK_PATH=$(ls -1 android/app/build/outputs/apk/debug/*.apk | head -n 1)
+          fi
+          if [ -z "${APK_PATH:-}" ]; then
+            echo "No APK produced for $BUILD_TYPE build" >&2
+            exit 1
+          fi
+          VERSION="${{ steps.get_version.outputs.version }}"
+          APK_NAME="moltly-${VERSION}-${BUILD_TYPE}.apk"
+          cp "$APK_PATH" "dist/${APK_NAME}"
+          echo "apk=dist/${APK_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-${{ github.event.inputs.buildType }}
-          path: |
-            android/app/build/outputs/apk/debug/*.apk
-            android/app/build/outputs/apk/release/*.apk
+          path: ${{ steps.collect_apk.outputs.apk }}
           if-no-files-found: error
+
+      - name: Create GitHub Release and upload APK
+        if: ${{ inputs.create_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: v${{ steps.get_version.outputs.version }} Android
+          files: ${{ steps.collect_apk.outputs.apk }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          make_latest: true
+          body: |
+            Automated Android build for version v${{ steps.get_version.outputs.version }}.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
