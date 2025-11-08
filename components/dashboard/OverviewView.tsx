@@ -292,7 +292,9 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                   </div>
                   {entry.species && (
                     <p className="text-xs text-[rgb(var(--text-subtle))] mb-1">
-                      {entry.species}
+                      <a href={`/species/${encodeURIComponent(entry.species)}`} className="hover:underline">
+                        {entry.species}
+                      </a>
                     </p>
                   )}
                   <div className="flex items-center gap-2 text-xs text-[rgb(var(--text-soft))]">

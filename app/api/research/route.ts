@@ -8,14 +8,21 @@ import ResearchStack from "../../../models/ResearchStack";
 import { normalizeStack, sanitizeStackCreate, type StackPayload } from "../../../lib/research-stacks";
 import { trySyncResearchStackToWSCA } from "../../../lib/wsca-notes-sync";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const speciesFilter = (searchParams.get("species") || "").trim();
+
   await connectMongoose();
-  const stacks = await ResearchStack.find({ userId: session.user.id }).sort({ updatedAt: -1 });
+  const query: any = { userId: session.user.id };
+  if (speciesFilter) {
+    query.species = { $regex: new RegExp(`^${speciesFilter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") };
+  }
+  const stacks = await ResearchStack.find(query).sort({ updatedAt: -1 });
   const normalized = stacks
     .map((stack) => normalizeStack(stack.toObject()))
     .filter((stack): stack is NonNullable<typeof stack> => Boolean(stack));

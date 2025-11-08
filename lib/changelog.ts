@@ -6,6 +6,14 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.7.2",
+    date: "2025-11-08",
+    highlights: [
+      "Add Species Quick Look and Species Profile with WSC links and one‑tap Save to Notebook.",
+      "Show live WSC details on species pages."
+    ]
+  },
+  {
     version: "1.7.1",
     date: "2025-11-08",
     highlights: [
@@ -14,7 +22,6 @@ const entries: ChangelogEntry[] = [
       "Add action bar to New Entry notes.",
       "Collapse more menu when clicking outside of it.",
       "Hide Health/Breeding/Analytics/Reminders/Notebook tabs by default."
-
     ]
   },
   {

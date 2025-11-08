@@ -236,7 +236,13 @@ export default function ActivityView({ entries, onEdit, onDelete, onSetCover, co
                     </div>
                     {entry.species && (
                       <p className="text-sm text-[rgb(var(--text-soft))] mb-2">
-                        {entry.species}
+                        <a
+                          href={`/species/${encodeURIComponent(entry.species)}`}
+                          className="hover:underline"
+                          onClick={(e) => e.stopPropagation?.()}
+                        >
+                          {entry.species}
+                        </a>
                       </p>
                     )}
                     <div className="flex items-center gap-2 text-xs text-[rgb(var(--text-subtle))]">

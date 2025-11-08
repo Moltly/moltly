@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Input from "@/components/ui/Input";
+import { Info } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const SpeciesQuickLook = dynamic(() => import("@/components/species/SpeciesQuickLook"), { ssr: false });
 
 type Suggestion = {
   fullName: string;
@@ -27,6 +31,7 @@ export default function SpeciesAutosuggest({ value, onChange, placeholder, requi
   const [highlight, setHighlight] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const lastSubmittedRef = useRef<string>("");
+  const [quickLookName, setQuickLookName] = useState<string | null>(null);
 
   const q = useMemo(() => value.trim(), [value]);
 
@@ -128,17 +133,29 @@ export default function SpeciesAutosuggest({ value, onChange, placeholder, requi
               aria-selected={idx === highlight}
               onMouseEnter={() => setHighlight(idx)}
               onClick={() => apply(s)}
-              className={`w-full text-left px-3 py-2 text-sm ${
+              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 ${
                 idx === highlight ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "hover:bg-[rgb(var(--soft))]"
               }`}
             >
-              <div className="font-medium truncate">{s.fullName}</div>
-              {(s.family || s.genus) && (
-                <div className="text-[rgb(var(--text-soft))] truncate">
-                  {s.family ? `${s.family} • ` : ""}
-                  {s.genus}
-                </div>
-              )}
+              <div className="min-w-0">
+                <div className="font-medium truncate">{s.fullName}</div>
+                {(s.family || s.genus) && (
+                  <div className="text-[rgb(var(--text-soft))] truncate">
+                    {s.family ? `${s.family} • ` : ""}
+                    {s.genus}
+                  </div>
+                )}
+              </div>
+              <div className="shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setQuickLookName(s.fullName); }}
+                  className="p-1.5 rounded hover:bg-[rgb(var(--bg-muted))]"
+                  aria-label={`Quick look for ${s.fullName}`}
+                >
+                  <Info className="w-4 h-4" />
+                </button>
+              </div>
             </button>
           ))}
           {loading && (
@@ -146,6 +163,7 @@ export default function SpeciesAutosuggest({ value, onChange, placeholder, requi
           )}
         </div>
       )}
+      <SpeciesQuickLook open={!!quickLookName} name={quickLookName || ""} onClose={() => setQuickLookName(null)} />
     </div>
   );
 }

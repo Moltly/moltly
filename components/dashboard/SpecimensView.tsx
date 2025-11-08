@@ -258,7 +258,9 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                     </div>
                     {dashboard.species && (
                       <p className="text-sm text-[rgb(var(--text-soft))] italic mb-2">
-                        {dashboard.species}
+                        <a href={`/species/${encodeURIComponent(dashboard.species)}`} className="hover:underline">
+                          {dashboard.species}
+                        </a>
                       </p>
                     )}
                     <div className="flex flex-wrap gap-2 items-center">

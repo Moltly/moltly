@@ -26,8 +26,8 @@ export default function SpeciesSuggestionList({ initial, mode }: { initial: Item
 
   // Reset items when server-provided initial data or mode changes
   useEffect(() => {
-    setItems(initial);
-  }, [initial, mode]);
+    startTransition(() => setItems(initial));
+  }, [initial, mode, startTransition]);
 
   async function act(id: string, action: "approve" | "reject" | "remove") {
     try {

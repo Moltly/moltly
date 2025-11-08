@@ -59,14 +59,25 @@ async function trySyncToWSCA(userId: string, entry: any) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const species = (searchParams.get("species") || "").trim();
+  const entryType = (searchParams.get("entryType") || "").trim();
+
   await connectMongoose();
-  const documents = await MoltEntry.find({ userId: session.user.id }).sort({ date: -1 });
+  const criteria: any = { userId: session.user.id };
+  if (species) {
+    criteria.species = { $regex: new RegExp(`^${species.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") };
+  }
+  if (entryType) {
+    criteria.entryType = entryType;
+  }
+  const documents = await MoltEntry.find(criteria).sort({ date: -1 });
 
   const normalized = documents.map((document) => {
     const entry = document.toObject();

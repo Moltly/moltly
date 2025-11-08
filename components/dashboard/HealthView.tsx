@@ -429,7 +429,9 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                     </p>
                     {entry.species && (
                       <p className="text-xs text-[rgb(var(--text-subtle))] uppercase tracking-wide">
-                        {entry.species}
+                        <a href={`/species/${encodeURIComponent(entry.species)}`} className="hover:underline">
+                          {entry.species}
+                        </a>
                       </p>
                     )}
                   </div>
