@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
@@ -96,6 +96,9 @@ export default function MobileDashboard() {
   const [wscaSyncing, setWscaSyncing] = useState(false);
   const [wscaSyncStatus, setWscaSyncStatus] = useState<string | null>(null);
   const importInputId = "moltly-import-input";
+  const noteSaveTimers = useRef<Record<string, number>>({});
+  const pendingNoteUpdates = useRef<Record<string, ResearchNote[]>>({});
+  const noteSaveLatestRequest = useRef<Record<string, number>>({});
 
   // Cross-platform export helper: uses Capacitor on native platforms, falls back to web download
   const exportJsonText = useCallback(async (jsonText: string) => {
@@ -187,6 +190,12 @@ export default function MobileDashboard() {
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      Object.values(noteSaveTimers.current).forEach((timer) => window.clearTimeout(timer));
+    };
   }, []);
 
   const openNewEntry = () => {
@@ -638,7 +647,17 @@ export default function MobileDashboard() {
     setStacks((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const cancelPendingNoteSave = (stackId: string) => {
+    if (noteSaveTimers.current[stackId]) {
+      window.clearTimeout(noteSaveTimers.current[stackId]);
+      delete noteSaveTimers.current[stackId];
+    }
+    delete pendingNoteUpdates.current[stackId];
+    noteSaveLatestRequest.current[stackId] = Date.now();
+  };
+
   const onCreateNote = async (stackId: string, note: Partial<ResearchNote>) => {
+    cancelPendingNoteSave(stackId);
     const base: ResearchNote = {
       id: crypto.randomUUID(),
       title: (note.title ?? "New Note").trim() || "New Note",
@@ -654,14 +673,51 @@ export default function MobileDashboard() {
     await onUpdateStack(stackId, { notes: updated.notes, name: stack.name });
   };
 
-  const onUpdateNote = async (stackId: string, noteId: string, updates: Partial<ResearchNote>) => {
-    const stack = stacks.find((s) => s.id === stackId);
-    if (!stack) return;
-    const notes = stack.notes.map((n) => (n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n));
-    await onUpdateStack(stackId, { notes, name: stack.name });
+  const onUpdateNote = (stackId: string, noteId: string, updates: Partial<ResearchNote>) => {
+    if (!mode) return;
+
+    const now = new Date().toISOString();
+    let nextNotes: ResearchNote[] | null = null;
+
+    setStacks((prev) =>
+      prev.map((s) => {
+        if (s.id !== stackId) return s;
+        nextNotes = s.notes.map((n) => (n.id === noteId ? { ...n, ...updates, updatedAt: now } : n));
+        return { ...s, notes: nextNotes, updatedAt: now };
+      })
+    );
+
+    if (!nextNotes) return;
+    pendingNoteUpdates.current[stackId] = nextNotes;
+
+    if (!isSync) return;
+
+    if (noteSaveTimers.current[stackId]) {
+      window.clearTimeout(noteSaveTimers.current[stackId]);
+    }
+
+    noteSaveTimers.current[stackId] = window.setTimeout(async () => {
+      const requestId = Date.now();
+      noteSaveLatestRequest.current[stackId] = requestId;
+      const payload = pendingNoteUpdates.current[stackId] ?? nextNotes;
+      try {
+        const res = await fetch(`/api/research/${stackId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ notes: payload }),
+        });
+        if (!res.ok) return;
+        const saved = (await res.json()) as ResearchStack;
+        if (noteSaveLatestRequest.current[stackId] !== requestId) return;
+        setStacks((prev) => prev.map((s) => (s.id === stackId ? saved : s)));
+      } catch (err) {
+        console.error(err);
+      }
+    }, 400);
   };
 
   const onDeleteNote = async (stackId: string, noteId: string) => {
+    cancelPendingNoteSave(stackId);
     const stack = stacks.find((s) => s.id === stackId);
     if (!stack) return;
     const notes = stack.notes.filter((n) => n.id !== noteId);
@@ -669,6 +725,7 @@ export default function MobileDashboard() {
   };
 
   const onDuplicateNote = async (stackId: string, noteId: string) => {
+    cancelPendingNoteSave(stackId);
     const stack = stacks.find((s) => s.id === stackId);
     if (!stack) return;
     const src = stack.notes.find((n) => n.id === noteId);
