@@ -117,6 +117,7 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
   const [reorderMode, setReorderMode] = useState(false);
   const barListRef = useRef<HTMLDivElement | null>(null);
   const modalListRef = useRef<HTMLDivElement | null>(null);
+  const sheetListRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement | null>(null);
 
@@ -221,11 +222,18 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-t border-[rgb(var(--border))] safe-bottom">
+    <nav className={cn(
+      "fixed bottom-0 left-0 right-0 z-50 bg-[rgb(var(--surface))]/95 backdrop-blur-lg border-t border-[rgb(var(--border))] safe-bottom",
+      reorderMode ? "touch-none select-none" : undefined
+    )}>
       <div className="max-w-screen-lg mx-auto px-2 relative">
         <div
           ref={barListRef}
-          className="flex items-center gap-2 py-2 overflow-x-auto overflow-y-hidden justify-center scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className={cn(
+            "flex items-center gap-2 py-2 overflow-x-auto overflow-y-hidden justify-center scroll-smooth snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+            reorderMode ? "touch-none" : undefined
+          )}
+          style={reorderMode ? { touchAction: "none" } : undefined}
         >
           {visibleItems.map((item) => {
             const Icon = item.icon;
@@ -252,11 +260,15 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                 onPointerDown={(e) => {
                   // Enable touch drag on mobile for reorder mode
                   if (!reorderMode || e.pointerType === "mouse") return;
+                  e.preventDefault();
+                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
                   setDraggingKey(item.key);
                   setOverKey(item.key);
                 }}
                 onPointerMove={(e) => {
-                  if (!reorderMode || !draggingKey || e.pointerType === "mouse") return;
+                  if (!reorderMode || e.pointerType === "mouse") return;
+                  e.preventDefault();
+                  if (!draggingKey) return;
                   const container = barListRef.current;
                   if (!container) return;
                   const nodes = Array.from(container.querySelectorAll<HTMLButtonElement>('button[data-nav-key]'));
@@ -270,19 +282,26 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                   }
                   if (target && target !== overKey) setOverKey(target);
                 }}
-                onPointerUp={() => {
+                onPointerUp={(e) => {
                   if (!reorderMode || !draggingKey) return;
                   const target = overKey ?? draggingKey;
                   if (target && draggingKey) reorder(draggingKey, target);
                   setDraggingKey(null);
                   setOverKey(null);
+                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+                }}
+                onPointerCancel={(e) => {
+                  if (!reorderMode) return;
+                  setDraggingKey(null);
+                  setOverKey(null);
+                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
                 }}
                 className={cn(
                 "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-[var(--radius)] transition-all min-w-[70px] flex-shrink-0 snap-center",
                 isActive
                   ? "text-[rgb(var(--primary))]"
                   : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]",
-                reorderMode ? "cursor-grab select-none border border-dashed border-[rgb(var(--border))]" : undefined,
+                reorderMode ? "cursor-grab select-none border border-dashed border-[rgb(var(--border))] touch-none" : undefined,
                 reorderMode && overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined
               )}
             >
@@ -320,45 +339,167 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
             <span className="text-xs">More</span>
           </button>
         </div>
-
-        {/* Popover */}
+        {/* Bottom sheet for More */}
         {menuOpen && (
-          <div ref={menuRef} className="absolute bottom-14 right-2 w-64 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-[var(--radius)] shadow-[var(--shadow-lg)] p-2 z-[55] animate-fade-in">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-[rgb(var(--text-soft))]">Hidden tabs</span>
-              <div className="flex items-center gap-1">
-                <button className="px-2 py-1 rounded-[var(--radius-sm)] text-xs text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]" onClick={() => { setCustomizeOpen(true); setMenuOpen(false); }}>
-                  Customize
-                </button>
-                <button
+          <div className="fixed inset-0 z-[60] flex flex-col items-center justify-end sm:justify-end pointer-events-none sm:pb-6">
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto animate-fade-in"
+              onClick={() => { setMenuOpen(false); }}
+            />
+            <div ref={menuRef} className="relative w-full sm:max-w-3xl sm:mx-auto px-3 pb-3 safe-bottom pointer-events-auto">
+              <div className="rounded-t-[var(--radius-lg)] sm:rounded-[var(--radius-lg)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] shadow-[var(--shadow-xl)] overflow-hidden animate-slide-up sm:animate-fade-in max-h-[calc(100vh-32px)] overflow-y-auto overscroll-contain">
+                <div className="flex items-start justify-between px-4 pt-3 pb-2 gap-2">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-[rgb(var(--text-subtle))]">More</p>
+                    <p className="text-sm text-[rgb(var(--text-soft))]">Hidden tabs and quick actions</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      className={cn(
+                        "px-3 py-1.5 rounded-[var(--radius-sm)] text-xs border border-[rgb(var(--border))]",
+                        reorderMode ? "bg-[rgb(var(--primary))] text-white border-transparent" : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                      )}
+                      onClick={() => setReorderMode((s) => !s)}
+                    >
+                      {reorderMode ? "Done reordering" : "Reorder"}
+                    </button>
+                    <button
+                      className="px-3 py-1.5 rounded-[var(--radius-sm)] text-xs text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                      onClick={() => { setCustomizeOpen(true); setMenuOpen(false); }}
+                    >
+                      Customize
+                    </button>
+                    <button className="p-1 rounded-[var(--radius-sm)] hover:bg-[rgb(var(--bg-muted))]" onClick={() => { setMenuOpen(false); }} aria-label="Close More">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-4 pb-4 space-y-3">
+                  {reorderMode ? (
+                    <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1 touch-none" style={{ touchAction: "none" }} ref={sheetListRef}>
+                      <p className="text-xs text-[rgb(var(--text-subtle))]">Drag to reorder. Tap the eye to pin/unpin from the bar.</p>
+                      {orderedItems.map((item) => (
+                        <div
+                          key={item.key}
+                          draggable
+                          onDragStart={(e) => {
+                            try {
+                              e.dataTransfer?.setData("text/plain", item.key);
+                              if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                            } catch {}
+                            setDraggingKey(item.key);
+                          }}
+                          onDragOver={(e) => { e.preventDefault(); setOverKey(item.key); }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (draggingKey) reorder(draggingKey, item.key);
+                            setDraggingKey(null);
+                            setOverKey(null);
+                          }}
+                          onDragEnd={() => { setDraggingKey(null); setOverKey(null); }}
+                          onPointerDown={(e) => {
+                            if (e.pointerType === "mouse") return;
+                            e.preventDefault();
+                            try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+                    setDraggingKey(item.key);
+                    setOverKey(item.key);
+                  }}
+                          onPointerMove={(e) => {
+                            if (!draggingKey || e.pointerType === "mouse") return;
+                            e.preventDefault();
+                            const container = sheetListRef.current;
+                            if (!container) return;
+                            const nodes = Array.from(container.querySelectorAll<HTMLDivElement>('[data-sheet-item]'));
+                            const centers = nodes.map((n) => ({ key: n.getAttribute('data-key') as ViewKey, y: n.getBoundingClientRect().top + n.getBoundingClientRect().height / 2 }));
+                            const y = e.clientY;
+                            let target = centers[0]?.key;
+                            let min = Infinity;
+                            for (const c of centers) {
+                              const d = Math.abs(c.y - y);
+                              if (d < min) { min = d; target = c.key; }
+                    }
+                    if (target && target !== overKey) setOverKey(target);
+                  }}
+                  onPointerUp={(e) => {
+                    if (!draggingKey) return;
+                    const target = overKey ?? draggingKey;
+                    if (target && draggingKey) reorder(draggingKey, target);
+                    setDraggingKey(null);
+                    setOverKey(null);
+                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+                  }}
+                  onPointerCancel={(e) => {
+                    setDraggingKey(null);
+                    setOverKey(null);
+                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+                  }}
                   className={cn(
-                    "px-2 py-1 rounded-[var(--radius-sm)] text-xs",
-                    reorderMode ? "bg-[rgb(var(--primary))] text-white" : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                    "flex items-center justify-between gap-2 p-3 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))]",
+                            overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined,
+                          )}
+                          data-sheet-item
+                          data-key={item.key}
+                        >
+                          <div className="flex items-center gap-2">
+                            <GripVertical className="w-4 h-4 text-[rgb(var(--text-soft))] cursor-grab" />
+                            <item.icon className="w-4 h-4" />
+                            <span className="text-sm font-medium">{item.label}</span>
+                          </div>
+                          <button
+                            className="p-1 rounded-[var(--radius-sm)] hover:bg-[rgb(var(--surface))]"
+                            onClick={() => toggleHidden(item.key)}
+                            aria-label={prefs.hidden.includes(item.key) ? "Pin to bar" : "Move under More"}
+                          >
+                            {prefs.hidden.includes(item.key) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : hiddenItems.length === 0 ? (
+                    <p className="text-xs text-[rgb(var(--text-subtle))]">Everything is already on the bar.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {hiddenItems.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <div
+                            key={item.key}
+                            className="flex items-center justify-between gap-2 p-3 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))]"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Icon className="w-4 h-4 text-[rgb(var(--text-soft))]" />
+                              <span className="text-sm font-medium">{item.label}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                className="px-2 py-1 text-xs rounded-[var(--radius-sm)] bg-[rgb(var(--surface))] border border-[rgb(var(--border))] hover:border-[rgb(var(--text-soft))]"
+                                onClick={() => { onViewChange(item.key); setMenuOpen(false); }}
+                              >
+                                Open
+                              </button>
+                              <button
+                                className="px-2 py-1 text-xs rounded-[var(--radius-sm)] text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--surface))]"
+                                onClick={() => toggleHidden(item.key)}
+                              >
+                                Pin
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                  onClick={() => setReorderMode((s) => !s)}
-                >
-                  {reorderMode ? "Done reordering" : "Reorder"}
-                </button>
+
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-[rgb(var(--text-subtle))]">
+                    <span className={cn(reorderMode ? "text-[rgb(var(--text-soft))]" : undefined)}>
+                      {reorderMode ? "Drag to reorder. Tap the eye to move tabs under or off the bar." : "Tap Pin to bring a tab back to the bar, or use Reorder to adjust order."}
+                    </span>
+                    <span className="hidden sm:inline">Customize opens the full editor if you need more control.</span>
+                  </div>
+                </div>
               </div>
             </div>
-            {hiddenItems.length === 0 ? (
-              <p className="text-xs text-[rgb(var(--text-subtle))] px-1">None hidden</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {hiddenItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.key}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-[var(--radius-sm)] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))]"
-                      onClick={() => { onViewChange(item.key); setMenuOpen(false); }}
-                    >
-                      <Icon className="w-3 h-3" /> {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -375,54 +516,63 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="p-4 space-y-3" ref={modalListRef}>
+              <div className="p-4 space-y-3 touch-none" style={{ touchAction: "none" }} ref={modalListRef}>
                 <p className="text-xs text-[rgb(var(--text-subtle))] mb-1">Drag to reorder, hide to move under More.</p>
                 {orderedItems.map((item) => (
                   <div
                     key={item.key}
-                    draggable
-                  onDragStart={(e) => {
-                    // Ensure HTML5 drag works consistently (e.g., Safari)
-                    try {
-                      e.dataTransfer?.setData("text/plain", item.key);
-                      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                    } catch {}
-                    setDraggingKey(item.key);
-                  }}
-                  onDragOver={(e) => { e.preventDefault(); setOverKey(item.key); }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (draggingKey) reorder(draggingKey, item.key);
-                    setDraggingKey(null);
-                    setOverKey(null);
-                  }}
-                  onDragEnd={() => { setDraggingKey(null); setOverKey(null); }}
-                  onPointerDown={(e) => {
-                    if (e.pointerType === "mouse") return;
-                    setDraggingKey(item.key);
-                    setOverKey(item.key);
-                  }}
-                  onPointerMove={(e) => {
-                    if (!draggingKey || e.pointerType === "mouse") return;
-                    const container = modalListRef.current;
-                    if (!container) return;
-                    const nodes = Array.from(container.querySelectorAll<HTMLDivElement>('[data-customize-item]'));
-                    const centers = nodes.map((n) => ({ key: n.getAttribute('data-key') as ViewKey, y: n.getBoundingClientRect().top + n.getBoundingClientRect().height / 2 }));
-                    const y = e.clientY;
-                    let target = centers[0]?.key;
-                    let min = Infinity;
-                    for (const c of centers) {
-                      const d = Math.abs(c.y - y);
-                      if (d < min) { min = d; target = c.key; }
-                    }
-                    if (target && target !== overKey) setOverKey(target);
-                  }}
-                  onPointerUp={() => {
+                  draggable
+                onDragStart={(e) => {
+                  // Ensure HTML5 drag works consistently (e.g., Safari)
+                  try {
+                    e.dataTransfer?.setData("text/plain", item.key);
+                    if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                  } catch {}
+                  setDraggingKey(item.key);
+                }}
+                onDragOver={(e) => { e.preventDefault(); setOverKey(item.key); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggingKey) reorder(draggingKey, item.key);
+                  setDraggingKey(null);
+                  setOverKey(null);
+                }}
+                onDragEnd={() => { setDraggingKey(null); setOverKey(null); }}
+                onPointerDown={(e) => {
+                  if (e.pointerType === "mouse") return;
+                  e.preventDefault();
+                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+                  setDraggingKey(item.key);
+                  setOverKey(item.key);
+                }}
+                onPointerMove={(e) => {
+                  if (!draggingKey || e.pointerType === "mouse") return;
+                  e.preventDefault();
+                  const container = modalListRef.current;
+                  if (!container) return;
+                  const nodes = Array.from(container.querySelectorAll<HTMLDivElement>('[data-customize-item]'));
+                  const centers = nodes.map((n) => ({ key: n.getAttribute('data-key') as ViewKey, y: n.getBoundingClientRect().top + n.getBoundingClientRect().height / 2 }));
+                  const y = e.clientY;
+                  let target = centers[0]?.key;
+                  let min = Infinity;
+                  for (const c of centers) {
+                    const d = Math.abs(c.y - y);
+                    if (d < min) { min = d; target = c.key; }
+                  }
+                  if (target && target !== overKey) setOverKey(target);
+                }}
+                  onPointerUp={(e) => {
                     if (!draggingKey) return;
                     const target = overKey ?? draggingKey;
                     if (target && draggingKey) reorder(draggingKey, target);
                     setDraggingKey(null);
                     setOverKey(null);
+                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+                  }}
+                  onPointerCancel={(e) => {
+                    setDraggingKey(null);
+                    setOverKey(null);
+                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
                   }}
                   className={cn(
                     "flex items-center justify-between gap-2 border border-[rgb(var(--border))] rounded-[var(--radius)] px-3 py-2 bg-[rgb(var(--surface))]",

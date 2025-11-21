@@ -60,7 +60,7 @@ services:
     environment:
       - MONGO_INITDB_DATABASE=molt-log
     ports:
-      - "13777:13777"
+      - "127.0.0.1:13777:13777"
     volumes:
       - mongo-data:/data/db
 
