@@ -4,7 +4,8 @@ import java.util.Properties
 apply plugin: 'com.android.application'
 
 def signingProps = new Properties()
-def signingPropsFile = rootProject.file("android/signing.properties")
+// The signing properties live at repo-root/android/signing.properties.
+def signingPropsFile = rootProject.file("signing.properties")
 if (signingPropsFile.exists()) {
     signingProps.load(new FileInputStream(signingPropsFile))
 }
@@ -26,7 +27,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.7.6å"
+        versionName "1.7.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
