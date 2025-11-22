@@ -13,6 +13,10 @@ boolean hasReleaseKeystore = signingPropsFile.exists() &&
         signingProps["storePassword"] &&
         signingProps["keyAlias"] &&
         signingProps["keyPassword"]
+// Fail fast in CI if release signing is expected but missing to avoid producing an unsigned APK.
+if (System.getenv("CI") && !hasReleaseKeystore) {
+    throw new GradleException("Release signing is not configured. Ensure android/signing.properties is populated in CI.")
+}
 
 android {
     namespace "xyz.moltly.app"
