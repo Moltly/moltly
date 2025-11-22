@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 
 interface HeaderProps {
   mode: DataMode;
-  onNewEntry: () => void;
+  onNewEntry?: () => void;
   onSignOut?: () => void;
   onOpenInfo?: () => void;
 }
@@ -84,6 +84,7 @@ export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: Head
             variant="primary"
             size="sm"
             onClick={onNewEntry}
+            disabled={!onNewEntry}
             className="gap-1.5"
           >
             <Plus className="w-4 h-4" />

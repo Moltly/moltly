@@ -6,6 +6,19 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.7.5",
+    date: "2025-11-22",
+    highlights: [
+      "Add QR Code sharing for specimens.",
+      "Add Read-only specimen sharing via QR Code.",
+      "Add copy into account from shared specimen.",
+      "Fix iOS/Android app schema for moltly://.",
+      "Fix debouncing on notebook.",
+      "Improve the more tab."
+
+    ]
+  },
+  {
     version: "1.7.2",
     date: "2025-11-08",
     highlights: [

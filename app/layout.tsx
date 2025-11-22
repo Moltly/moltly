@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: "Moltly",
   description: "Moltly (moltly.xyz) keeps every tarantula molt, reminder, and husbandry detail in sync.",
   manifest: "/manifest.webmanifest",
-  themeColor: "#0B0B0B",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

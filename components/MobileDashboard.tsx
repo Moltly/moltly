@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import BottomNav from "@/components/layout/BottomNav";
 import OverviewView from "@/components/dashboard/OverviewView";
@@ -72,6 +74,9 @@ export default function MobileDashboard() {
     selectedStackId,
     setSelectedStackId
   } = useDashboardData();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [linkedSpecimen, setLinkedSpecimen] = useState<string | null>(null);
 
   const [activeView, setActiveView] = useState<ViewKey>("overview");
   const [formOpen, setFormOpen] = useState(false);
@@ -95,6 +100,39 @@ export default function MobileDashboard() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [wscaSyncing, setWscaSyncing] = useState(false);
   const [wscaSyncStatus, setWscaSyncStatus] = useState<string | null>(null);
+  const specimenParam = searchParams?.get("specimen");
+  const speciesParam = searchParams?.get("species") || "";
+  const noteParam = searchParams?.get("note") || "";
+  const ownerParam = searchParams?.get("owner") || "";
+  const viewParam = searchParams?.get("view");
+  const [shareImported, setShareImported] = useState(false);
+  const [importingShare, setImportingShare] = useState(false);
+  const [sharePreviewData, setSharePreviewData] = useState<{
+    entries: MoltEntry[];
+    health: HealthEntry[];
+    breeding: BreedingEntry[];
+    cover: string | null;
+  } | null>(null);
+  const [sharePreviewError, setSharePreviewError] = useState<string | null>(null);
+  const [sharePreviewLoading, setSharePreviewLoading] = useState(false);
+  const deepLinkUrl = useMemo(() => {
+    if (!specimenParam) return null;
+    const params = new URLSearchParams();
+    params.set("specimen", specimenParam);
+    if (speciesParam) params.set("species", speciesParam);
+    if (ownerParam) params.set("owner", ownerParam);
+    if (noteParam) params.set("note", noteParam);
+    return `moltly://open?${params.toString()}`;
+  }, [specimenParam, speciesParam, ownerParam, noteParam]);
+  const intentLink = useMemo(() => {
+    if (typeof window === "undefined" || !specimenParam) return null;
+    const params = new URLSearchParams();
+    params.set("specimen", specimenParam);
+    if (speciesParam) params.set("species", speciesParam);
+    if (ownerParam) params.set("owner", ownerParam);
+    if (noteParam) params.set("note", noteParam);
+    return `intent://open?${params.toString()}#Intent;scheme=moltly;package=xyz.moltly.app;S.browser_fallback_url=${encodeURIComponent(window.location.href)};end;`;
+  }, [specimenParam, speciesParam, ownerParam, noteParam]);
   const importInputId = "moltly-import-input";
   const noteSaveTimers = useRef<Record<string, number>>({});
   const pendingNoteUpdates = useRef<Record<string, ResearchNote[]>>({});
@@ -167,6 +205,86 @@ export default function MobileDashboard() {
       setShowChangelog(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (specimenParam) {
+      setLinkedSpecimen(specimenParam);
+      setActiveView("specimens");
+    } else if (viewParam === "specimens") {
+      setActiveView("specimens");
+    }
+    setShareImported(false);
+  }, [specimenParam, viewParam, ownerParam]);
+
+  const currentUserId = session?.user?.id ?? "";
+  const isOwnerMatch = Boolean(ownerParam && ownerParam === currentUserId);
+  const isSharePreview = Boolean(linkedSpecimen) && !isOwnerMatch;
+  const isPreviewActive = isSharePreview && !shareImported;
+
+  useEffect(() => {
+    if (!isPreviewActive || !linkedSpecimen || !ownerParam) {
+      setSharePreviewData(null);
+      setSharePreviewError(null);
+      setSharePreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setSharePreviewLoading(true);
+      setSharePreviewError(null);
+      try {
+        const params = new URLSearchParams();
+        params.set("specimen", linkedSpecimen);
+        params.set("owner", ownerParam);
+        const res = await fetch(`/api/specimens/shared?${params.toString()}`);
+        if (!res.ok) throw new Error("Failed to load shared specimen");
+        const data = (await res.json()) as {
+          entries?: MoltEntry[];
+          health?: HealthEntry[];
+          breeding?: BreedingEntry[];
+          cover?: string | null;
+        };
+        if (!cancelled) {
+          setSharePreviewData({
+            entries: Array.isArray(data.entries) ? data.entries : [],
+            health: Array.isArray(data.health) ? data.health : [],
+            breeding: Array.isArray(data.breeding) ? data.breeding : [],
+            cover: data.cover ?? null,
+          });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSharePreviewError(err instanceof Error ? err.message : "Failed to load shared specimen");
+          setSharePreviewData(null);
+        }
+      } finally {
+        if (!cancelled) setSharePreviewLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPreviewActive, linkedSpecimen, ownerParam]);
+
+  // Once preview is done (either owner matches or copy completed), strip share-only params to hide the banner.
+  useEffect(() => {
+    if (isPreviewActive) return;
+    if (!linkedSpecimen) return;
+    if (!ownerParam && !noteParam) return;
+    const nextUrl = `/?view=specimens&specimen=${encodeURIComponent(linkedSpecimen)}`;
+    router.replace(nextUrl);
+  }, [isPreviewActive, linkedSpecimen, ownerParam, noteParam, router]);
+  const previewEntries = sharePreviewData?.entries ?? [];
+  const previewHealthEntries = sharePreviewData?.health ?? [];
+  const previewBreedingEntries = sharePreviewData?.breeding ?? [];
+  const displayEntries = isPreviewActive ? previewEntries : entries;
+  const displayHealthEntries = isPreviewActive ? previewHealthEntries : healthEntries;
+  const displayBreedingEntries = isPreviewActive ? previewBreedingEntries : breedingEntries;
+  const displayCovers =
+    isPreviewActive && sharePreviewData?.cover && linkedSpecimen
+      ? { ...specimenCovers, [linkedSpecimen]: sharePreviewData.cover }
+      : specimenCovers;
 
   useEffect(() => {
     const loadPasswordStatus = async () => {
@@ -1248,57 +1366,166 @@ export default function MobileDashboard() {
       )}
       <Header
         mode={isSync ? "sync" : "local"}
-        onNewEntry={openNewEntry}
+        onNewEntry={isSharePreview ? undefined : openNewEntry}
         onSignOut={isSync ? () => void signOut({ callbackUrl: "/login" }) : undefined}
         onOpenInfo={() => setShowInfo(true)}
       />
 
       <div className="max-w-screen-lg mx-auto px-4 py-4 pb-28">
+        {isPreviewActive && (
+          <div className="mb-4 p-3 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] text-sm text-[rgb(var(--text))]">
+            Viewing shared specimen “{linkedSpecimen}” in read-only mode. Sign in to copy it into your account; original ownership stays with the sender.
+            {sharePreviewLoading && (
+              <div className="mt-2 text-xs text-[rgb(var(--text-subtle))]">Loading specimen history…</div>
+            )}
+            {sharePreviewError && (
+              <div className="mt-2 text-xs text-[rgb(var(--danger))]">{sharePreviewError}</div>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {deepLinkUrl && (
+                <a
+                  href={deepLinkUrl}
+                  className="px-3 py-1 rounded-[var(--radius)] bg-[rgb(var(--primary))] text-white text-sm"
+                >
+                  Open in app
+                </a>
+              )}
+              {intentLink && (
+                <a
+                  href={intentLink}
+                  className="px-3 py-1 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] text-sm"
+                >
+                  Android intent
+                </a>
+              )}
+              {currentUserId && ownerParam && !importingShare && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!linkedSpecimen) return;
+                    setImportingShare(true);
+                    try {
+                      if (isSync && ownerParam) {
+                        const res = await fetch("/api/specimens/copy", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ specimen: linkedSpecimen, ownerId: ownerParam }),
+                        });
+                        if (!res.ok) {
+                          const text = await res.text();
+                          throw new Error(text || "Copy failed");
+                        }
+                        // Reload data to reflect the copied entries and cover
+                        const [logsRes, healthRes, breedingRes, coverRes] = await Promise.all([
+                          fetch("/api/logs", { credentials: "include" }),
+                          fetch("/api/health", { credentials: "include" }),
+                          fetch("/api/breeding", { credentials: "include" }),
+                          fetch("/api/specimens", { credentials: "include" }),
+                        ]);
+                        if (logsRes.ok) setEntries(await logsRes.json());
+                        if (healthRes.ok) setHealthEntries(await healthRes.json());
+                        if (breedingRes.ok) setBreedingEntries(await breedingRes.json());
+                        if (coverRes?.ok) {
+                          const data = (await coverRes.json()) as Array<{ key: string; imageUrl: string }>;
+                          for (const item of data) {
+                            if (item?.key && item?.imageUrl) {
+                              await updateSpecimenCover(item.key, item.imageUrl);
+                            }
+                          }
+                        }
+                      } else {
+                        // Fallback for guest/local or missing owner: create a single note entry
+                        const today = new Date().toISOString().slice(0, 10);
+                        const notes =
+                          noteParam && noteParam.trim()
+                            ? `Copied from shared label${ownerParam ? ` (owner ${ownerParam})` : ""}. ${noteParam}`
+                            : `Copied from shared label${ownerParam ? ` (owner ${ownerParam})` : ""}.`;
+                        const now = new Date().toISOString();
+                        const created: MoltEntry = {
+                          id: `local-import-${Date.now()}`,
+                          entryType: "note",
+                          specimen: linkedSpecimen,
+                          species: speciesParam || undefined,
+                          date: today,
+                          notes,
+                          createdAt: now,
+                          updatedAt: now,
+                        };
+                        setEntries((prev) => [created, ...prev]);
+                      }
+                      setShareImported(true);
+                      setActiveView("specimens");
+                      // Redirect to home to avoid lingering share params/banners
+                      router.replace("/");
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : "Import failed.");
+                    } finally {
+                      setImportingShare(false);
+                    }
+                  }}
+                  className="px-3 py-1 rounded-[var(--radius)] bg-[rgb(var(--success))] text-white text-sm"
+                >
+                  Copy to my account
+                </button>
+              )}
+              {importingShare && (
+                <span className="text-xs text-[rgb(var(--text-subtle))]">Importing…</span>
+              )}
+            </div>
+          </div>
+        )}
         {/* Keep views mounted to avoid reloading images on tab swap */}
         <div style={{ display: activeView === "overview" ? undefined : "none" }}>
-          <OverviewView entries={entries} onViewChange={setActiveView} covers={specimenCovers} />
+          <OverviewView entries={displayEntries} onViewChange={setActiveView} covers={displayCovers} />
         </div>
 
         <div style={{ display: activeView === "activity" ? undefined : "none" }}>
           <ActivityView
-            entries={entries}
+            entries={displayEntries}
             onEdit={onEdit}
             onDelete={onDelete}
             onSetCover={handleSetSpecimenCover}
             onUnsetCover={handleUnsetSpecimenCover}
-            covers={specimenCovers}
+            covers={displayCovers}
           />
         </div>
 
         <div style={{ display: activeView === "specimens" ? undefined : "none" }}>
           <SpecimensView
-            entries={entries}
-            covers={specimenCovers}
-            healthEntries={healthEntries}
-            breedingEntries={breedingEntries}
-            onQuickAction={(specimen, species, label) => {
-              const d = new Date();
-              const pad = (n: number) => String(n).padStart(2, "0");
-              const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-              const note = label ? `- ${label} ` : "";
-              setEditingId(null);
-              setAttachments([]);
-              setFormState({
-                ...defaultForm(),
-                entryType: "water",
-                specimen,
-                species: species || "",
-                date: date,
-                notes: note,
-              });
-              setFormOpen(true);
-            }}
+            entries={displayEntries}
+            covers={displayCovers}
+            healthEntries={displayHealthEntries}
+            breedingEntries={displayBreedingEntries}
+            readOnly={isPreviewActive}
+            initialFocusSpecimen={linkedSpecimen ?? undefined}
+            ownerId={session?.user?.id || undefined}
+            onQuickAction={
+              isPreviewActive
+                ? undefined
+                : (specimen, species, label) => {
+                    const d = new Date();
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                    const note = label ? `- ${label} ` : "";
+                    setEditingId(null);
+                    setAttachments([]);
+                    setFormState({
+                      ...defaultForm(),
+                      entryType: "water",
+                      specimen,
+                      species: species || "",
+                      date: date,
+                      notes: note,
+                    });
+                    setFormOpen(true);
+                  }
+            }
           />
         </div>
 
         <div style={{ display: activeView === "health" ? undefined : "none" }}>
           <HealthView
-            entries={healthEntries}
+            entries={displayHealthEntries}
             onCreate={createHealthEntry}
             onDelete={async (id) => {
               if (!confirm("Delete this health entry?")) return;
@@ -1322,7 +1549,7 @@ export default function MobileDashboard() {
 
         <div style={{ display: activeView === "breeding" ? undefined : "none" }}>
           <BreedingView
-            entries={breedingEntries}
+            entries={displayBreedingEntries}
             onCreate={createBreedingEntry}
             onDelete={async (id) => {
               if (!confirm("Delete this breeding entry?")) return;
