@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.7.7",
+    date: "2025-11-22",
+    highlights: [
+      "Fix Android Discord OAuth Deep Linking.",
+      "Sign Android APK Builds.",
+      "Allow edits for breeding activity entries."
+    ]
+  },
+  {
     version: "1.7.5",
     date: "2025-11-22",
     highlights: [
