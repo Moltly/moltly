@@ -4,7 +4,7 @@ import java.util.Properties
 apply plugin: 'com.android.application'
 
 def signingProps = new Properties()
-// The signing properties live at repo-root/android/signing.properties.
+// The signing properties live at repo root (signing.properties).
 def signingPropsFile = rootProject.file("signing.properties")
 if (signingPropsFile.exists()) {
     signingProps.load(new FileInputStream(signingPropsFile))
@@ -38,7 +38,7 @@ android {
     signingConfigs {
         release {
             if (hasReleaseKeystore) {
-                storeFile file(signingProps["storeFile"])
+                storeFile signingProps["storeFile"] ? rootProject.file(signingProps["storeFile"]) : null
                 storePassword signingProps["storePassword"]
                 keyAlias signingProps["keyAlias"]
                 keyPassword signingProps["keyPassword"]
@@ -52,7 +52,7 @@ android {
             if (hasReleaseKeystore) {
                 signingConfig signingConfigs.release
             } else {
-                println("WARNING: Release signing is not configured. Add android/signing.properties to sign builds.")
+                println("WARNING: Release signing is not configured. Add signing.properties to sign builds.")
             }
         }
     }

@@ -69,7 +69,7 @@ jobs:
             "storePassword=${ANDROID_KEYSTORE_PASSWORD}" \
             "keyAlias=${ANDROID_KEY_ALIAS}" \
             "keyPassword=${ANDROID_KEY_PASSWORD}" \
-            > android/signing.properties
+            > signing.properties
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
