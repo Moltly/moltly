@@ -65,11 +65,11 @@ jobs:
           fi
           echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > android/my-release-key.jks
           printf "%s\n" \
-            "storeFile=android/my-release-key.jks" \
+            "storeFile=my-release-key.jks" \
             "storePassword=${ANDROID_KEYSTORE_PASSWORD}" \
             "keyAlias=${ANDROID_KEY_ALIAS}" \
             "keyPassword=${ANDROID_KEY_PASSWORD}" \
-            > signing.properties
+            > android/signing.properties
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
