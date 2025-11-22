@@ -52,6 +52,48 @@ const parseNumber = (value: string): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const buildBreedingPayload = (form: BreedingFormState, existingAttachments?: Attachment[]) => ({
+  femaleSpecimen: form.femaleSpecimen.trim() || undefined,
+  maleSpecimen: form.maleSpecimen.trim() || undefined,
+  species: form.species.trim() || undefined,
+  pairingDate: form.pairingDate,
+  status: form.status,
+  pairingNotes: form.pairingNotes.trim() || undefined,
+  eggSacDate: form.eggSacDate || undefined,
+  eggSacStatus: form.eggSacStatus,
+  eggSacCount: parseNumber(form.eggSacCount),
+  hatchDate: form.hatchDate || undefined,
+  slingCount: parseNumber(form.slingCount),
+  followUpDate: form.followUpDate || undefined,
+  notes: form.notes.trim() || undefined,
+  attachments: existingAttachments ? [...existingAttachments] : [],
+});
+
+const syncBreedingReminder = async (prev: BreedingEntry | undefined, next: BreedingEntry) => {
+  const prevFollowUp = prev?.followUpDate?.slice(0, 10) || null;
+  const nextFollowUp = next.followUpDate?.slice(0, 10) || null;
+
+  if (prevFollowUp && !nextFollowUp) {
+    try {
+      await cancelReminderNotification(breedingReminderKey(next.id));
+    } catch {}
+    return;
+  }
+
+  if (nextFollowUp) {
+    try {
+      await scheduleReminderNotification({
+        id: breedingReminderKey(next.id),
+        dateISO: nextFollowUp,
+        title: `Breeding follow-up: ${next.femaleSpecimen || next.species || "Specimen"}`,
+        body: next.notes || next.pairingNotes || "Check breeding progress.",
+      });
+    } catch (err) {
+      console.warn("Unable to schedule breeding reminder", err);
+    }
+  }
+};
+
 const healthReminderKey = (id: string) => `health:${id}`;
 const breedingReminderKey = (id: string) => `breeding:${id}`;
 
@@ -584,22 +626,7 @@ export default function MobileDashboard() {
   const createBreedingEntry = async (form: BreedingFormState) => {
     if (!mode) throw new Error("Please wait until the session is ready.");
 
-    const payload = {
-      femaleSpecimen: form.femaleSpecimen.trim() || undefined,
-      maleSpecimen: form.maleSpecimen.trim() || undefined,
-      species: form.species.trim() || undefined,
-      pairingDate: form.pairingDate,
-      status: form.status,
-      pairingNotes: form.pairingNotes.trim() || undefined,
-      eggSacDate: form.eggSacDate || undefined,
-      eggSacStatus: form.eggSacStatus,
-      eggSacCount: parseNumber(form.eggSacCount),
-      hatchDate: form.hatchDate || undefined,
-      slingCount: parseNumber(form.slingCount),
-      followUpDate: form.followUpDate || undefined,
-      notes: form.notes.trim() || undefined,
-      attachments: [] as Attachment[],
-    };
+    const payload = buildBreedingPayload(form);
 
     if (isSync) {
       const res = await fetch("/api/breeding", {
@@ -614,18 +641,7 @@ export default function MobileDashboard() {
       }
       const saved = (await res.json()) as BreedingEntry;
       setBreedingEntries((prev) => [saved, ...prev]);
-      if (saved.followUpDate) {
-        try {
-          await scheduleReminderNotification({
-            id: breedingReminderKey(saved.id),
-            dateISO: saved.followUpDate.slice(0, 10),
-            title: `Breeding follow-up: ${saved.femaleSpecimen || saved.species || "Specimen"}`,
-            body: saved.notes || saved.pairingNotes || "Check breeding progress.",
-          });
-        } catch (err) {
-          console.warn("Unable to schedule breeding reminder", err);
-        }
-      }
+      await syncBreedingReminder(undefined, saved);
       return;
     }
 
@@ -650,18 +666,7 @@ export default function MobileDashboard() {
       updatedAt: now,
     };
     setBreedingEntries((prev) => [saved, ...prev]);
-    if (saved.followUpDate) {
-      try {
-        await scheduleReminderNotification({
-          id: breedingReminderKey(saved.id),
-          dateISO: saved.followUpDate.slice(0, 10),
-          title: `Breeding follow-up: ${saved.femaleSpecimen || saved.species || "Specimen"}`,
-          body: saved.notes || saved.pairingNotes || "Check breeding progress.",
-        });
-      } catch (err) {
-        console.warn("Unable to schedule breeding reminder", err);
-      }
-    }
+    await syncBreedingReminder(undefined, saved);
   };
 
   const deleteBreedingEntry = async (id: string) => {
@@ -683,6 +688,45 @@ export default function MobileDashboard() {
         await cancelReminderNotification(breedingReminderKey(id));
       } catch {}
     }
+  };
+
+  const updateBreedingEntry = async (id: string, form: BreedingFormState) => {
+    if (!mode) throw new Error("Please wait until the session is ready.");
+
+    const existing = breedingEntries.find((entry) => entry.id === id);
+    if (!existing) {
+      throw new Error("Breeding entry not found.");
+    }
+
+    const payload = buildBreedingPayload(form, existing.attachments);
+
+    if (isSync) {
+      const res = await fetch(`/api/breeding/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error || "Unable to update breeding entry.");
+      }
+      const saved = (await res.json()) as BreedingEntry;
+      setBreedingEntries((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
+      await syncBreedingReminder(existing, saved);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const saved: BreedingEntry = {
+      ...existing,
+      ...payload,
+      id: existing.id,
+      createdAt: existing.createdAt,
+      updatedAt: now,
+    };
+    setBreedingEntries((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
+    await syncBreedingReminder(existing, saved);
   };
 
   // Research stack actions (work in sync and local modes)
@@ -1551,6 +1595,7 @@ export default function MobileDashboard() {
           <BreedingView
             entries={displayBreedingEntries}
             onCreate={createBreedingEntry}
+            onUpdate={updateBreedingEntry}
             onDelete={async (id) => {
               if (!confirm("Delete this breeding entry?")) return;
               await deleteBreedingEntry(id);

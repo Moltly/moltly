@@ -12,6 +12,7 @@ import { formatDate, formatRelativeDate } from "@/lib/utils";
 interface BreedingViewProps {
   entries: BreedingEntry[];
   onCreate: (form: BreedingFormState) => Promise<void>;
+  onUpdate: (id: string, form: BreedingFormState) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onScheduleFollowUpRetry: (entry: BreedingEntry) => Promise<void>;
 }
@@ -30,6 +31,22 @@ const defaultForm = (): BreedingFormState => ({
   slingCount: "",
   followUpDate: "",
   notes: "",
+});
+
+const entryToForm = (entry: BreedingEntry): BreedingFormState => ({
+  femaleSpecimen: entry.femaleSpecimen ?? "",
+  maleSpecimen: entry.maleSpecimen ?? "",
+  species: entry.species ?? "",
+  pairingDate: entry.pairingDate?.slice(0, 10) ?? "",
+  status: entry.status,
+  pairingNotes: entry.pairingNotes ?? "",
+  eggSacDate: entry.eggSacDate ? entry.eggSacDate.slice(0, 10) : "",
+  eggSacStatus: entry.eggSacStatus ?? "Not Laid",
+  eggSacCount: typeof entry.eggSacCount === "number" && Number.isFinite(entry.eggSacCount) ? String(entry.eggSacCount) : "",
+  hatchDate: entry.hatchDate ? entry.hatchDate.slice(0, 10) : "",
+  slingCount: typeof entry.slingCount === "number" && Number.isFinite(entry.slingCount) ? String(entry.slingCount) : "",
+  followUpDate: entry.followUpDate ? entry.followUpDate.slice(0, 10) : "",
+  notes: entry.notes ?? "",
 });
 
 const statusBadgeClass = (status: BreedingEntry["status"]): string => {
@@ -61,9 +78,10 @@ const eggBadgeClass = (status: BreedingEntry["eggSacStatus"]): string => {
   }
 };
 
-export default function BreedingView({ entries, onCreate, onDelete, onScheduleFollowUpRetry }: BreedingViewProps) {
+export default function BreedingView({ entries, onCreate, onUpdate, onDelete, onScheduleFollowUpRetry }: BreedingViewProps) {
   const [form, setForm] = useState<BreedingFormState>(defaultForm);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
@@ -130,11 +148,19 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
     setSaving(true);
     setError(null);
     try {
-      await onCreate(form);
-      setStatusMessage("Breeding log saved.");
+      if (editingId) {
+        await onUpdate(editingId, form);
+        setStatusMessage("Breeding log updated.");
+      } else {
+        await onCreate(form);
+        setStatusMessage("Breeding log saved.");
+      }
       setForm(defaultForm());
+      setEditingId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save entry.");
+      const message =
+        err instanceof Error ? err.message : editingId ? "Unable to update entry." : "Unable to save entry.";
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -146,6 +172,10 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
     try {
       await onDelete(id);
       setStatusMessage("Breeding entry removed.");
+      if (editingId === id) {
+        setEditingId(null);
+        setForm(defaultForm());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete entry.");
     } finally {
@@ -165,6 +195,23 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
     } finally {
       setReschedulingId(null);
     }
+  };
+
+  const handleEdit = (entry: BreedingEntry) => {
+    setForm(entryToForm(entry));
+    setEditingId(entry.id);
+    setStatusMessage(null);
+    setError(null);
+    try {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {}
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setForm(defaultForm());
+    setStatusMessage(null);
+    setError(null);
   };
 
   // Utilities for quick note/actions insertion
@@ -488,8 +535,13 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <Button type="submit" disabled={saving} className="gap-2">
                 <PlusCircle className="w-4 h-4" />
-                {saving ? "Saving…" : "Save breeding log"}
+                {saving ? (editingId ? "Updating…" : "Saving…") : editingId ? "Update breeding log" : "Save breeding log"}
               </Button>
+              {editingId && (
+                <Button type="button" variant="ghost" size="sm" onClick={handleCancelEdit} disabled={saving}>
+                  Cancel edit
+                </Button>
+              )}
               {statusMessage && <span className="text-sm text-purple-700">{statusMessage}</span>}
               {error && <span className="text-sm text-[rgb(var(--danger))]">{error}</span>}
             </div>
@@ -653,17 +705,28 @@ export default function BreedingView({ entries, onCreate, onDelete, onScheduleFo
                       </p>
                     )}
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDelete(entry.id)}
-                    disabled={deletingId === entry.id}
-                    className="text-[rgb(var(--danger))]"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(entry)}
+                      disabled={saving || deletingId === entry.id}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={deletingId === entry.id}
+                      className="text-[rgb(var(--danger))]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="grid sm:grid-cols-4 gap-3">
