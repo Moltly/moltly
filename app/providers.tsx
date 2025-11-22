@@ -15,7 +15,7 @@ function useCapacitorUniversalLinks() {
         try {
           const target = new URL(url);
           // Only handle our domain
-          if (target.host === "moltly.xyz") {
+          if (target.host === "moltly.xyz" || target.host === "www.moltly.xyz") {
             window.location.href = url;
           }
         } catch {

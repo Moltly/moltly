@@ -1,0 +1,7 @@
+# Copy to android/signing.properties (keep that file out of source control)
+# and fill in your keystore details. The path can be absolute or relative
+# to the project root.
+storeFile=/absolute/path/to/your/keystore.jks
+storePassword=CHANGE_ME
+keyAlias=CHANGE_ME
+keyPassword=CHANGE_ME

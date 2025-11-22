@@ -1,4 +1,18 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 apply plugin: 'com.android.application'
+
+def signingProps = new Properties()
+def signingPropsFile = rootProject.file("android/signing.properties")
+if (signingPropsFile.exists()) {
+    signingProps.load(new FileInputStream(signingPropsFile))
+}
+boolean hasReleaseKeystore = signingPropsFile.exists() &&
+        signingProps["storeFile"] &&
+        signingProps["storePassword"] &&
+        signingProps["keyAlias"] &&
+        signingProps["keyPassword"]
 
 android {
     namespace "xyz.moltly.app"
@@ -8,7 +22,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.7.5"
+        versionName "1.7.6å"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +30,25 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseKeystore) {
+                storeFile file(signingProps["storeFile"])
+                storePassword signingProps["storePassword"]
+                keyAlias signingProps["keyAlias"]
+                keyPassword signingProps["keyPassword"]
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            } else {
+                println("WARNING: Release signing is not configured. Add android/signing.properties to sign builds.")
+            }
         }
     }
 }

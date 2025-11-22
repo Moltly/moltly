@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "xyz.moltly.app",
+      "sha256_cert_fingerprints": [
+        "59:6B:31:E5:10:C5:7D:6E:CD:31:6B:1D:A7:AA:13:C2:DE:22:DD:D1:88:3C:69:FD:65:13:3A:04:BD:6D:41:95"
+      ]
+    }
+  }
+]

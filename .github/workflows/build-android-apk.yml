@@ -55,6 +55,27 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
+      - name: Prepare signing config (release only)
+        if: ${{ github.event.inputs.buildType == 'release' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "Missing ANDROID_KEYSTORE_BASE64 secret; cannot sign release build." >&2
+            exit 1
+          fi
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 -d > android/my-release-key.jks
+          cat > android/signing.properties <<EOF
+storeFile=android/my-release-key.jks
+storePassword=${ANDROID_KEYSTORE_PASSWORD}
+keyAlias=${ANDROID_KEY_ALIAS}
+keyPassword=${ANDROID_KEY_PASSWORD}
+EOF
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
 

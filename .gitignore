@@ -10,3 +10,6 @@ dist
 public/uploads
 *.p8
 wsca
+android/signing.properties
+*.keystore
+*.jks
