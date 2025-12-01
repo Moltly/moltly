@@ -6,7 +6,7 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
-    version: "1.7.7",
+    version: "1.8.0",
     date: "2025-11-22",
     highlights: [
       "Fix Android Discord OAuth Deep Linking.",
