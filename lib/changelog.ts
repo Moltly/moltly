@@ -7,6 +7,16 @@ export type ChangelogEntry = {
 const entries: ChangelogEntry[] = [
   {
     version: "1.8.0",
+    date: "2025-12-01",
+    highlights: [
+      "Add support for Passkeys authentication.",
+      "Make Email Optional and add usernames",
+      "Allow oauth users to set a username/password/passkey for auth",
+      "Change logo/icon" 
+    ]       
+  },
+  {
+    version: "1.7.7",
     date: "2025-11-22",
     highlights: [
       "Fix Android Discord OAuth Deep Linking.",

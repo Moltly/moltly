@@ -12,6 +12,7 @@ import LogoMark from "@/components/layout/LogoMark";
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,6 +22,8 @@ export default function RegisterPage() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const normalizedUsername = username.trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -29,13 +32,30 @@ export default function RegisterPage() {
       setError("Password must be at least 8 characters.");
       return;
     }
+    if (!normalizedUsername) {
+      setError("Username is required.");
+      return;
+    }
+    if (!/^[a-zA-Z0-9]{3,32}$/.test(normalizedUsername)) {
+      setError("Username must be 3-32 characters (letters and numbers only).");
+      return;
+    }
+    if (normalizedEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email: normalizedEmail || undefined,
+          password,
+          username: normalizedUsername
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -98,13 +118,32 @@ export default function RegisterPage() {
 
           <div>
             <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-              Email
+              Username <span className="text-[rgb(var(--danger))]">*</span>
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
+              <Input
+                type="text"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="letters and numbers only"
+                className="pl-10"
+                required
+                minLength={3}
+                maxLength={32}
+              />
+            </div>
+            <p className="text-xs text-[rgb(var(--text-subtle))] mt-1">Pick a unique username (no special symbols).</p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+              Email <span className="text-[rgb(var(--text-subtle))]">(optional)</span>
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
               <Input
                 type="email"
-                required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"

@@ -13,10 +13,12 @@ import { SignJWT, importPKCS8 } from "jose";
 import { connectMongoose } from "./mongoose";
 import User from "../models/User";
 import { clearLoginAttempts, evaluateLoginRateLimit, recordFailedLoginAttempt } from "./login-rate-limit";
+import { normalizeCredentialId, verifyPasskeyAuthentication } from "./passkeys";
 
 type UserRecord = {
   _id: Types.ObjectId;
-  email: string;
+  email?: string;
+  username?: string | null;
   password?: string;
   name?: string | null;
   image?: string | null;
@@ -97,19 +99,23 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
-    // Email/password credentials
+    // Username or email + password credentials
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        identifier: { label: "Username or email", type: "text" },
+        password: { label: "Password", type: "password" },
+        passkeyResponse: { label: "Passkey response", type: "text" }
       },
       async authorize(credentials, req) {
-        if (!credentials?.email || !credentials.password) {
-          throw new Error("Missing email or password.");
+        if (!credentials?.identifier) {
+          throw new Error("Missing username or email.");
         }
 
-        const rateLimitKey = buildRateLimitKey(credentials.email, req);
+        const identifier = credentials.identifier.trim().toLowerCase();
+        const passkeyResponse = credentials.passkeyResponse ? JSON.parse(credentials.passkeyResponse) : null;
+
+        const rateLimitKey = buildRateLimitKey(identifier, req);
         const rateLimitState = evaluateLoginRateLimit(rateLimitKey);
 
         if (!rateLimitState.allowed) {
@@ -117,35 +123,113 @@ export const authOptions: NextAuthOptions = {
         }
 
         await connectMongoose();
-        const user = await User.findOne({ email: credentials.email.toLowerCase() })
-          .select("+password")
-          .lean<UserRecord | null>();
-        if (!user?.password) {
-          recordFailedLoginAttempt(rateLimitKey);
-          throw new Error("Invalid credentials.");
+        if (passkeyResponse) {
+          const user = await User.findOne({ $or: [{ email: identifier }, { username: identifier }] }).select("+passkeyChallenge +passkeyChallengeExpires passkeys username email name image");
+          if (!user || !user.passkeys?.length) {
+            throw new Error("Passkey login is not available for this account.");
+          }
+          if (!user.passkeyChallenge || (user.passkeyChallengeExpires && user.passkeyChallengeExpires.getTime() < Date.now())) {
+            throw new Error("Passkey challenge expired. Please try again.");
+          }
+          const responseId =
+            typeof (passkeyResponse as any).rawId === "string"
+              ? (passkeyResponse as any).rawId
+              : passkeyResponse.id;
+          const normalizedResponseId = normalizeCredentialId(responseId);
+          const normalizedAlternateId = normalizeCredentialId(passkeyResponse.id);
+          const match = Array.isArray(user.passkeys)
+            ? user.passkeys.find((pk: { credentialId: string }) => {
+                return (
+                  credentialIdsEqual(pk.credentialId, responseId) ||
+                  credentialIdsEqual(pk.credentialId, passkeyResponse.id) ||
+                  credentialIdsEqual(pk.credentialId, passkeyResponse.rawId)
+                );
+              })
+            : undefined;
+          if (!match) {
+            try {
+                console.warn("[Passkey auth] No match", {
+                  user: user._id?.toString?.(),
+                  identifier,
+                  responseId,
+                  stored: (user.passkeys || []).map((p: any) => p.credentialId),
+                  normalizedResponseId,
+                  normalizedAltId: normalizedAlternateId,
+                  normalizedStored: (user.passkeys || []).map((p: any) => normalizeCredentialId(p.credentialId)),
+                });
+            } catch {}
+            throw new Error("Passkey not recognized.");
+          }
+          const normalizedStoredId = normalizeCredentialId(match.credentialId);
+          if (normalizedStoredId && normalizedStoredId !== match.credentialId) {
+            match.credentialId = normalizedStoredId;
+          }
+          const { newCounter } = await verifyPasskeyAuthentication(passkeyResponse, match, user.passkeyChallenge);
+          match.counter = newCounter;
+          user.passkeyChallenge = undefined;
+          user.passkeyChallengeExpires = undefined;
+          await user.save();
+          clearLoginAttempts(rateLimitKey);
+          return {
+            id: user._id.toString(),
+            email: user.email ?? null,
+            username: user.username ?? undefined,
+            name: user.name ?? user.username ?? user.email ?? null,
+            image: user.image ?? null
+          };
+        } else {
+          if (!credentials.password) {
+            throw new Error("Missing password.");
+          }
+
+          const user = await User.findOne({
+            $or: [{ email: identifier }, { username: identifier }]
+          })
+            .select("+password")
+            .lean<UserRecord | null>();
+          if (!user?.password) {
+            recordFailedLoginAttempt(rateLimitKey);
+            throw new Error("Invalid credentials.");
+          }
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          if (!isValid) {
+            recordFailedLoginAttempt(rateLimitKey);
+            throw new Error("Invalid credentials.");
+          }
+          clearLoginAttempts(rateLimitKey);
+          return {
+            id: user._id.toString(),
+            email: user.email ?? null,
+            username: user.username ?? undefined,
+            name: user.name ?? user.username ?? user.email ?? null,
+            image: user.image ?? null
+          };
         }
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) {
-          recordFailedLoginAttempt(rateLimitKey);
-          throw new Error("Invalid credentials.");
-        }
-        clearLoginAttempts(rateLimitKey);
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name ?? user.email,
-          image: user.image ?? null
-        };
       }
     })
   ],
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        if ((user as any).username) token.username = (user as any).username;
+        if (user.email !== undefined) token.email = user.email;
+        if (user.name) token.name = user.name;
+      }
+      return token;
+    },
     async session({ session, user, token }) {
       if (session.user) {
         if (user?.id) {
           session.user.id = user.id;
         } else if (token?.sub) {
           session.user.id = token.sub;
+        }
+        const username = (user as any)?.username ?? (token as any)?.username;
+        if (username) {
+          (session.user as any).username = username;
+          if (!session.user.name || session.user.name === session.user.email) {
+            session.user.name = username;
+          }
         }
       }
       return session;
@@ -231,12 +315,26 @@ function readHeader(headers: HeadersLike, name: string): string | undefined {
   return direct;
 }
 
-function buildRateLimitKey(email: string, req?: { headers?: HeadersLike }): string {
-  const normalizedEmail = email.trim().toLowerCase() || "unknown";
+function buildRateLimitKey(identifier: string, req?: { headers?: HeadersLike }): string {
+  const normalizedIdentifier = identifier.trim().toLowerCase() || "unknown";
   const headers = req?.headers;
   const forwarded = readHeader(headers, "x-forwarded-for");
   const realIp = readHeader(headers, "x-real-ip");
   const ipCandidate = forwarded?.split(",")[0]?.trim() || realIp?.trim() || "unknown";
 
-  return `${normalizedEmail}|${ipCandidate}`;
+  return `${normalizedIdentifier}|${ipCandidate}`;
+}
+
+function credentialIdsEqual(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const normA = normalizeCredentialId(a);
+  const normB = normalizeCredentialId(b);
+  if (normA && normB && normA === normB) return true;
+  if (normA && normB) {
+    try {
+      return Buffer.from(normA, "base64url").equals(Buffer.from(normB, "base64url"));
+    } catch {}
+  }
+  return false;
 }

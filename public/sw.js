@@ -1,10 +1,9 @@
 /* Moltly Service Worker: offline shell + runtime caching */
 
-const SW_VERSION = 'v1';
+const SW_VERSION = 'v2';
 const PREFIX = 'moltly';
 const SHELL_CACHE = `${PREFIX}-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `${PREFIX}-rt-${SW_VERSION}`;
-const API_CACHE = `${PREFIX}-api-${SW_VERSION}`;
 
 // Minimal app shell to make navigations work offline
 const PRECACHE_URLS = [
@@ -29,7 +28,7 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((k) => k.startsWith(PREFIX) && ![SHELL_CACHE, RUNTIME_CACHE, API_CACHE].includes(k))
+          .filter((k) => k.startsWith(PREFIX) && ![SHELL_CACHE, RUNTIME_CACHE].includes(k))
           .map((k) => caches.delete(k))
       );
       await self.clients.claim();
@@ -50,7 +49,7 @@ function staleWhileRevalidate(cacheName, request) {
           try { if (response && response.ok) cache.put(request, response.clone()); } catch {}
           return response;
         })
-        .catch(() => cached);
+        .catch(() => cached || Response.error());
       return cached || networkFetch;
     })
   );
@@ -59,6 +58,12 @@ function staleWhileRevalidate(cacheName, request) {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return; // let non-GET pass
+  const url = new URL(request.url);
+
+  // Ignore non-http(s) schemes (e.g., chrome-extension)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return;
+  }
 
   // HTML navigations: network-first with offline fallback
   if (isHTMLRequest(request)) {
@@ -79,17 +84,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const url = new URL(request.url);
-
   // Runtime cache for images, scripts, styles
   if (['image', 'script', 'style', 'font'].includes(request.destination)) {
-    event.respondWith(staleWhileRevalidate(RUNTIME_CACHE, request));
-    return;
-  }
-
-  // Cache GET API reads to enable read-only offline views of previously seen data
-  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
-    event.respondWith(staleWhileRevalidate(API_CACHE, request));
+    event.respondWith(staleWhileRevalidate(RUNTIME_CACHE, request).catch(() => fetch(request)));
     return;
   }
 });

@@ -4,11 +4,12 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogIn, Mail, Lock } from "lucide-react";
+import { LogIn, Lock, User as UserIcon, KeyRound } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
 import LogoMark from "@/components/layout/LogoMark";
+import { decodeRequestOptions, serializePublicKeyCredential } from "@/lib/passkey-client";
 
 export default function LoginPage() {
   return (
@@ -61,10 +62,11 @@ function LoginForm() {
     }
     return new URL(callbackPath, window.location.origin).toString();
   }, [callbackPath]);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
   const [providers, setProviders] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
@@ -84,10 +86,11 @@ function LoginForm() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const normalizedIdentifier = identifier.trim();
     setLoading(true);
     setError(null);
     const result = await signIn("credentials", {
-      email,
+      identifier: normalizedIdentifier,
       password,
       redirect: false,
       callbackUrl,
@@ -98,6 +101,54 @@ function LoginForm() {
       return;
     }
     router.push(callbackPath);
+    router.refresh();
+  };
+
+  const handlePasskeySignIn = async () => {
+    const normalizedIdentifier = identifier.trim();
+    if (!normalizedIdentifier) {
+      setError("Enter your username or email to use a passkey.");
+      return;
+    }
+    if (typeof window === "undefined" || !("credentials" in navigator)) {
+      setError("Passkeys are not supported in this browser.");
+      return;
+    }
+    setPasskeyLoading(true);
+    setError(null);
+    try {
+      const optionsRes = await fetch("/api/auth/passkey/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: normalizedIdentifier })
+      });
+      if (!optionsRes.ok) {
+        const body = await optionsRes.json().catch(() => ({} as { error?: string }));
+        throw new Error(body.error || "Unable to start passkey sign-in.");
+      }
+      const options = await optionsRes.json();
+      const decoded = decodeRequestOptions(options);
+      const assertion = (await navigator.credentials.get({ publicKey: decoded })) as PublicKeyCredential | null;
+      if (!assertion) {
+        throw new Error("Passkey sign-in was cancelled.");
+      }
+      const result = await signIn("credentials", {
+        identifier: normalizedIdentifier,
+        passkeyResponse: JSON.stringify(serializePublicKeyCredential(assertion)),
+        redirect: false,
+        callbackUrl,
+      });
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+      router.push(callbackPath);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Passkey sign-in failed.");
+    } finally {
+      setPasskeyLoading(false);
+    }
   };
 
   return (
@@ -115,16 +166,16 @@ function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-            Email
+            Username or email
           </label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
+            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
             <Input
-              type="email"
+              type="text"
               required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
+              placeholder="username or email"
               className="pl-10"
             />
           </div>
@@ -156,6 +207,16 @@ function LoginForm() {
         <Button type="submit" variant="primary" disabled={loading} className="w-full gap-2">
           <LogIn className="w-4 h-4" />
           {loading ? "Signing in..." : "Sign In"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={passkeyLoading}
+          className="w-full gap-2"
+          onClick={() => void handlePasskeySignIn()}
+        >
+          <KeyRound className="w-4 h-4" />
+          {passkeyLoading ? "Waiting for passkey..." : "Sign in with passkey"}
         </Button>
       </form>
 

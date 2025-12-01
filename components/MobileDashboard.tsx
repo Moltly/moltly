@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3 } from "lucide-react";
+import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3, KeyRound } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { useSearchParams } from "next/navigation";
@@ -28,6 +28,7 @@ import { getSavedTempUnit } from "@/lib/temperature";
 import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/notifications";
 import type { GalleryImage } from "@/components/ui/ImageGallery";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { decodeCreationOptions, serializePublicKeyCredential } from "@/lib/passkey-client";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
@@ -131,11 +132,17 @@ export default function MobileDashboard() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [hasPasswordAccount, setHasPasswordAccount] = useState<boolean | null>(null);
+  const [hasUsernameAccount, setHasUsernameAccount] = useState<boolean | null>(null);
+  const [passkeyCount, setPasskeyCount] = useState<number | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordMode, setPasswordMode] = useState<"change" | "create">("change");
   const [currentPassword, setCurrentPassword] = useState("");
+  const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [registeringPasskey, setRegisteringPasskey] = useState(false);
+  const [passkeyMessage, setPasskeyMessage] = useState<string | null>(null);
   const [accountDeleting, setAccountDeleting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -180,6 +187,7 @@ export default function MobileDashboard() {
   const noteSaveTimers = useRef<Record<string, number>>({});
   const pendingNoteUpdates = useRef<Record<string, ResearchNote[]>>({});
   const noteSaveLatestRequest = useRef<Record<string, number>>({});
+  const isCreatingPassword = passwordMode === "create";
 
   // Cross-platform export helper: uses Capacitor on native platforms, falls back to web download
   const exportJsonText = useCallback(async (jsonText: string) => {
@@ -329,21 +337,32 @@ export default function MobileDashboard() {
       ? { ...specimenCovers, [linkedSpecimen]: sharePreviewData.cover }
       : specimenCovers;
 
+  const refreshAccountStatus = useCallback(async () => {
+    if (!isSync) return;
+    try {
+      const res = await fetch("/api/account/password", { method: "GET", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load account status");
+      const data = (await res.json()) as { hasPassword?: boolean; hasUsername?: boolean; passkeyCount?: number };
+      setHasPasswordAccount(Boolean(data.hasPassword));
+      setHasUsernameAccount(typeof data.hasUsername === "boolean" ? data.hasUsername : null);
+      setPasskeyCount(typeof data.passkeyCount === "number" ? data.passkeyCount : null);
+    } catch (err) {
+      console.error(err);
+      setHasPasswordAccount(null);
+      setHasUsernameAccount(null);
+      setPasskeyCount(null);
+    }
+  }, [isSync]);
+
   useEffect(() => {
-    const loadPasswordStatus = async () => {
-      if (!showInfo || !isSync) return;
-      try {
-        const res = await fetch("/api/account/password", { method: "GET", credentials: "include" });
-        if (!res.ok) throw new Error("Failed to load account status");
-        const data = (await res.json()) as { hasPassword?: boolean };
-        setHasPasswordAccount(Boolean(data.hasPassword));
-      } catch (err) {
-        console.error(err);
-        setHasPasswordAccount(null);
-      }
-    };
-    void loadPasswordStatus();
-  }, [showInfo, isSync]);
+    if (!showInfo && !showChangePassword) return;
+    void refreshAccountStatus();
+  }, [showInfo, showChangePassword, refreshAccountStatus]);
+
+  useEffect(() => {
+    if (!isSync) return;
+    void refreshAccountStatus();
+  }, [isSync, refreshAccountStatus]);
 
   // Scroll-to-top button visibility
   useEffect(() => {
@@ -971,6 +990,45 @@ export default function MobileDashboard() {
     }
   };
 
+  const handleRegisterPasskey = useCallback(async () => {
+    if (!isSync) return;
+    setPasskeyMessage(null);
+    setRegisteringPasskey(true);
+    try {
+      if (typeof window === "undefined" || !("credentials" in navigator)) {
+        throw new Error("Passkeys are not supported in this browser.");
+      }
+      const optionsRes = await fetch("/api/account/passkey/options", { credentials: "include" });
+      if (!optionsRes.ok) {
+        const body = await optionsRes.json().catch(() => ({} as { error?: string }));
+        throw new Error(body.error || "Unable to start passkey registration.");
+      }
+      const options = await optionsRes.json();
+      const decoded = decodeCreationOptions(options);
+      const credential = (await navigator.credentials.create({ publicKey: decoded })) as PublicKeyCredential | null;
+      if (!credential) {
+        throw new Error("Passkey creation was cancelled.");
+      }
+      const verifyRes = await fetch("/api/account/passkey/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: serializePublicKeyCredential(credential) }),
+        credentials: "include",
+      });
+      if (!verifyRes.ok) {
+        const body = await verifyRes.json().catch(() => ({} as { error?: string }));
+        throw new Error(body.error || "Unable to save passkey.");
+      }
+      setPasskeyMessage("Passkey added. You can now sign in with it.");
+      await refreshAccountStatus();
+    } catch (err) {
+      console.error(err);
+      setPasskeyMessage(err instanceof Error ? err.message : "Passkey setup failed.");
+    } finally {
+      setRegisteringPasskey(false);
+    }
+  }, [isSync, refreshAccountStatus]);
+
   return (
     <div className="min-h-dvh bg-[rgb(var(--bg))]">
       {/* Info modal */}
@@ -1090,6 +1148,19 @@ export default function MobileDashboard() {
                 {isSync ? (
                   <div className="flex flex-col gap-2">
                     <div className="text-sm text-[rgb(var(--text-soft))]">You’re signed in. Manage your account below.</div>
+                    {hasPasswordAccount === false ? (
+                      <div className="text-xs text-[rgb(var(--text-subtle))]">
+                        Add a username + password so you can sign in without Discord, Google, or Apple.
+                      </div>
+                    ) : null}
+                    {passkeyCount !== null && (
+                      <div className="text-xs text-[rgb(var(--text-subtle))]">
+                        Passkeys on file: {passkeyCount}
+                      </div>
+                    )}
+                    {passkeyMessage && (
+                      <div className="text-xs text-[rgb(var(--success))]">{passkeyMessage}</div>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -1131,12 +1202,43 @@ export default function MobileDashboard() {
                       {hasPasswordAccount === true ? (
                         <button
                           type="button"
-                          onClick={() => setShowChangePassword(true)}
+                          onClick={() => {
+                            setPasswordMode("change");
+                            setCurrentPassword("");
+                            setNewUsername("");
+                            setNewPassword("");
+                            setConfirmNewPassword("");
+                            setShowChangePassword(true);
+                          }}
                           className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
                         >
                           Change password
                         </button>
+                      ) : hasPasswordAccount === false ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPasswordMode("create");
+                            setCurrentPassword("");
+                            setNewUsername("");
+                            setNewPassword("");
+                            setConfirmNewPassword("");
+                            setShowChangePassword(true);
+                          }}
+                          className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                        >
+                          Add password login
+                        </button>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void handleRegisterPasskey()}
+                        className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center gap-2"
+                        disabled={registeringPasskey}
+                      >
+                        <KeyRound className="w-4 h-4" />
+                        {registeringPasskey ? "Saving passkey…" : "Add passkey"}
+                      </button>
                       <button
                         type="button"
                         onClick={async () => {
@@ -1683,7 +1785,9 @@ export default function MobileDashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))]">
-              <h2 id="change-password-title" className="text-lg font-bold">Change password</h2>
+              <h2 id="change-password-title" className="text-lg font-bold">
+                {isCreatingPassword ? "Add password login" : "Change password"}
+              </h2>
               <button
                 type="button"
                 onClick={() => setShowChangePassword(false)}
@@ -1697,26 +1801,48 @@ export default function MobileDashboard() {
               className="p-4 space-y-3 flex-1 min-h-0 overflow-y-auto safe-bottom"
               onSubmit={async (e) => {
                 e.preventDefault();
+                const trimmedUsername = newUsername.trim();
+                if (isCreatingPassword && hasUsernameAccount !== true) {
+                  if (!trimmedUsername) {
+                    alert("Username is required to add a password login.");
+                    return;
+                  }
+                  if (!/^[a-zA-Z0-9]{3,32}$/.test(trimmedUsername)) {
+                    alert("Username must be 3-32 characters (letters and numbers only).");
+                    return;
+                  }
+                }
                 if (newPassword !== confirmNewPassword) {
                   alert("New passwords do not match.");
                   return;
                 }
                 setChangingPassword(true);
                 try {
+                  const payload = isCreatingPassword
+                    ? { newPassword, username: trimmedUsername || undefined }
+                    : { currentPassword, newPassword };
                   const res = await fetch("/api/account/password", {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ currentPassword, newPassword })
+                    body: JSON.stringify(payload)
                   });
                   if (!res.ok) {
                     const body = await res.json().catch(() => ({} as { error?: string }));
                     throw new Error(body.error || "Failed to change password.");
                   }
-                  alert("Password updated.");
+                  alert(
+                    isCreatingPassword
+                      ? "Password login added. You can now sign in with email and password."
+                      : "Password updated."
+                  );
+                  setHasPasswordAccount(true);
+                  setHasUsernameAccount(true);
                   setShowChangePassword(false);
                   setCurrentPassword("");
+                  setNewUsername("");
                   setNewPassword("");
                   setConfirmNewPassword("");
+                  setPasswordMode("change");
                 } catch (err) {
                   console.error(err);
                   alert(err instanceof Error ? err.message : "Failed to change password.");
@@ -1725,16 +1851,36 @@ export default function MobileDashboard() {
                 }
               }}
             >
-              <div className="space-y-1">
-                <label className="text-sm text-[rgb(var(--text-soft))]">Current password</label>
-                <input
-                  type="password"
-                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
-              </div>
+              <p className="text-sm text-[rgb(var(--text-soft))]">
+                {isCreatingPassword
+                  ? "Set a password so you can log in without using an OAuth provider."
+                  : "Update the password you use for sign-in."}
+              </p>
+              {isCreatingPassword && hasUsernameAccount !== true && (
+                <div className="space-y-1">
+                  <label className="text-sm text-[rgb(var(--text-soft))]">Username</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    placeholder="yourname"
+                    required
+                  />
+                </div>
+              )}
+              {!isCreatingPassword && (
+                <div className="space-y-1">
+                  <label className="text-sm text-[rgb(var(--text-soft))]">Current password</label>
+                  <input
+                    type="password"
+                    className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required={!isCreatingPassword}
+                  />
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-sm text-[rgb(var(--text-soft))]">New password</label>
                 <input
@@ -1743,6 +1889,7 @@ export default function MobileDashboard() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="At least 8 chars, letters + numbers"
+                  minLength={8}
                   required
                 />
               </div>
@@ -1753,6 +1900,7 @@ export default function MobileDashboard() {
                   className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
                   value={confirmNewPassword}
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  minLength={8}
                   required
                 />
               </div>
