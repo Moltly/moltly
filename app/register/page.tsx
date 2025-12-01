@@ -7,6 +7,7 @@ import { UserPlus, Mail, Lock, User, CheckCircle2 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
+import LogoMark from "@/components/layout/LogoMark";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -59,9 +60,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md p-8 animate-scale-in">
         {/* Logo/Header */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[rgb(var(--primary))] to-[rgb(var(--primary-strong))] flex items-center justify-center text-white font-bold text-2xl mb-4">
-            M
-          </div>
+          <LogoMark size={64} className="mb-4" />
           <h1 className="text-2xl font-bold text-[rgb(var(--text))]">Create Account</h1>
           <p className="text-sm text-[rgb(var(--text-soft))] mt-1">
             Join Moltly to start tracking your tarantulas

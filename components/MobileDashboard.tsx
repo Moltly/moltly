@@ -7,6 +7,7 @@ import { Capacitor } from "@capacitor/core";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
+import LogoMark from "@/components/layout/LogoMark";
 import BottomNav from "@/components/layout/BottomNav";
 import OverviewView from "@/components/dashboard/OverviewView";
 import ActivityView from "@/components/dashboard/ActivityView";
@@ -986,10 +987,8 @@ export default function MobileDashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))]">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[rgb(var(--primary))] to-[rgb(var(--primary-strong))] text-white font-bold flex items-center justify-center">
-                  M
-                </div>
+            <div className="flex items-center gap-3">
+                <LogoMark size={36} />
                 <div>
                   <h2 id="info-title" className="text-xl font-bold">About Moltly</h2>
                   <p className="text-sm text-[rgb(var(--text-soft))]">Version {APP_VERSION} • {isSync ? "Signed in" : "Guest mode"}</p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, LogOut, LogIn, Info, Moon, Sun, Shield } from "lucide-react";
+import LogoMark from "./LogoMark";
 import Button from "@/components/ui/Button";
 import { DataMode } from "@/types/molt";
 import { useTheme } from "@/lib/theme";
@@ -35,9 +36,7 @@ export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: Head
       <div className="flex items-center justify-between px-4 py-3 max-w-screen-lg mx-auto">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[rgb(var(--primary))] to-[rgb(var(--primary-strong))] flex items-center justify-center text-white font-bold text-sm">
-              M
-            </div>
+            <LogoMark size={32} priority />
             <h1 className="text-xl font-bold text-[rgb(var(--text))]">
               Moltly
             </h1>
