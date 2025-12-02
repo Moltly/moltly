@@ -36,6 +36,12 @@ type SpeciesInfo = {
   wscTaxon?: Record<string, any> | null;
 };
 
+function getWscSearchUrl(species?: SpeciesInfo["species"] | null) {
+  const name = species?.fullName?.trim();
+  if (!name) return null;
+  return `https://wsc.nmbe.ch/search?q=${encodeURIComponent(name)}`;
+}
+
 interface SpeciesQuickLookProps {
   open: boolean;
   name: string;
@@ -79,12 +85,13 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
   const quickFacts = useMemo(() => {
     if (!data?.species) return "";
     const s = data.species;
+    const wscSearchUrl = getWscSearchUrl(s);
     const lines = [
       s.family ? `Family: ${s.family}` : null,
       s.author || s.year ? `Authority: ${[s.author, s.year].filter(Boolean).join(" ")}` : null,
       s.distribution ? `Distribution: ${s.distribution}` : null,
       s.species_lsid ? `LSID: ${s.species_lsid}` : null,
-      s.wscSearchUrl ? `WSC: ${s.wscSearchUrl}` : null,
+      wscSearchUrl ? `WSC: ${wscSearchUrl}` : null,
     ].filter(Boolean) as string[];
     return lines.join("\n");
   }, [data]);
@@ -148,6 +155,9 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
     }
   }
 
+  const species = data?.species || null;
+  const wscSearchUrl = species ? getWscSearchUrl(species) : null;
+
   if (!open) return null;
 
   return (
@@ -167,32 +177,32 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
           {loading && <div className="text-sm text-[rgb(var(--text-soft))]">Loading…</div>}
           {error && <div className="text-sm text-[rgb(var(--danger-strong))]">{error}</div>}
 
-          {data?.species && (
+          {species && (
             <div className="space-y-2">
               <div className="flex flex-wrap gap-2 items-center">
-                {data.species.family && <Badge variant="neutral">{data.species.family}</Badge>}
-                {data.species.genus && <Badge variant="primary">{data.species.genus}</Badge>}
-                {data.species.author || data.species.year ? (
+                {species.family && <Badge variant="neutral">{species.family}</Badge>}
+                {species.genus && <Badge variant="primary">{species.genus}</Badge>}
+                {species.author || species.year ? (
                   <span className="text-sm text-[rgb(var(--text-soft))]">
-                    {data.species.author} {data.species.year}
+                    {species.author} {species.year}
                   </span>
                 ) : null}
               </div>
-              {data.species.distribution && (
+              {species.distribution && (
                 <div className="text-sm text-[rgb(var(--text))]">
-                  <span className="font-medium">Distribution:</span> {data.species.distribution}
+                  <span className="font-medium">Distribution:</span> {species.distribution}
                 </div>
               )}
-              {data.species.species_lsid && (
+              {species.species_lsid && (
                 <div className="text-sm text-[rgb(var(--text))] break-all">
-                  <span className="font-medium">LSID:</span> {data.species.species_lsid}
+                  <span className="font-medium">LSID:</span> {species.species_lsid}
                 </div>
               )}
 
               <div className="flex flex-wrap gap-2">
-                {(data.species as any).wscUrl && (
+                {(species as any).wscUrl && (
                   <a
-                    href={(data.species as any).wscUrl}
+                    href={(species as any).wscUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
@@ -200,9 +210,9 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
                     <ExternalLink className="w-4 h-4" /> Open WSC
                   </a>
                 )}
-                {!((data.species as any).wscUrl) && data.species.wscSearchUrl && (
+                {!(species as any).wscUrl && wscSearchUrl && (
                   <a
-                    href={data.species.wscSearchUrl}
+                    href={wscSearchUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
@@ -211,7 +221,7 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
                   </a>
                 )}
                 <a
-                  href={`https://www.gbif.org/species/search?q=${encodeURIComponent(data.species.fullName)}`}
+                  href={`https://www.gbif.org/species/search?q=${encodeURIComponent(species.fullName)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
@@ -219,7 +229,7 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
                   <ExternalLink className="w-4 h-4" /> GBIF
                 </a>
                 <a
-                  href={`https://www.inaturalist.org/observations?taxon_name=${encodeURIComponent(data.species.fullName)}`}
+                  href={`https://www.inaturalist.org/observations?taxon_name=${encodeURIComponent(species.fullName)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
@@ -228,22 +238,22 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
                 </a>
                 <button
                   type="button"
-                  onClick={() => copy(data.species.fullName)}
+                  onClick={() => copy(species.fullName)}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
                 >
                   <Copy className="w-4 h-4" /> Copy name
                 </button>
-                {data.species.species_lsid && (
+                {species.species_lsid && (
                   <button
                     type="button"
-                    onClick={() => copy(data.species.species_lsid!)}
+                    onClick={() => copy(species.species_lsid!)}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
                   >
                     <Copy className="w-4 h-4" /> Copy LSID
                   </button>
                 )}
                 <a
-                  href={`/species/${encodeURIComponent(data.species.fullName)}`}
+                  href={`/species/${encodeURIComponent(species.fullName)}`}
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
                 >
                   Open profile

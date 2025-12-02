@@ -27,6 +27,12 @@ type SpeciesInfo = {
   wscTaxon?: Record<string, any> | null;
 };
 
+function getWscSearchUrl(species?: SpeciesInfo["species"] | null) {
+  const name = species?.fullName?.trim();
+  if (!name) return null;
+  return `https://wsc.nmbe.ch/search?q=${encodeURIComponent(name)}`;
+}
+
 export default function SpeciesProfile({ name }: { name: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +95,7 @@ export default function SpeciesProfile({ name }: { name: string }) {
 
   const species = info?.species;
   const wscTaxon = info?.wscTaxon;
+  const wscSearchUrl = getWscSearchUrl(species || null);
   
 
   return (
@@ -113,8 +120,8 @@ export default function SpeciesProfile({ name }: { name: string }) {
               <ExternalLink className="w-4 h-4" /> Open WSC
             </a>
           )}
-          {!species?.wscUrl && species?.wscSearchUrl && (
-            <a href={species.wscSearchUrl} target="_blank" rel="noreferrer" className="px-3 py-2 border border-[rgb(var(--border))] rounded-[var(--radius)] text-sm inline-flex items-center gap-1 hover:bg-[rgb(var(--bg-muted))]">
+          {!species?.wscUrl && wscSearchUrl && (
+            <a href={wscSearchUrl} target="_blank" rel="noreferrer" className="px-3 py-2 border border-[rgb(var(--border))] rounded-[var(--radius)] text-sm inline-flex items-center gap-1 hover:bg-[rgb(var(--bg-muted))]">
               <ExternalLink className="w-4 h-4" /> Open WSC
             </a>
           )}
