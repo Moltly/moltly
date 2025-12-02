@@ -52,7 +52,8 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
 
   function filenameFromUrl(url: string): string | undefined {
     try {
-      const u = new URL(url, "https://moltly.local");
+      // Use a fixed dummy origin solely for parsing; host is irrelevant.
+      const u = new URL(url, "https://example.com");
       const last = u.pathname.split("/").filter(Boolean).pop();
       return last || undefined;
     } catch {
@@ -81,8 +82,19 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
         if (mime.startsWith("image/")) return rawUrl;
         return null;
       }
-      const u = new URL(rawUrl, typeof window !== "undefined" ? window.location.href : undefined);
-      if (["http:", "https:", "blob:"].includes(u.protocol)) return u.toString();
+      // Absolute URLs: require a supported protocol
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(rawUrl)) {
+        const u = new URL(rawUrl);
+        if (["http:", "https:", "blob:"].includes(u.protocol)) return u.toString();
+        return null;
+      }
+      // Root‑relative paths: resolve against current origin in the browser
+      if (rawUrl.startsWith("/")) {
+        if (typeof window === "undefined") return null;
+        const u = new URL(rawUrl, window.location.origin);
+        if (["http:", "https:"].includes(u.protocol)) return u.toString();
+        return null;
+      }
       return null;
     } catch {
       return null;
