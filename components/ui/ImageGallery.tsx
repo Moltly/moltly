@@ -72,7 +72,8 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
     const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
     const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
     const base = `moltly-image-${datePart}-${timePart}`;
-    return ensureExt(base, ext);
+    const safeExt = /^[a-z0-9]{1,5}$/.test(ext) ? ext : "bin";
+    return ensureExt(base, safeExt);
   }
 
   function getSafeDownloadHref(rawUrl: string): string | null {
