@@ -41,8 +41,72 @@ function extFromMime(mime?: string): string {
   };
   return mime && map[mime] ? map[mime] : "jpg";
 }
+const ALLOWED_IMAGE_HOSTS: string[] = (() => {
+  const hosts = new Set<string>();
 
-const isRemoteUrl = (value: string) => /^https?:\/\//i.test(value);
+  const rawEnvHosts = (process.env.IMAGE_PROXY_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  for (const value of rawEnvHosts) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.hostname) hosts.add(parsed.hostname.toLowerCase());
+    } catch {
+      hosts.add(value.toLowerCase());
+    }
+  }
+
+  const s3Base = process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT || "";
+  if (s3Base) {
+    try {
+      const parsed = new URL(s3Base);
+      if (parsed.hostname) hosts.add(parsed.hostname.toLowerCase());
+    } catch {
+      hosts.add(s3Base.toLowerCase());
+    }
+  }
+
+  return Array.from(hosts);
+})();
+
+function isLocalHostname(hostname: string): boolean {
+  const value = hostname.toLowerCase();
+  return (
+    value === "localhost" ||
+    value === "127.0.0.1" ||
+    value === "::1" ||
+    value.endsWith(".localhost")
+  );
+}
+
+function isIpHostname(hostname: string): boolean {
+  return /^[0-9.]+$/.test(hostname) || hostname.includes(":");
+}
+
+function resolveAllowedImageUrl(raw: string): URL | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+    const hostname = url.hostname.toLowerCase();
+    if (!hostname || isLocalHostname(hostname) || isIpHostname(hostname)) {
+      return null;
+    }
+
+    if (ALLOWED_IMAGE_HOSTS.length === 0) {
+      return url;
+    }
+
+    const isAllowedHost = ALLOWED_IMAGE_HOSTS.some(
+      (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`)
+    );
+    return isAllowedHost ? url : null;
+  } catch {
+    return null;
+  }
+}
 
 async function normalizeAttachments(
   raw: AttachmentWithDataInput[] | undefined,
@@ -65,15 +129,18 @@ async function normalizeAttachments(
           buffer = parsed.buffer;
           mime = mime || parsed.mime;
         }
-      } else if (a?.url && isRemoteUrl(a.url)) {
-        try {
-          const res = await fetch(a.url);
-          if (res.ok) {
-            const arr = await res.arrayBuffer();
-            buffer = Buffer.from(arr);
-            mime = mime || res.headers.get("content-type") || undefined;
-          }
-        } catch {}
+      } else if (a?.url) {
+        const remote = resolveAllowedImageUrl(a.url);
+        if (remote) {
+          try {
+            const res = await fetch(remote.toString());
+            if (res.ok) {
+              const arr = await res.arrayBuffer();
+              buffer = Buffer.from(arr);
+              mime = mime || res.headers.get("content-type") || undefined;
+            }
+          } catch {}
+        }
       }
 
       let url = a?.url || "";

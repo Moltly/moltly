@@ -37,6 +37,73 @@ function guessMimeFromName(name: string): string | undefined {
   return ext ? map[ext] : undefined;
 }
 
+const ALLOWED_IMAGE_HOSTS: string[] = (() => {
+  const hosts = new Set<string>();
+
+  const rawEnvHosts = (process.env.IMAGE_PROXY_ALLOWED_HOSTS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  for (const value of rawEnvHosts) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.hostname) hosts.add(parsed.hostname.toLowerCase());
+    } catch {
+      hosts.add(value.toLowerCase());
+    }
+  }
+
+  const s3Base = process.env.S3_PUBLIC_URL || process.env.S3_ENDPOINT || "";
+  if (s3Base) {
+    try {
+      const parsed = new URL(s3Base);
+      if (parsed.hostname) hosts.add(parsed.hostname.toLowerCase());
+    } catch {
+      hosts.add(s3Base.toLowerCase());
+    }
+  }
+
+  return Array.from(hosts);
+})();
+
+function isLocalHostname(hostname: string): boolean {
+  const value = hostname.toLowerCase();
+  return (
+    value === "localhost" ||
+    value === "127.0.0.1" ||
+    value === "::1" ||
+    value.endsWith(".localhost")
+  );
+}
+
+function isIpHostname(hostname: string): boolean {
+  return /^[0-9.]+$/.test(hostname) || hostname.includes(":");
+}
+
+function resolveAllowedImageUrl(raw: string): URL | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+    const hostname = url.hostname.toLowerCase();
+    if (!hostname || isLocalHostname(hostname) || isIpHostname(hostname)) {
+      return null;
+    }
+
+    if (ALLOWED_IMAGE_HOSTS.length === 0) {
+      return url;
+    }
+
+    const isAllowedHost = ALLOWED_IMAGE_HOSTS.some(
+      (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`)
+    );
+    return isAllowedHost ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 async function embedDataUrl(att: ExportAttachment): Promise<ExportAttachment> {
   try {
     if (!att?.url) return att;
@@ -47,8 +114,9 @@ async function embedDataUrl(att: ExportAttachment): Promise<ExportAttachment> {
       const base64 = buf.toString("base64");
       return { ...att, dataUrl: `data:${mime};base64,${base64}` };
     }
-    // Remote/public URL – fetch
-    const res = await fetch(att.url);
+    const remote = resolveAllowedImageUrl(att.url);
+    if (!remote) return att;
+    const res = await fetch(remote.toString());
     if (!res.ok) return att;
     const arrayBuf = await res.arrayBuffer();
     const buf = Buffer.from(arrayBuf);
