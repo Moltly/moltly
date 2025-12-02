@@ -65,6 +65,21 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
     return name.toLowerCase().endsWith(`.${ext}`) ? name : `${name}.${ext}`;
   }
 
+  function getSafeDownloadHref(rawUrl: string): string | null {
+    try {
+      if (rawUrl.startsWith("data:")) {
+        const mime = rawUrl.slice(5).split(";")[0];
+        if (mime.startsWith("image/")) return rawUrl;
+        return null;
+      }
+      const u = new URL(rawUrl, typeof window !== "undefined" ? window.location.href : undefined);
+      if (["http:", "https:", "blob:"].includes(u.protocol)) return u.toString();
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async function handleDownload() {
     const baseName = current.name || filenameFromUrl(current.url) || "image";
     let ext = "jpg";
@@ -114,12 +129,15 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
     }
 
     // Web fallback (or native fallback if plugins unavailable)
+    const href = getSafeDownloadHref(current.url);
+    if (!href) throw new Error("Invalid download URL");
+
     const a = document.createElement("a");
-    a.href = current.url;
+    a.href = href;
     a.download = filename;
-    document.body.appendChild(a);
+    a.rel = "noopener noreferrer";
+    a.target = "_blank";
     a.click();
-    a.remove();
   }
 
   return (

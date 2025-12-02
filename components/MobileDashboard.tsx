@@ -221,9 +221,7 @@ export default function MobileDashboard() {
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
-      document.body.appendChild(a);
       a.click();
-      a.remove();
       URL.revokeObjectURL(url);
     } catch (err) {
       throw err;
