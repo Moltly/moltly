@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/lib/theme";
+import type { Session } from "next-auth";
 
 function useCapacitorUniversalLinks() {
   useEffect(() => {
@@ -69,7 +70,7 @@ function useServiceWorkerRegistration() {
   }, []);
 }
 
-export default function Providers({ children }: { children: ReactNode }) {
+export default function Providers({ children, session }: { children: ReactNode; session: Session | null }) {
   useCapacitorUniversalLinks();
   useServiceWorkerRegistration();
   // Ensure the Android status bar does not overlap the WebView
@@ -99,7 +100,7 @@ export default function Providers({ children }: { children: ReactNode }) {
     });
   }, []);
   return (
-    <SessionProvider>
+    <SessionProvider session={session}>
       <ThemeProvider>{children}</ThemeProvider>
     </SessionProvider>
   );

@@ -71,6 +71,29 @@ const buildBreedingPayload = (form: BreedingFormState, existingAttachments?: Att
   attachments: existingAttachments ? [...existingAttachments] : [],
 });
 
+const buildMoltPayloadFromEntry = (entry: MoltEntry) => {
+  const isMolt = entry.entryType === "molt";
+  const isFeeding = entry.entryType === "feeding";
+  return {
+    entryType: entry.entryType,
+    specimen: entry.specimen ?? undefined,
+    species: entry.species ?? undefined,
+    date: entry.date,
+    stage: isMolt ? (entry.stage ?? "Molt") : undefined,
+    oldSize: isMolt ? entry.oldSize ?? undefined : undefined,
+    newSize: isMolt ? entry.newSize ?? undefined : undefined,
+    humidity: entry.humidity ?? undefined,
+    temperature: entry.temperature ?? undefined,
+    temperatureUnit: entry.temperatureUnit ?? undefined,
+    notes: entry.notes ?? undefined,
+    reminderDate: entry.reminderDate ?? undefined,
+    feedingPrey: isFeeding ? entry.feedingPrey ?? undefined : undefined,
+    feedingOutcome: isFeeding ? entry.feedingOutcome ?? undefined : undefined,
+    feedingAmount: isFeeding ? entry.feedingAmount ?? undefined : undefined,
+    attachments: entry.attachments ?? [],
+  };
+};
+
 const syncBreedingReminder = async (prev: BreedingEntry | undefined, next: BreedingEntry) => {
   const prevFollowUp = prev?.followUpDate?.slice(0, 10) || null;
   const nextFollowUp = next.followUpDate?.slice(0, 10) || null;
@@ -99,6 +122,11 @@ const syncBreedingReminder = async (prev: BreedingEntry | undefined, next: Breed
 const healthReminderKey = (id: string) => `health:${id}`;
 const breedingReminderKey = (id: string) => `breeding:${id}`;
 
+const isLocalOnly = (value: unknown): boolean => {
+  if (!value || typeof value !== "object") return false;
+  return Boolean((value as { _localOnly?: boolean })._localOnly);
+};
+
 export default function MobileDashboard() {
   const {
     session,
@@ -116,7 +144,10 @@ export default function MobileDashboard() {
     stacks,
     setStacks,
     selectedStackId,
-    setSelectedStackId
+    setSelectedStackId,
+    queueOfflineCreate,
+    queueOfflineMutation,
+    clearOfflineCreate
   } = useDashboardData();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -409,13 +440,42 @@ export default function MobileDashboard() {
   const onDelete = async (id: string) => {
     if (!confirm("Delete this entry?")) return;
     if (!mode) return;
-    if (isSync) {
-      const res = await fetch(`/api/logs/${id}`, { method: "DELETE" });
-      if (!res.ok) return;
-      setEntries((prev) => prev.filter((e) => e.id !== id));
-    } else {
-      setEntries((prev) => prev.filter((e) => e.id !== id));
+    const existing = entries.find((e) => e.id === id);
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    let shouldQueueDelete = false;
+
+    if (isSync && !localOnly) {
+      if (isOnline) {
+        try {
+          const res = await fetch(`/api/logs/${id}`, { method: "DELETE" });
+          if (!res.ok) {
+            const message = await res.text().catch(() => "");
+            if (message.trim()) {
+              alert(message);
+            } else {
+              alert("Unable to delete entry.");
+            }
+            return;
+          }
+        } catch {
+          shouldQueueDelete = true;
+        }
+      } else {
+        shouldQueueDelete = true;
+      }
     }
+
+    if (isSync && localOnly && existing) {
+      clearOfflineCreate("entries", existing.id);
+    }
+
+    if (isSync && shouldQueueDelete) {
+      queueOfflineMutation("entries", "delete", id);
+    }
+
+    setEntries((prev) => prev.filter((e) => e.id !== id));
     try {
       await cancelReminderNotification(id);
     } catch {}
@@ -450,84 +510,124 @@ export default function MobileDashboard() {
 
     if (!mode) return;
 
-    if (isSync) {
-      const res = await fetch(editingId ? `/api/logs/${editingId}` : "/api/logs", {
-        method: editingId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        alert("Unable to save entry");
+    const nowIso = new Date().toISOString();
+    const existing = editingId ? entries.find((e) => e.id === editingId) : undefined;
+    const localOnlyExisting = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (isSync && !localOnlyExisting && isOnline) {
+      try {
+        const res = await fetch(editingId ? `/api/logs/${editingId}` : "/api/logs", {
+          method: editingId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          alert("Unable to save entry");
+          return;
+        }
+        const saved = (await res.json()) as MoltEntry;
+        setEntries((prev) => (editingId ? prev.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...prev]));
+        try {
+          const prev = editingId ? entries.find((e) => e.id === editingId) : undefined;
+          const prevDate = prev?.reminderDate;
+          const nextDate = saved.reminderDate;
+          if (prevDate && !nextDate) {
+            await cancelReminderNotification(saved.id);
+          } else if (nextDate) {
+            await scheduleReminderNotification({
+              id: saved.id,
+              dateISO: nextDate.slice(0, 10),
+              title: `Reminder: ${saved.specimen || "Unnamed"}`,
+              body:
+                saved.notes ||
+                (saved.entryType === "feeding"
+                  ? "Feeding due."
+                  : saved.entryType === "water"
+                  ? "Water change due."
+                  : "Care reminder."),
+            });
+          }
+        } catch (err) {
+          console.warn("Local notification scheduling failed", err);
+        }
+        setFormOpen(false);
+        setEditingId(null);
+        setFormState(defaultForm());
+        setAttachments([]);
         return;
+      } catch {
+        // Network error; fall back to offline path below.
       }
-      const saved = (await res.json()) as MoltEntry;
-      setEntries((prev) => (editingId ? prev.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...prev]));
-      // Schedule/cancel local notification via Capacitor
-      try {
-        const prev = editingId ? entries.find((e) => e.id === editingId) : undefined;
-        const prevDate = prev?.reminderDate;
-        const nextDate = saved.reminderDate;
-        if (prevDate && !nextDate) {
-          await cancelReminderNotification(saved.id);
-        } else if (nextDate) {
-          await scheduleReminderNotification({
-            id: saved.id,
-            dateISO: nextDate.slice(0, 10),
-            title: `Reminder: ${saved.specimen || "Unnamed"}`,
-            body: saved.notes || (saved.entryType === "feeding" ? "Feeding due." : saved.entryType === "water" ? "Water change due." : "Care reminder."),
-          });
-        }
-      } catch (err) {
-        console.warn("Local notification scheduling failed", err);
+    }
+
+    const localId = editingId ?? (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const baseExisting = existing;
+    const saved: MoltEntry = {
+      id: localId,
+      entryType: payload.entryType as EntryType,
+      specimen: payload.specimen ?? "Unnamed",
+      species: payload.species,
+      date: payload.date,
+      stage: payload.stage as Stage | undefined,
+      oldSize: payload.oldSize,
+      newSize: payload.newSize,
+      humidity: payload.humidity,
+      temperature: payload.temperature,
+      temperatureUnit: payload.temperatureUnit as MoltEntry["temperatureUnit"],
+      notes: payload.notes,
+      reminderDate: payload.reminderDate,
+      feedingPrey: payload.feedingPrey,
+      feedingOutcome: payload.feedingOutcome as MoltEntry["feedingOutcome"],
+      feedingAmount: payload.feedingAmount,
+      attachments: payload.attachments,
+      createdAt: baseExisting?.createdAt ?? nowIso,
+      updatedAt: nowIso,
+    };
+
+    const nextSaved: MoltEntry = (() => {
+      if (isSync) {
+        const anySaved: any = saved;
+        anySaved._localOnly = true;
+        return anySaved as MoltEntry;
       }
-    } else {
-      const nowIso = new Date().toISOString();
-      const existing = editingId ? entries.find((e) => e.id === editingId) : undefined;
-      const saved: MoltEntry = {
-        id: editingId ?? crypto.randomUUID(),
-        entryType: payload.entryType as EntryType,
-        specimen: payload.specimen ?? "Unnamed",
-        species: payload.species,
-        date: payload.date,
-        stage: payload.stage as Stage | undefined,
-        oldSize: payload.oldSize,
-        newSize: payload.newSize,
-        humidity: payload.humidity,
-        temperature: payload.temperature,
-        temperatureUnit: payload.temperatureUnit as MoltEntry["temperatureUnit"],
-        notes: payload.notes,
-        reminderDate: payload.reminderDate,
-        feedingPrey: payload.feedingPrey,
-        feedingOutcome: payload.feedingOutcome as MoltEntry["feedingOutcome"],
-        feedingAmount: payload.feedingAmount,
-        attachments: payload.attachments,
-        createdAt: existing?.createdAt ?? nowIso,
-        updatedAt: nowIso,
-      };
-      setEntries((prev) =>
-        editingId ? prev.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...prev]
-      );
-      try {
-        const prevDate = existing?.reminderDate;
-        const nextDate = saved.reminderDate;
-        if (prevDate && !nextDate) {
-          await cancelReminderNotification(saved.id);
-        } else if (nextDate) {
-          await scheduleReminderNotification({
-            id: saved.id,
-            dateISO: nextDate.slice(0, 10),
-            title: `Reminder: ${saved.specimen || "Unnamed"}`,
-            body:
-              saved.notes ||
-              (saved.entryType === "feeding"
-                ? "Feeding due."
-                : saved.entryType === "water"
-                ? "Water change due."
-                : "Care reminder."),
-          });
-        }
-      } catch (err) {
-        console.warn("Local notification scheduling failed", err);
+      return saved;
+    })();
+
+    setEntries((prev) =>
+      editingId ? prev.map((e) => (e.id === nextSaved.id ? nextSaved : e)) : [nextSaved, ...prev]
+    );
+
+    try {
+      const prevDate = baseExisting?.reminderDate;
+      const nextDate = nextSaved.reminderDate;
+      if (prevDate && !nextDate) {
+        await cancelReminderNotification(nextSaved.id);
+      } else if (nextDate) {
+        await scheduleReminderNotification({
+          id: nextSaved.id,
+          dateISO: nextDate.slice(0, 10),
+          title: `Reminder: ${nextSaved.specimen || "Unnamed"}`,
+          body:
+            nextSaved.notes ||
+            (nextSaved.entryType === "feeding"
+              ? "Feeding due."
+              : nextSaved.entryType === "water"
+              ? "Water change due."
+              : "Care reminder."),
+        });
+      }
+    } catch (err) {
+      console.warn("Local notification scheduling failed", err);
+    }
+
+    if (isSync) {
+      if (!editingId) {
+        queueOfflineCreate("entries", localId, payload);
+      } else if (localOnlyExisting && baseExisting) {
+        queueOfflineCreate("entries", baseExisting.id, payload);
+      } else if (!localOnlyExisting && editingId) {
+        queueOfflineMutation("entries", "update", editingId, payload);
       }
     }
 
@@ -557,37 +657,47 @@ export default function MobileDashboard() {
       attachments: [] as Attachment[],
     };
 
-    if (isSync) {
-      const res = await fetch("/api/health", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || "Unable to save health entry.");
-      }
-      const saved = (await res.json()) as HealthEntry;
-      setHealthEntries((prev) => [saved, ...prev]);
-      if (saved.followUpDate) {
-        try {
-          await scheduleReminderNotification({
-            id: healthReminderKey(saved.id),
-            dateISO: saved.followUpDate.slice(0, 10),
-            title: `Health follow-up: ${saved.specimen || saved.species || "Tarantula"}`,
-            body: saved.healthIssues || saved.notes || "Check on specimen health.",
-          });
-        } catch (err) {
-          console.warn("Unable to schedule health reminder", err);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (isSync && isOnline) {
+      try {
+        const res = await fetch("/api/health", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || "Unable to save health entry.");
         }
+        const saved = (await res.json()) as HealthEntry;
+        setHealthEntries((prev) => [saved, ...prev]);
+        if (saved.followUpDate) {
+          try {
+            await scheduleReminderNotification({
+              id: healthReminderKey(saved.id),
+              dateISO: saved.followUpDate.slice(0, 10),
+              title: `Health follow-up: ${saved.specimen || saved.species || "Tarantula"}`,
+              body: saved.healthIssues || saved.notes || "Check on specimen health.",
+            });
+          } catch (err) {
+            console.warn("Unable to schedule health reminder", err);
+          }
+        }
+        return;
+      } catch {
+        // Network error; fall back to offline flow.
       }
-      return;
     }
 
     const now = new Date().toISOString();
-    const saved: HealthEntry = {
-      id: crypto.randomUUID(),
+    const localId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const base: HealthEntry = {
+      id: localId,
       specimen: payload.specimen,
       species: payload.species,
       date: payload.date,
@@ -605,6 +715,8 @@ export default function MobileDashboard() {
       createdAt: now,
       updatedAt: now,
     };
+    const saved: HealthEntry = isSync ? ({ ...base, _localOnly: true } as any) : base;
+
     setHealthEntries((prev) => [saved, ...prev]);
     if (saved.followUpDate) {
       try {
@@ -618,6 +730,10 @@ export default function MobileDashboard() {
         console.warn("Unable to schedule health reminder", err);
       }
     }
+
+    if (isSync) {
+      queueOfflineCreate("health", localId, payload);
+    }
   };
 
   const deleteHealthEntry = async (id: string) => {
@@ -625,12 +741,37 @@ export default function MobileDashboard() {
 
     const existing = healthEntries.find((entry) => entry.id === id);
 
-    if (isSync) {
-      const res = await fetch(`/api/health/${id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || "Unable to delete entry.");
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    let shouldQueueDelete = false;
+
+    if (isSync && !localOnly) {
+      if (isOnline) {
+        try {
+          const res = await fetch(`/api/health/${id}`, { method: "DELETE", credentials: "include" });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(body.error || "Unable to delete entry.");
+          }
+        } catch (err) {
+          // If we already threw due to a server error, rethrow.
+          if (err instanceof Error && !/network/i.test(err.message) && isOnline) {
+            throw err;
+          }
+          shouldQueueDelete = true;
+        }
+      } else {
+        shouldQueueDelete = true;
       }
+    }
+
+    if (isSync && localOnly && existing) {
+      clearOfflineCreate("health", existing.id);
+    }
+
+    if (isSync && shouldQueueDelete) {
+      queueOfflineMutation("health", "delete", id);
     }
 
     setHealthEntries((prev) => prev.filter((entry) => entry.id !== id));
@@ -646,26 +787,36 @@ export default function MobileDashboard() {
 
     const payload = buildBreedingPayload(form);
 
-    if (isSync) {
-      const res = await fetch("/api/breeding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || "Unable to save breeding entry.");
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (isSync && isOnline) {
+      try {
+        const res = await fetch("/api/breeding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || "Unable to save breeding entry.");
+        }
+        const saved = (await res.json()) as BreedingEntry;
+        setBreedingEntries((prev) => [saved, ...prev]);
+        await syncBreedingReminder(undefined, saved);
+        return;
+      } catch {
+        // Network error; fall back to offline flow.
       }
-      const saved = (await res.json()) as BreedingEntry;
-      setBreedingEntries((prev) => [saved, ...prev]);
-      await syncBreedingReminder(undefined, saved);
-      return;
     }
 
     const now = new Date().toISOString();
-    const saved: BreedingEntry = {
-      id: crypto.randomUUID(),
+    const localId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const base: BreedingEntry = {
+      id: localId,
       femaleSpecimen: payload.femaleSpecimen,
       maleSpecimen: payload.maleSpecimen,
       species: payload.species,
@@ -683,8 +834,14 @@ export default function MobileDashboard() {
       createdAt: now,
       updatedAt: now,
     };
+    const saved: BreedingEntry = isSync ? ({ ...base, _localOnly: true } as any) : base;
+
     setBreedingEntries((prev) => [saved, ...prev]);
     await syncBreedingReminder(undefined, saved);
+
+    if (isSync) {
+      queueOfflineCreate("breeding", localId, payload);
+    }
   };
 
   const deleteBreedingEntry = async (id: string) => {
@@ -692,12 +849,36 @@ export default function MobileDashboard() {
 
     const existing = breedingEntries.find((entry) => entry.id === id);
 
-    if (isSync) {
-      const res = await fetch(`/api/breeding/${id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || "Unable to delete breeding entry.");
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    let shouldQueueDelete = false;
+
+    if (isSync && !localOnly) {
+      if (isOnline) {
+        try {
+          const res = await fetch(`/api/breeding/${id}`, { method: "DELETE", credentials: "include" });
+          if (!res.ok) {
+            const body = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(body.error || "Unable to delete breeding entry.");
+          }
+        } catch (err) {
+          if (err instanceof Error && isOnline) {
+            throw err;
+          }
+          shouldQueueDelete = true;
+        }
+      } else {
+        shouldQueueDelete = true;
       }
+    }
+
+    if (isSync && localOnly && existing) {
+      clearOfflineCreate("breeding", existing.id);
+    }
+
+    if (isSync && shouldQueueDelete) {
+      queueOfflineMutation("breeding", "delete", id);
     }
 
     setBreedingEntries((prev) => prev.filter((entry) => entry.id !== id));
@@ -718,60 +899,93 @@ export default function MobileDashboard() {
 
     const payload = buildBreedingPayload(form, existing.attachments);
 
-    if (isSync) {
-      const res = await fetch(`/api/breeding/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || "Unable to update breeding entry.");
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (isSync && !localOnly && isOnline) {
+      try {
+        const res = await fetch(`/api/breeding/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || "Unable to update breeding entry.");
+        }
+        const saved = (await res.json()) as BreedingEntry;
+        setBreedingEntries((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
+        await syncBreedingReminder(existing, saved);
+        return;
+      } catch (err) {
+        if (err instanceof Error && isOnline) {
+          throw err;
+        }
+        // Network error; fall back to offline flow.
       }
-      const saved = (await res.json()) as BreedingEntry;
-      setBreedingEntries((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
-      await syncBreedingReminder(existing, saved);
-      return;
     }
 
     const now = new Date().toISOString();
-    const saved: BreedingEntry = {
+    const base: BreedingEntry = {
       ...existing,
       ...payload,
       id: existing.id,
       createdAt: existing.createdAt,
       updatedAt: now,
     };
+    const saved: BreedingEntry = isSync ? ({ ...base, _localOnly: true } as any) : base;
+
     setBreedingEntries((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
     await syncBreedingReminder(existing, saved);
+
+    if (isSync) {
+      if (localOnly) {
+        queueOfflineCreate("breeding", existing.id, payload);
+      } else {
+        queueOfflineMutation("breeding", "update", id, payload);
+      }
+    }
   };
 
   // Research stack actions (work in sync and local modes)
   const onCreateStack = async (stack: Partial<ResearchStack>) => {
     if (!mode) return;
-    if (isSync) {
-      const res = await fetch("/api/research", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: stack.name,
-          species: stack.species,
-          category: stack.category,
-          description: stack.description,
-          tags: stack.tags ?? [],
-          notes: stack.notes ?? [],
-        }),
-      });
-      if (!res.ok) return;
-      const saved = (await res.json()) as ResearchStack;
-      setStacks((prev) => [saved, ...prev]);
-      setSelectedStackId(saved.id);
-      return;
+    const payload = {
+      name: stack.name,
+      species: stack.species,
+      category: stack.category,
+      description: stack.description,
+      tags: stack.tags ?? [],
+      notes: stack.notes ?? [],
+    };
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (isSync && isOnline) {
+      try {
+        const res = await fetch("/api/research", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const saved = (await res.json()) as ResearchStack;
+        setStacks((prev) => [saved, ...prev]);
+        setSelectedStackId(saved.id);
+        return;
+      } catch {
+        // Network error; fall back to offline flow.
+      }
     }
+
     const now = new Date().toISOString();
-    const saved: ResearchStack = {
-      id: crypto.randomUUID(),
+    const localId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const base: ResearchStack = {
+      id: localId,
       name: (stack.name ?? "Untitled").trim() || "Untitled",
       species: stack.species?.trim() || undefined,
       category: stack.category?.trim() || undefined,
@@ -781,49 +995,98 @@ export default function MobileDashboard() {
       createdAt: now,
       updatedAt: now,
     };
+    const saved: ResearchStack = isSync ? ({ ...base, _localOnly: true } as any) : base;
+
     setStacks((prev) => [saved, ...prev]);
     setSelectedStackId(saved.id);
+
+    if (isSync) {
+      queueOfflineCreate("stacks", localId, payload);
+    }
   };
 
   const onUpdateStack = async (id: string, updates: Partial<ResearchStack>) => {
     if (!mode) return;
-    if (isSync) {
-      const res = await fetch(`/api/research/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: updates.name,
-          species: updates.species,
-          category: updates.category,
-          description: updates.description,
-          tags: updates.tags,
-          notes: updates.notes,
-        }),
-      });
-      if (!res.ok) return;
-      const saved = (await res.json()) as ResearchStack;
-      setStacks((prev) => prev.map((s) => (s.id === id ? saved : s)));
-      return;
+    const existing = stacks.find((s) => s.id === id);
+    if (!existing) return;
+
+    const payload = {
+      name: updates.name,
+      species: updates.species,
+      category: updates.category,
+      description: updates.description,
+      tags: updates.tags,
+      notes: updates.notes,
+    };
+
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (isSync && !localOnly && isOnline) {
+      try {
+        const res = await fetch(`/api/research/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const saved = (await res.json()) as ResearchStack;
+        setStacks((prev) => prev.map((s) => (s.id === id ? saved : s)));
+        return;
+      } catch {
+        // Network error; fall back to offline flow.
+      }
     }
-    setStacks((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? {
-              ...s,
-              ...updates,
-              updatedAt: new Date().toISOString(),
-            }
-          : s
-      )
-    );
+
+    const nowIso = new Date().toISOString();
+    const base: ResearchStack = {
+      ...existing,
+      ...updates,
+      updatedAt: nowIso,
+    };
+    const saved: ResearchStack = isSync ? ({ ...base, _localOnly: true } as any) : base;
+
+    setStacks((prev) => prev.map((s) => (s.id === id ? saved : s)));
+
+    if (isSync) {
+      if (localOnly) {
+        queueOfflineCreate("stacks", id, payload);
+      } else {
+        queueOfflineMutation("stacks", "update", id, payload);
+      }
+    }
   };
 
   const onDeleteStack = async (id: string) => {
     if (!mode) return;
-    if (isSync) {
-      const res = await fetch(`/api/research/${id}`, { method: "DELETE" });
-      if (!res.ok) return;
+    const existing = stacks.find((s) => s.id === id);
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    let shouldQueueDelete = false;
+
+    if (isSync && !localOnly) {
+      if (isOnline) {
+        try {
+          const res = await fetch(`/api/research/${id}`, { method: "DELETE", credentials: "include" });
+          if (!res.ok) return;
+        } catch {
+          shouldQueueDelete = true;
+        }
+      } else {
+        shouldQueueDelete = true;
+      }
     }
+
+    if (isSync && localOnly && existing) {
+      clearOfflineCreate("stacks", existing.id);
+    }
+
+    if (isSync && shouldQueueDelete) {
+      queueOfflineMutation("stacks", "delete", id);
+    }
+
     setStacks((prev) => prev.filter((s) => s.id !== id));
   };
 
@@ -880,11 +1143,34 @@ export default function MobileDashboard() {
       const requestId = Date.now();
       noteSaveLatestRequest.current[stackId] = requestId;
       const payload = pendingNoteUpdates.current[stackId] ?? nextNotes;
+      const stack = stacks.find((s) => s.id === stackId);
+      const localOnly = isLocalOnly(stack);
+      const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+      if (!stack) return;
+
+      if (!isOnline || localOnly) {
+        if (localOnly) {
+          queueOfflineCreate("stacks", stackId, {
+            name: stack.name,
+            species: stack.species,
+            category: stack.category,
+            description: stack.description,
+            tags: stack.tags,
+            notes: payload,
+          });
+        } else {
+          queueOfflineMutation("stacks", "update", stackId, { notes: payload });
+        }
+        return;
+      }
+
       try {
         const res = await fetch(`/api/research/${stackId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes: payload }),
+          credentials: "include",
         });
         if (!res.ok) return;
         const saved = (await res.json()) as ResearchStack;
@@ -892,6 +1178,7 @@ export default function MobileDashboard() {
         setStacks((prev) => prev.map((s) => (s.id === stackId ? saved : s)));
       } catch (err) {
         console.error(err);
+        queueOfflineMutation("stacks", "update", stackId, { notes: payload });
       }
     }, 400);
   };
@@ -923,16 +1210,47 @@ export default function MobileDashboard() {
 
   const onMarkDone = async (id: string) => {
     if (!mode) return;
-    if (isSync) {
-      await fetch(`/api/logs/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reminderDate: null }),
-      });
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: undefined } : e)));
-    } else {
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: undefined } : e)));
+    const existing = entries.find((e) => e.id === id);
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    let shouldQueueUpdate = false;
+
+    if (isSync && !localOnly) {
+      if (isOnline) {
+        try {
+          const res = await fetch(`/api/logs/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reminderDate: null }),
+            credentials: "include",
+          });
+          if (!res.ok) {
+            return;
+          }
+        } catch {
+          shouldQueueUpdate = true;
+        }
+      } else {
+        shouldQueueUpdate = true;
+      }
     }
+
+    const updatedExisting = existing ? { ...existing, reminderDate: undefined } : undefined;
+
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? (updatedExisting ? (updatedExisting as MoltEntry) : e) : e))
+    );
+
+    if (isSync) {
+      if (localOnly && updatedExisting) {
+        const payloadForCreate = buildMoltPayloadFromEntry(updatedExisting);
+        queueOfflineCreate("entries", updatedExisting.id, payloadForCreate);
+      } else if (!localOnly && shouldQueueUpdate) {
+        queueOfflineMutation("entries", "update", id, { reminderDate: null });
+      }
+    }
+
     try {
       await cancelReminderNotification(id);
     } catch {}
@@ -943,18 +1261,49 @@ export default function MobileDashboard() {
     nextDate.setDate(nextDate.getDate() + days);
     const value = nextDate.toISOString().slice(0, 10);
     if (!mode) return;
-    if (isSync) {
-      await fetch(`/api/logs/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reminderDate: value }),
-      });
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: value } : e)));
-    } else {
-      setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, reminderDate: value } : e)));
+    const existing = entries.find((e) => e.id === id);
+    const localOnly = isLocalOnly(existing);
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    let shouldQueueUpdate = false;
+
+    if (isSync && !localOnly) {
+      if (isOnline) {
+        try {
+          const res = await fetch(`/api/logs/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reminderDate: value }),
+            credentials: "include",
+          });
+          if (!res.ok) {
+            return;
+          }
+        } catch {
+          shouldQueueUpdate = true;
+        }
+      } else {
+        shouldQueueUpdate = true;
+      }
     }
+
+    const updatedExisting = existing ? { ...existing, reminderDate: value } : undefined;
+
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? (updatedExisting ? (updatedExisting as MoltEntry) : e) : e))
+    );
+
+    if (isSync) {
+      if (localOnly && updatedExisting) {
+        const payloadForCreate = buildMoltPayloadFromEntry(updatedExisting);
+        queueOfflineCreate("entries", updatedExisting.id, payloadForCreate);
+      } else if (!localOnly && shouldQueueUpdate) {
+        queueOfflineMutation("entries", "update", id, { reminderDate: value });
+      }
+    }
+
     try {
-      const entry = entries.find((e) => e.id === id);
+      const entry = updatedExisting ?? entries.find((e) => e.id === id);
       if (entry) {
         await scheduleReminderNotification({
           id,

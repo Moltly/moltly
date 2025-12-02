@@ -1,5 +1,5 @@
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { DataMode, MoltEntry } from "@/types/molt";
 import type { HealthEntry } from "@/types/health";
 import type { BreedingEntry } from "@/types/breeding";
@@ -37,6 +37,43 @@ const CACHE_KEYS = {
   covers: "moltly:cache:covers",
   stacks: "moltly:cache:stacks",
 } as const;
+
+const SYNC_QUEUE_KEY = "moltly:sync:queue:v1";
+
+type SyncEntity = "entries" | "health" | "breeding" | "stacks" | "specimens";
+type SyncAction = "create" | "update" | "delete";
+
+type SyncItem = {
+  id: string;
+  entity: SyncEntity;
+  action: SyncAction;
+  resourceId?: string;
+  clientId?: string;
+  payload?: unknown;
+  createdAt: number;
+};
+
+function readSyncQueue(): SyncItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(SYNC_QUEUE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SyncItem => Boolean(item && typeof item === "object"));
+  } catch {
+    return [];
+  }
+}
+
+function writeSyncQueue(items: SyncItem[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore persistence errors
+  }
+}
 
 export function useDashboardData() {
   const { data: session, status } = useSession();
@@ -112,6 +149,100 @@ export function useDashboardData() {
   );
   const [stacks, setStacks] = usePersistedState<ResearchStack[]>([], persistStacks);
   const [selectedStackId, setSelectedStackId] = useState<string | null>(null);
+
+  const flushInProgressRef = useRef(false);
+
+  const queueOfflineCreate = useCallback(
+    (entity: SyncEntity, clientId: string, payload: unknown) => {
+      if (!isSync) return;
+      if (typeof window === "undefined") return;
+      try {
+        const queue = readSyncQueue();
+        const existingIndex = queue.findIndex(
+          (item) => item.entity === entity && item.action === "create" && item.clientId === clientId
+        );
+        const makeId = () => {
+          try {
+            if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+              return crypto.randomUUID();
+            }
+          } catch {
+            // ignore
+          }
+          return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        };
+        const base: SyncItem = {
+          id: existingIndex >= 0 ? queue[existingIndex].id : makeId(),
+          entity,
+          action: "create",
+          clientId,
+          payload,
+          createdAt: existingIndex >= 0 ? queue[existingIndex].createdAt : Date.now()
+        };
+        const next =
+          existingIndex >= 0 ? queue.map((item, idx) => (idx === existingIndex ? base : item)) : [...queue, base];
+        writeSyncQueue(next);
+      } catch {
+        // ignore queue errors
+      }
+    },
+    [isSync]
+  );
+
+  const queueOfflineMutation = useCallback(
+    (entity: SyncEntity, action: SyncAction, resourceId: string | undefined, payload?: unknown) => {
+      if (!isSync) return;
+      if (typeof window === "undefined") return;
+      if (action === "create") {
+        // Creates should go through queueOfflineCreate so they can be upserted.
+        return;
+      }
+      try {
+        const makeId = () => {
+          try {
+            if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+              return crypto.randomUUID();
+            }
+          } catch {
+            // ignore
+          }
+          return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        };
+        const queue = readSyncQueue();
+        const item: SyncItem = {
+          id: makeId(),
+          entity,
+          action,
+          resourceId,
+          payload,
+          createdAt: Date.now()
+        };
+        writeSyncQueue([...queue, item]);
+      } catch {
+        // ignore queue errors
+      }
+    },
+    [isSync]
+  );
+
+  const clearOfflineCreate = useCallback(
+    (entity: SyncEntity, clientId: string) => {
+      if (!isSync) return;
+      if (typeof window === "undefined") return;
+      try {
+        const queue = readSyncQueue();
+        const next = queue.filter(
+          (item) => !(item.entity === entity && item.action === "create" && item.clientId === clientId)
+        );
+        if (next.length !== queue.length) {
+          writeSyncQueue(next);
+        }
+      } catch {
+        // ignore
+      }
+    },
+    [isSync]
+  );
 
   const refreshEntries = useCallback(async () => {
     if (!mode) return;
@@ -223,11 +354,201 @@ export function useDashboardData() {
     }
   }, [mode, isSync, setStacks]);
 
+  const flushSyncQueue = useCallback(async () => {
+    if (!isSync) return;
+    if (typeof window === "undefined") return;
+    if (flushInProgressRef.current) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+
+    flushInProgressRef.current = true;
+    try {
+      const current = readSyncQueue();
+      if (!current.length) return;
+      const remaining: SyncItem[] = [];
+      let changed = false;
+
+      for (let index = 0; index < current.length; index += 1) {
+        const item = current[index];
+        try {
+          if (item.action === "create") {
+            const payload = item.payload ?? {};
+            let res: Response | null = null;
+            if (item.entity === "entries") {
+              res = await fetch("/api/logs", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "health") {
+              res = await fetch("/api/health", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "breeding") {
+              res = await fetch("/api/breeding", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "stacks") {
+              res = await fetch("/api/research", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "specimens") {
+              res = await fetch("/api/specimens", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            }
+            if (!res) continue;
+            if (!res.ok) {
+              if (res.status === 401) {
+                // Session is no longer valid; stop processing for now.
+                remaining.push(item, ...current.slice(index + 1));
+                break;
+              }
+              // Validation or other error: drop this mutation but keep going.
+              console.error("Failed to sync queued create", item.entity, res.status);
+              continue;
+            }
+            changed = true;
+            continue;
+          }
+
+          if (!item.resourceId) {
+            continue;
+          }
+
+          if (item.action === "update") {
+            const payload = item.payload ?? {};
+            let res: Response | null = null;
+            if (item.entity === "entries") {
+              res = await fetch(`/api/logs/${item.resourceId}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "health") {
+              res = await fetch(`/api/health/${item.resourceId}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "breeding") {
+              res = await fetch(`/api/breeding/${item.resourceId}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "stacks") {
+              res = await fetch(`/api/research/${item.resourceId}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "specimens") {
+              res = await fetch("/api/specimens", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            }
+            if (!res) continue;
+            if (!res.ok) {
+              if (res.status === 401) {
+                remaining.push(item, ...current.slice(index + 1));
+                break;
+              }
+              console.error("Failed to sync queued update", item.entity, res.status);
+              continue;
+            }
+            changed = true;
+            continue;
+          }
+
+          if (item.action === "delete") {
+            let res: Response | null = null;
+            if (item.entity === "entries") {
+              res = await fetch(`/api/logs/${item.resourceId}`, {
+                method: "DELETE",
+                credentials: "include"
+              });
+            } else if (item.entity === "health") {
+              res = await fetch(`/api/health/${item.resourceId}`, {
+                method: "DELETE",
+                credentials: "include"
+              });
+            } else if (item.entity === "breeding") {
+              res = await fetch(`/api/breeding/${item.resourceId}`, {
+                method: "DELETE",
+                credentials: "include"
+              });
+            } else if (item.entity === "stacks") {
+              res = await fetch(`/api/research/${item.resourceId}`, {
+                method: "DELETE",
+                credentials: "include"
+              });
+            }
+            if (!res) continue;
+            if (!res.ok) {
+              if (res.status === 401) {
+                remaining.push(item, ...current.slice(index + 1));
+                break;
+              }
+              console.error("Failed to sync queued delete", item.entity, res.status);
+              continue;
+            }
+            changed = true;
+            continue;
+          }
+        } catch (error) {
+          // Likely went offline again; requeue the remaining items and stop.
+          remaining.push(item, ...current.slice(index + 1));
+          writeSyncQueue(remaining);
+          return;
+        }
+      }
+
+      writeSyncQueue(remaining);
+
+      if (changed) {
+        try {
+          await Promise.all([
+            refreshEntries(),
+            refreshHealth(),
+            refreshBreeding(),
+            refreshSpecimenCovers(),
+            refreshStacks()
+          ]);
+        } catch {
+          // ignore refresh failures; UI will retry later
+        }
+      }
+    } finally {
+      flushInProgressRef.current = false;
+    }
+  }, [isSync, refreshEntries, refreshHealth, refreshBreeding, refreshSpecimenCovers, refreshStacks]);
+
   const updateSpecimenCover = useCallback(
     async (specimenKey: string, imageUrl: string | null) => {
       const key = specimenKey || "Unnamed";
       try {
-        if (isSync) {
+        const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+        if (isSync && isOnline) {
           const res = await fetch("/api/specimens", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -237,6 +558,8 @@ export function useDashboardData() {
           if (!res.ok) {
             throw new Error("Failed to update specimen cover");
           }
+        } else if (isSync && !isOnline) {
+          queueOfflineCreate("specimens", key, { key, imageUrl });
         }
         setSpecimenCovers((prev) => {
           const next = { ...prev };
@@ -253,7 +576,7 @@ export function useDashboardData() {
         return false;
       }
     },
-    [isSync, setSpecimenCovers]
+    [isSync, setSpecimenCovers, queueOfflineCreate]
   );
 
   useEffect(() => {
@@ -275,6 +598,19 @@ export function useDashboardData() {
   useEffect(() => {
     void refreshStacks();
   }, [refreshStacks]);
+
+  useEffect(() => {
+    if (!isSync) return;
+    if (typeof window === "undefined") return;
+    const handleOnline = () => {
+      void flushSyncQueue();
+    };
+    window.addEventListener("online", handleOnline);
+    void flushSyncQueue();
+    return () => {
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [isSync, flushSyncQueue]);
 
   useEffect(() => {
     setSelectedStackId((prev) => {
@@ -318,6 +654,9 @@ export function useDashboardData() {
     setStacks,
     refreshStacks,
     selectedStackId,
-    setSelectedStackId
+    setSelectedStackId,
+    queueOfflineCreate,
+    queueOfflineMutation,
+    clearOfflineCreate
   };
 }

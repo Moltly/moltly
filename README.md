@@ -53,9 +53,10 @@ Moltly now ships with a web app manifest and a basic service worker to enable in
 - What’s cached
   - App shell and the homepage for offline navigation fallback.
   - Runtime caching for images, styles, scripts.
-  - GET requests to `/api/*` are cached with a stale‑while‑revalidate strategy so previously viewed data can be read offline.
-- What’s not cached (yet)
-  - Mutations (`POST/PATCH/DELETE`) are not queued offline. In guest mode, entries are stored locally and work fully offline; when signed in, new changes require a connection.
+  - Dashboard data is cached in local storage so previously viewed entries, health logs, breeding records, research notes, and specimen covers can be read offline.
+- Offline changes
+  - When signed in, mutations (`POST/PATCH/DELETE`) are queued while offline and replayed once connectivity returns; the UI updates immediately using local copies.
+  - In guest mode, data is stored only on this device and never synced to the server.
 - Install
   - On desktop browsers use the “Install app” prompt. On Android, Chrome will offer to install after a visit. On iOS, use “Add to Home Screen”.
 
