@@ -52,7 +52,7 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
 
   function filenameFromUrl(url: string): string | undefined {
     try {
-      const u = new URL(url, typeof window !== "undefined" ? window.location.href : undefined);
+      const u = new URL(url, "https://moltly.local");
       const last = u.pathname.split("/").filter(Boolean).pop();
       return last || undefined;
     } catch {
@@ -63,6 +63,15 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
 
   function ensureExt(name: string, ext: string) {
     return name.toLowerCase().endsWith(`.${ext}`) ? name : `${name}.${ext}`;
+  }
+
+  function buildSafeFsFilename(ext: string): string {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const base = `moltly-image-${datePart}-${timePart}`;
+    return ensureExt(base, ext);
   }
 
   function getSafeDownloadHref(rawUrl: string): string | null {
@@ -94,7 +103,8 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
       const p = fromUrl?.split(".").pop()?.toLowerCase();
       if (p && p.length <= 5) ext = p;
     }
-    const filename = ensureExt(baseName, ext);
+    const downloadFilename = ensureExt(baseName, ext);
+    const fsFilename = buildSafeFsFilename(ext);
 
     if (Capacitor.getPlatform() !== "web") {
       try {
@@ -116,12 +126,12 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
         if (!base64) throw new Error("Unable to read image");
 
         await Filesystem.writeFile({
-          path: filename,
+          path: fsFilename,
           data: base64,
           directory: Directory.Cache,
         });
-        const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: filename });
-        await Share.share({ title: filename, url: uri, dialogTitle: "Share image" });
+        const { uri } = await Filesystem.getUri({ directory: Directory.Cache, path: fsFilename });
+        await Share.share({ title: downloadFilename, url: uri, dialogTitle: "Share image" });
         return;
       } catch (e) {
         // Fallback to web download below
@@ -134,7 +144,7 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
 
     const a = document.createElement("a");
     a.href = href;
-    a.download = filename;
+    a.download = downloadFilename;
     a.rel = "noopener noreferrer";
     a.target = "_blank";
     a.click();
