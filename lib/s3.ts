@@ -22,12 +22,25 @@ function getS3Client() {
   });
 }
 
+function getPublicBaseUrl() {
+  return publicUrl || endpoint || "";
+}
+
+export function publicUrlForKey(key: string): string | null {
+  if (!bucket) return null;
+  const base = getPublicBaseUrl();
+  if (!base) return null;
+  return `${base.replace(/\/$/, "")}/${bucket}/${encodeURI(key)}`;
+}
+
 export async function putObject({ key, body, contentType }: { key: string; body: Buffer | Uint8Array | Blob | string; contentType?: string; }) {
   const client = getS3Client();
   if (!client) throw new Error("S3 not configured");
   await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
-  const base = publicUrl || endpoint || "";
-  const url = `${base.replace(/\/$/, "")}/${bucket}/${encodeURI(key)}`;
+  const url = publicUrlForKey(key);
+  if (!url) {
+    throw new Error("S3 public URL not configured");
+  }
   return { url };
 }
 
