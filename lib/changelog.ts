@@ -12,7 +12,7 @@ const entries: ChangelogEntry[] = [
       "Update TOS and Privacy Policy to reflect that emails are now optional",
       "Prepare for iOS App Store submission",
       "Change username min length to 2 characters",
-      "Support Passkeys on iOS Application"
+      "Use passkeys without entering username/email"
     ]
   },
   {

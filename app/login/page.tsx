@@ -106,10 +106,6 @@ function LoginForm() {
 
   const handlePasskeySignIn = async () => {
     const normalizedIdentifier = identifier.trim();
-    if (!normalizedIdentifier) {
-      setError("Enter your username or email to use a passkey.");
-      return;
-    }
     if (typeof window === "undefined" || !("credentials" in navigator)) {
       setError("Passkeys are not supported in this browser.");
       return;
@@ -117,23 +113,31 @@ function LoginForm() {
     setPasskeyLoading(true);
     setError(null);
     try {
-      const optionsRes = await fetch("/api/auth/passkey/options", {
+      const isIdentifierFlow = Boolean(normalizedIdentifier);
+      const optionsEndpoint = isIdentifierFlow ? "/api/auth/passkey/options" : "/api/auth/passkey/discover";
+      const optionsBody = isIdentifierFlow ? { identifier: normalizedIdentifier } : undefined;
+
+      const optionsRes = await fetch(optionsEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: normalizedIdentifier })
+        headers: optionsBody ? { "Content-Type": "application/json" } : undefined,
+        body: optionsBody ? JSON.stringify(optionsBody) : undefined,
       });
       if (!optionsRes.ok) {
         const body = await optionsRes.json().catch(() => ({} as { error?: string }));
         throw new Error(body.error || "Unable to start passkey sign-in.");
       }
-      const options = await optionsRes.json();
+      const raw = await optionsRes.json();
+      const options = isIdentifierFlow ? raw : raw.options;
+      const passkeySessionId: string | null = isIdentifierFlow ? null : raw.sessionId ?? null;
+
       const decoded = decodeRequestOptions(options);
       const assertion = (await navigator.credentials.get({ publicKey: decoded })) as PublicKeyCredential | null;
       if (!assertion) {
         throw new Error("Passkey sign-in was cancelled.");
       }
       const result = await signIn("credentials", {
-        identifier: normalizedIdentifier,
+        ...(normalizedIdentifier ? { identifier: normalizedIdentifier } : {}),
+        ...(passkeySessionId ? { passkeySessionId } : {}),
         passkeyResponse: JSON.stringify(serializePublicKeyCredential(assertion)),
         redirect: false,
         callbackUrl,

@@ -14,6 +14,7 @@ import { connectMongoose } from "./mongoose";
 import User from "../models/User";
 import { clearLoginAttempts, evaluateLoginRateLimit, recordFailedLoginAttempt } from "./login-rate-limit";
 import { normalizeCredentialId, verifyPasskeyAuthentication } from "./passkeys";
+import PasskeyAuthSession from "@/models/PasskeyAuthSession";
 
 type UserRecord = {
   _id: Types.ObjectId;
@@ -105,38 +106,126 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         identifier: { label: "Username or email", type: "text" },
         password: { label: "Password", type: "password" },
-        passkeyResponse: { label: "Passkey response", type: "text" }
+        passkeyResponse: { label: "Passkey response", type: "text" },
+        passkeySessionId: { label: "Passkey session ID", type: "text" }
       },
       async authorize(credentials, req) {
-        if (!credentials?.identifier) {
-          throw new Error("Missing username or email.");
-        }
+        const rawIdentifier = credentials?.identifier ?? "";
+        const identifier = rawIdentifier.trim().toLowerCase();
+        const passkeyResponseJson = credentials?.passkeyResponse;
+        const passkeyResponse = passkeyResponseJson ? JSON.parse(passkeyResponseJson) : null;
+        const passkeySessionId = credentials?.passkeySessionId?.toString().trim() || null;
 
-        const identifier = credentials.identifier.trim().toLowerCase();
-        const passkeyResponse = credentials.passkeyResponse ? JSON.parse(credentials.passkeyResponse) : null;
-
-        const rateLimitKey = buildRateLimitKey(identifier, req);
+        const rateLimitKey = buildRateLimitKey(identifier || "passkey", req);
         const rateLimitState = evaluateLoginRateLimit(rateLimitKey);
 
         if (!rateLimitState.allowed) {
           throw new Error(rateLimitState.message);
         }
 
-        await connectMongoose();
         if (passkeyResponse) {
-          const user = await User.findOne({ $or: [{ email: identifier }, { username: identifier }] }).select("+passkeyChallenge +passkeyChallengeExpires passkeys username email name image");
-          if (!user || !user.passkeys?.length) {
-            throw new Error("Passkey login is not available for this account.");
-          }
-          if (!user.passkeyChallenge || (user.passkeyChallengeExpires && user.passkeyChallengeExpires.getTime() < Date.now())) {
-            throw new Error("Passkey challenge expired. Please try again.");
-          }
+          await connectMongoose();
+
           const responseId =
             typeof (passkeyResponse as any).rawId === "string"
               ? (passkeyResponse as any).rawId
               : passkeyResponse.id;
           const normalizedResponseId = normalizeCredentialId(responseId);
           const normalizedAlternateId = normalizeCredentialId(passkeyResponse.id);
+
+          if (identifier) {
+            const user = await User.findOne({
+              $or: [{ email: identifier }, { username: identifier }]
+            }).select("+passkeyChallenge +passkeyChallengeExpires passkeys username email name image");
+            if (!user || !user.passkeys?.length) {
+              throw new Error("Passkey login is not available for this account.");
+            }
+            if (!user.passkeyChallenge || (user.passkeyChallengeExpires && user.passkeyChallengeExpires.getTime() < Date.now())) {
+              throw new Error("Passkey challenge expired. Please try again.");
+            }
+
+            const match = Array.isArray(user.passkeys)
+              ? user.passkeys.find((pk: { credentialId: string }) => {
+                  return (
+                    credentialIdsEqual(pk.credentialId, responseId) ||
+                    credentialIdsEqual(pk.credentialId, passkeyResponse.id) ||
+                    credentialIdsEqual(pk.credentialId, passkeyResponse.rawId)
+                  );
+                })
+              : undefined;
+            if (!match) {
+              try {
+                  console.warn("[Passkey auth] No match", {
+                    user: user._id?.toString?.(),
+                    identifier,
+                    responseId,
+                    stored: (user.passkeys || []).map((p: any) => p.credentialId),
+                    normalizedResponseId,
+                    normalizedAltId: normalizedAlternateId,
+                    normalizedStored: (user.passkeys || []).map((p: any) => normalizeCredentialId(p.credentialId)),
+                  });
+              } catch {}
+              throw new Error("Passkey not recognized.");
+            }
+            const normalizedStoredId = normalizeCredentialId(match.credentialId);
+            if (normalizedStoredId && normalizedStoredId !== match.credentialId) {
+              match.credentialId = normalizedStoredId;
+            }
+            const { newCounter } = await verifyPasskeyAuthentication(passkeyResponse, match, user.passkeyChallenge);
+            match.counter = newCounter;
+            user.passkeyChallenge = undefined;
+            user.passkeyChallengeExpires = undefined;
+            await user.save();
+
+            clearLoginAttempts(rateLimitKey);
+            return {
+              id: user._id.toString(),
+              email: user.email ?? null,
+              username: user.username ?? undefined,
+              name: user.name ?? user.username ?? user.email ?? null,
+              image: user.image ?? null
+            };
+          }
+
+          if (!passkeySessionId) {
+            throw new Error("Missing passkey session. Please try again.");
+          }
+
+          const session = await PasskeyAuthSession.findOne({ sessionId: passkeySessionId });
+          if (!session) {
+            throw new Error("Passkey session not found or expired. Please try again.");
+          }
+          if (session.expiresAt.getTime() < Date.now()) {
+            await session.deleteOne().catch(() => {});
+            throw new Error("Passkey session expired. Please try again.");
+          }
+
+          const candidateIds: string[] = [];
+          if (typeof responseId === "string" && responseId) candidateIds.push(responseId);
+          if (typeof passkeyResponse.id === "string" && passkeyResponse.id) candidateIds.push(passkeyResponse.id);
+          if (typeof passkeyResponse.rawId === "string" && passkeyResponse.rawId) candidateIds.push(passkeyResponse.rawId);
+          if (normalizedResponseId && !candidateIds.includes(normalizedResponseId)) {
+            candidateIds.push(normalizedResponseId);
+          }
+          if (normalizedAlternateId && !candidateIds.includes(normalizedAlternateId)) {
+            candidateIds.push(normalizedAlternateId);
+          }
+
+          const user = await User.findOne({
+            "passkeys.credentialId": { $in: candidateIds }
+          }).select("passkeys username email name image");
+          if (!user || !user.passkeys?.length) {
+            try {
+              console.warn("[Passkey auth] No user for credential", {
+                responseId,
+                candidateIds,
+                normalizedResponseId,
+                normalizedAltId: normalizedAlternateId,
+              });
+            } catch {}
+            throw new Error("Passkey not recognized.");
+          }
+
           const match = Array.isArray(user.passkeys)
             ? user.passkeys.find((pk: { credentialId: string }) => {
                 return (
@@ -148,27 +237,29 @@ export const authOptions: NextAuthOptions = {
             : undefined;
           if (!match) {
             try {
-                console.warn("[Passkey auth] No match", {
-                  user: user._id?.toString?.(),
-                  identifier,
-                  responseId,
-                  stored: (user.passkeys || []).map((p: any) => p.credentialId),
-                  normalizedResponseId,
-                  normalizedAltId: normalizedAlternateId,
-                  normalizedStored: (user.passkeys || []).map((p: any) => normalizeCredentialId(p.credentialId)),
-                });
+              console.warn("[Passkey auth] No matching credential on user", {
+                user: user._id?.toString?.(),
+                responseId,
+                candidateIds,
+                normalizedResponseId,
+                normalizedAltId: normalizedAlternateId,
+                stored: (user.passkeys || []).map((p: any) => p.credentialId),
+                normalizedStored: (user.passkeys || []).map((p: any) => normalizeCredentialId(p.credentialId)),
+              });
             } catch {}
             throw new Error("Passkey not recognized.");
           }
+
           const normalizedStoredId = normalizeCredentialId(match.credentialId);
           if (normalizedStoredId && normalizedStoredId !== match.credentialId) {
             match.credentialId = normalizedStoredId;
           }
-          const { newCounter } = await verifyPasskeyAuthentication(passkeyResponse, match, user.passkeyChallenge);
+
+          const { newCounter } = await verifyPasskeyAuthentication(passkeyResponse, match, session.challenge);
           match.counter = newCounter;
-          user.passkeyChallenge = undefined;
-          user.passkeyChallengeExpires = undefined;
           await user.save();
+          await session.deleteOne().catch(() => {});
+
           clearLoginAttempts(rateLimitKey);
           return {
             id: user._id.toString(),
@@ -178,7 +269,12 @@ export const authOptions: NextAuthOptions = {
             image: user.image ?? null
           };
         } else {
-          if (!credentials.password) {
+          if (!identifier) {
+            throw new Error("Missing username or email.");
+          }
+
+          const password = credentials?.password;
+          if (!password) {
             throw new Error("Missing password.");
           }
 
@@ -191,7 +287,7 @@ export const authOptions: NextAuthOptions = {
             recordFailedLoginAttempt(rateLimitKey);
             throw new Error("Invalid credentials.");
           }
-          const isValid = await bcrypt.compare(credentials.password, user.password);
+          const isValid = await bcrypt.compare(password, user.password);
           if (!isValid) {
             recordFailedLoginAttempt(rateLimitKey);
             throw new Error("Invalid credentials.");

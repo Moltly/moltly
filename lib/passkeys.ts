@@ -110,6 +110,15 @@ export async function getPasskeyAuthenticationOptions(user: { passkeys?: { crede
   });
 }
 
+export async function getUsernamelessPasskeyAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptionsJSON> {
+  return generateAuthenticationOptions({
+    rpID,
+    userVerification: "preferred",
+    // Empty allowCredentials list signals a usernameless flow that relies on discoverable credentials.
+    allowCredentials: [],
+  });
+}
+
 type StoredPasskey = {
   credentialId: string;
   publicKey: string;
