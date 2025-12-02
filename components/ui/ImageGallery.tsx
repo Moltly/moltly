@@ -117,7 +117,8 @@ export default function ImageGallery({ open, images, index, onClose, onIndexChan
       if (p && p.length <= 5) ext = p;
     }
     const downloadFilename = ensureExt(baseName, ext);
-    const fsFilename = buildSafeFsFilename(ext);
+    // Use a fixed, non-user-controlled filename for the on-device cache
+    const fsFilename = buildSafeFsFilename("jpg");
 
     if (Capacitor.getPlatform() !== "web") {
       try {
