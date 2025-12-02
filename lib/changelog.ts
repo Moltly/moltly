@@ -6,6 +6,16 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.9.0",
+    date: "2025-12-02",
+    highlights: [
+      "Update TOS and Privacy Policy to reflect that emails are now optional",
+      "Prepare for iOS App Store submission",
+      "Change username min length to 2 characters",
+      "Support Passkeys on iOS Application"
+    ]
+  },
+  {
     version: "1.8.0",
     date: "2025-12-01",
     highlights: [

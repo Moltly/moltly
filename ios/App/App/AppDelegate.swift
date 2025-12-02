@@ -7,8 +7,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    private func configurePasskeySupport() {
+        guard let bridgeVC = self.window?.rootViewController as? CAPBridgeViewController else { return }
+        guard let webView = bridgeVC.bridge?.webView else { return }
+
+        // App-bound domains are required for WebAuthn/passkeys inside WKWebView.
+        if #available(iOS 14.0, *) {
+            webView.configuration.limitsNavigationsToAppBoundDomains = true
+        }
+    }
+
     private func injectStatusBarOverlayFix() {
         guard let bridgeVC = self.window?.rootViewController as? CAPBridgeViewController else { return }
+        configurePasskeySupport()
         let js = """
         (function() {
           function setOverlayFalse(){

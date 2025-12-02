@@ -6,6 +6,8 @@
     <array>
         <string>applinks:moltly.xyz</string>
         <string>applinks:www.moltly.xyz</string>
+        <string>webcredentials:moltly.xyz</string>
+        <string>webcredentials:www.moltly.xyz</string>
     </array>
 </dict>
 </plist>

@@ -46,6 +46,11 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>moltly.xyz</string>
+		<string>www.moltly.xyz</string>
+	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
