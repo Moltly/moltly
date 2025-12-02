@@ -30,7 +30,7 @@ export function publicUrlForKey(key: string): string | null {
   if (!bucket) return null;
   const base = getPublicBaseUrl();
   if (!base) return null;
-  return `${base.replace(/\/$/, "")}/${bucket}/${encodeURI(key)}`;
+  return `${base.replace(/\/$/, "")}/${bucket}/${encodeURIComponent(key)}`;
 }
 
 export async function putObject({ key, body, contentType }: { key: string; body: Buffer | Uint8Array | Blob | string; contentType?: string; }) {
@@ -71,7 +71,7 @@ export function keyFromS3Url(url: string) {
     const u = new URL(url, base || "http://local");
     const parts = u.pathname.split(`/`).filter(Boolean);
     if (parts.length < 2) return null;
-    return decodeURI(parts.slice(1).join(`/`));
+    return decodeURIComponent(parts.slice(1).join(`/`));
   } catch {
     return null;
   }
