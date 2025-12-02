@@ -34,8 +34,23 @@ export async function POST(request: Request) {
       );
     }
 
-    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+    if (email) {
+      if (email.length > 320) {
+        return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+      }
+
+      const atIndex = email.indexOf("@");
+      const lastAtIndex = email.lastIndexOf("@");
+      const hasSingleAt = atIndex > 0 && atIndex === lastAtIndex && atIndex < email.length - 1;
+
+      if (!hasSingleAt || /\s/.test(email)) {
+        return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+      }
+
+      const domain = email.slice(atIndex + 1);
+      if (!domain.includes(".")) {
+        return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+      }
     }
 
     await connectMongoose();
