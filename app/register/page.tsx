@@ -36,8 +36,8 @@ export default function RegisterPage() {
       setError("Username is required.");
       return;
     }
-    if (!/^[a-zA-Z0-9]{3,32}$/.test(normalizedUsername)) {
-      setError("Username must be 3-32 characters (letters and numbers only).");
+    if (!/^[a-zA-Z0-9]{2,32}$/.test(normalizedUsername)) {
+      setError("Username must be 2-32 characters (letters and numbers only).");
       return;
     }
     if (normalizedEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail)) {
@@ -129,7 +129,7 @@ export default function RegisterPage() {
                 placeholder="letters and numbers only"
                 className="pl-10"
                 required
-                minLength={3}
+                minLength={2}
                 maxLength={32}
               />
             </div>

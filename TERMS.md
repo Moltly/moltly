@@ -1,6 +1,6 @@
 # Moltly — Terms of Service
 
-Last updated: 2025-10-28
+Last updated: 2025-12-02
 
 These Terms of Service (the “Terms”) govern your access to and use of Moltly (the “Service”), available at moltly.xyz and any related applications or APIs.
 
@@ -11,7 +11,7 @@ Contact: contact@moltly.xyz
 
 1. Eligibility and Accounts
 - You must be at least 13 years old to use the Service. If you are under the age of majority in your jurisdiction, you may only use the Service with a parent or legal guardian’s consent.
-- To access certain features, you must create an account using an email and password or sign in via Discord, Apple, or Google. You are responsible for maintaining the confidentiality of your credentials and for all activities under your account.
+- To access certain features, you must create an account using a username and password (email is optional) or by using a supported third‑party sign‑in provider such as Discord, Apple, or Google. You are responsible for maintaining the confidentiality of your credentials and for all activities under your account.
 - You must provide accurate information and keep it up to date. We may suspend or terminate your account if information is inaccurate, misleading, or if you violate these Terms.
 
 2. The Service

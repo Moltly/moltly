@@ -16,9 +16,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Username is required." }, { status: 400 });
     }
 
-    if (!/^[a-z0-9]{3,32}$/.test(username)) {
+    if (!/^[a-z0-9]{2,32}$/.test(username)) {
       return NextResponse.json(
-        { error: "Username must be 3-32 characters and use letters or numbers only." },
+        { error: "Username must be 2-32 characters and use letters or numbers only." },
         { status: 400 }
       );
     }

@@ -77,9 +77,9 @@ export async function PATCH(req: Request) {
       if (!usernameToSet) {
         return NextResponse.json({ error: "Username is required to add a password login." }, { status: 400 });
       }
-      if (!/^[a-z0-9]{3,32}$/.test(usernameToSet)) {
+      if (!/^[a-z0-9]{2,32}$/.test(usernameToSet)) {
         return NextResponse.json(
-          { error: "Username must be 3-32 characters and use letters or numbers only." },
+          { error: "Username must be 2-32 characters and use letters or numbers only." },
           { status: 400 }
         );
       }

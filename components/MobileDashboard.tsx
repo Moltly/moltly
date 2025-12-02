@@ -1807,8 +1807,8 @@ export default function MobileDashboard() {
                     alert("Username is required to add a password login.");
                     return;
                   }
-                  if (!/^[a-zA-Z0-9]{3,32}$/.test(trimmedUsername)) {
-                    alert("Username must be 3-32 characters (letters and numbers only).");
+                  if (!/^[a-zA-Z0-9]{2,32}$/.test(trimmedUsername)) {
+                    alert("Username must be 2-32 characters (letters and numbers only).");
                     return;
                   }
                 }
