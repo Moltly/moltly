@@ -91,10 +91,6 @@ function resolveAllowedImageUrl(raw: string): URL | null {
       return null;
     }
 
-    if (ALLOWED_IMAGE_HOSTS.length === 0) {
-      return url;
-    }
-
     const isAllowedHost = ALLOWED_IMAGE_HOSTS.some(
       (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`)
     );
