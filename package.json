@@ -16,7 +16,7 @@
     "mobile:run:android": "bunx cap run android --no-sync"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.940.0",
+    "@aws-sdk/client-s3": "^3.943.0",
     "@capacitor/android": "^7.4.4",
     "@capacitor/app": "^7.1.0",
     "@capacitor/core": "^7.4.4",
