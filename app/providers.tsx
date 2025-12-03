@@ -46,6 +46,21 @@ function useServiceWorkerRegistration() {
     const register = async () => {
       try {
         const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        const warmUrls = Array.from(
+          new Set([
+            window.location.pathname + window.location.search,
+            "/",
+            "/login",
+            "/register"
+          ].filter(Boolean))
+        );
+        navigator.serviceWorker.ready
+          .then((ready) => {
+            ready.active?.postMessage({ type: "PRECACHE_ROUTES", urls: warmUrls });
+          })
+          .catch(() => {
+            // ignore warm-up failures
+          });
         reg.addEventListener?.("updatefound", () => {
           const newWorker = reg.installing;
           if (!newWorker) return;

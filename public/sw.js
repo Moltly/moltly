@@ -1,6 +1,6 @@
 /* Moltly Service Worker: offline shell + runtime caching */
 
-const SW_VERSION = 'v2';
+const SW_VERSION = 'v3';
 const PREFIX = 'moltly';
 const SHELL_CACHE = `${PREFIX}-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `${PREFIX}-rt-${SW_VERSION}`;
@@ -10,13 +10,47 @@ const PRECACHE_URLS = [
   '/',
   '/manifest.webmanifest',
   '/offline.html',
+  '/moltly-192.png',
+  '/moltly-512.png',
 ];
+
+const DEFAULT_WARM_ROUTES = ['/', '/login', '/register'];
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+  if (event.data && event.data.type === 'PRECACHE_ROUTES' && Array.isArray(event.data.urls)) {
+    event.waitUntil(
+      (async () => {
+        const cache = await caches.open(SHELL_CACHE);
+        const targets = [...DEFAULT_WARM_ROUTES, ...event.data.urls];
+        await Promise.all(
+          targets.map(async (url) => {
+            try {
+              await cache.add(url);
+            } catch {
+              // ignore failures so the rest of the warm-up can continue
+            }
+          })
+        );
+      })()
+    );
+  }
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(SHELL_CACHE);
-      await cache.addAll(PRECACHE_URLS);
+      for (const url of PRECACHE_URLS) {
+        try {
+          await cache.add(url);
+        } catch {
+          // ignore individual failures; the client will retry via warm-up
+        }
+      }
       self.skipWaiting();
     })()
   );
@@ -76,7 +110,7 @@ self.addEventListener('fetch', (event) => {
           return fresh;
         } catch (_) {
           const cache = await caches.open(SHELL_CACHE);
-          const cached = await cache.match(request);
+          const cached = (await cache.match(request)) || (await cache.match('/'));
           return cached || cache.match('/offline.html');
         }
       })()
@@ -88,11 +122,5 @@ self.addEventListener('fetch', (event) => {
   if (['image', 'script', 'style', 'font'].includes(request.destination)) {
     event.respondWith(staleWhileRevalidate(RUNTIME_CACHE, request).catch(() => fetch(request)));
     return;
-  }
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') {
-    self.skipWaiting();
   }
 });
