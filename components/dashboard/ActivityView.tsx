@@ -6,8 +6,8 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { MoltEntry, Filters } from "@/types/molt";
-import { formatDate, getReminderStatus } from "@/lib/utils";
+import { MoltEntry, Filters, SizeUnit } from "@/types/molt";
+import { cmToInches, formatDate, getReminderStatus } from "@/lib/utils";
 import ImageGallery, { type GalleryImage } from "@/components/ui/ImageGallery";
 import CachedImage from "@/components/ui/CachedImage";
 
@@ -18,9 +18,10 @@ interface ActivityViewProps {
   onSetCover?: (specimenKey: string, image: GalleryImage) => void;
   covers?: Record<string, string>;
   onUnsetCover?: (specimenKey: string) => void;
+  sizeUnit: SizeUnit;
 }
 
-export default function ActivityView({ entries, onEdit, onDelete, onSetCover, covers, onUnsetCover }: ActivityViewProps) {
+export default function ActivityView({ entries, onEdit, onDelete, onSetCover, covers, onUnsetCover, sizeUnit }: ActivityViewProps) {
   const [filters, setFilters] = useState<Filters>({
     search: "",
     stage: "all",
@@ -77,6 +78,12 @@ export default function ActivityView({ entries, onEdit, onDelete, onSetCover, co
       default:
         return "neutral";
     }
+  };
+
+  const formatSize = (value?: number) => {
+    if (value === undefined || value === null) return "?";
+    const converted = sizeUnit === "in" ? cmToInches(value) : value;
+    return Number((Math.round(converted * 100) / 100).toFixed(2)).toString();
   };
 
   if (entries.length === 0) {
@@ -280,7 +287,7 @@ export default function ActivityView({ entries, onEdit, onDelete, onSetCover, co
                       <div className="flex items-center gap-2 text-sm">
                         <TrendingUp className="w-4 h-4 text-[rgb(var(--primary))]" />
                         <span className="text-[rgb(var(--text))]">
-                          {entry.oldSize || "?"} cm → {entry.newSize || "?"} cm
+                          {formatSize(entry.oldSize)} {sizeUnit} → {formatSize(entry.newSize)} {sizeUnit}
                         </span>
                       </div>
                     )}

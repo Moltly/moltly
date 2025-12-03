@@ -18,17 +18,19 @@ import NotebookView from "@/components/dashboard/NotebookView";
 import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
-import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment } from "@/types/molt";
+import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import type { ResearchStack, ResearchNote } from "@/types/research";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
 import { getSavedTempUnit } from "@/lib/temperature";
+import { getSavedSizeUnit } from "@/lib/size-unit";
 import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/notifications";
 import type { GalleryImage } from "@/components/ui/ImageGallery";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { decodeCreationOptions, serializePublicKeyCredential } from "@/lib/passkey-client";
+import { cmToInches, inchesToCm } from "@/lib/utils";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
@@ -38,6 +40,7 @@ const defaultForm = (): FormState => ({
   stage: "Molt",
   oldSize: "",
   newSize: "",
+  sizeUnit: getSavedSizeUnit(),
   humidity: "",
   temperature: "",
   temperatureUnit: getSavedTempUnit(),
@@ -52,6 +55,26 @@ const parseNumber = (value: string): number | undefined => {
   if (!value) return undefined;
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const roundTo = (value: number, precision = 2): number => {
+  const factor = 10 ** precision;
+  return Math.round(value * factor) / factor;
+};
+
+const toDisplaySize = (value: number | undefined, unit: SizeUnit): string => {
+  if (value === undefined || value === null) return "";
+  const cmValue = value;
+  const converted = unit === "cm" ? cmValue : cmToInches(cmValue);
+  return roundTo(converted, 2).toString();
+};
+
+const toCanonicalSize = (value: string, unit: SizeUnit): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  const cmValue = unit === "cm" ? parsed : inchesToCm(parsed);
+  return roundTo(cmValue, 2);
 };
 
 const buildBreedingPayload = (form: BreedingFormState, existingAttachments?: Attachment[]) => ({
@@ -416,22 +439,26 @@ export default function MobileDashboard() {
 
   const onEdit = (entry: MoltEntry) => {
     setEditingId(entry.id);
-    setFormState({
-      entryType: entry.entryType,
-      specimen: entry.specimen ?? "",
-      species: entry.species ?? "",
-      date: entry.date.slice(0, 10),
-      stage: entry.stage ?? "Molt",
-      oldSize: entry.oldSize?.toString() ?? "",
-      newSize: entry.newSize?.toString() ?? "",
-      humidity: entry.humidity?.toString() ?? "",
-      temperature: entry.temperature?.toString() ?? "",
-      temperatureUnit: entry.temperatureUnit === "F" ? "F" : "C",
-      notes: entry.notes ?? "",
-      reminderDate: entry.reminderDate ? entry.reminderDate.slice(0, 10) : "",
-      feedingPrey: entry.feedingPrey ?? "",
-      feedingOutcome: entry.feedingOutcome ?? "",
-      feedingAmount: entry.feedingAmount ?? "",
+    setFormState((prev) => {
+      const sizeUnit = prev.sizeUnit ?? getSavedSizeUnit();
+      return {
+        entryType: entry.entryType,
+        specimen: entry.specimen ?? "",
+        species: entry.species ?? "",
+        date: entry.date.slice(0, 10),
+        stage: entry.stage ?? "Molt",
+        oldSize: toDisplaySize(entry.oldSize, sizeUnit),
+        newSize: toDisplaySize(entry.newSize, sizeUnit),
+        sizeUnit,
+        humidity: entry.humidity?.toString() ?? "",
+        temperature: entry.temperature?.toString() ?? "",
+        temperatureUnit: entry.temperatureUnit === "F" ? "F" : "C",
+        notes: entry.notes ?? "",
+        reminderDate: entry.reminderDate ? entry.reminderDate.slice(0, 10) : "",
+        feedingPrey: entry.feedingPrey ?? "",
+        feedingOutcome: entry.feedingOutcome ?? "",
+        feedingAmount: entry.feedingAmount ?? "",
+      };
     });
     setAttachments(entry.attachments ?? []);
     setFormOpen(true);
@@ -495,8 +522,8 @@ export default function MobileDashboard() {
       species: formState.species.trim() || undefined,
       date: formState.date,
       stage: isMolt ? formState.stage : undefined,
-      oldSize: isMolt && formState.oldSize ? Number(formState.oldSize) : undefined,
-      newSize: isMolt && formState.newSize ? Number(formState.newSize) : undefined,
+      oldSize: isMolt ? toCanonicalSize(formState.oldSize, formState.sizeUnit) : undefined,
+      newSize: isMolt ? toCanonicalSize(formState.newSize, formState.sizeUnit) : undefined,
       humidity: formState.humidity ? Number(formState.humidity) : undefined,
       temperature: formState.temperature ? Number(formState.temperature) : undefined,
       temperatureUnit: formState.temperature ? formState.temperatureUnit : undefined,
@@ -1979,6 +2006,7 @@ export default function MobileDashboard() {
             onSetCover={handleSetSpecimenCover}
             onUnsetCover={handleUnsetSpecimenCover}
             covers={displayCovers}
+            sizeUnit={formState.sizeUnit}
           />
         </div>
 
@@ -1991,6 +2019,7 @@ export default function MobileDashboard() {
             readOnly={isPreviewActive}
             initialFocusSpecimen={linkedSpecimen ?? undefined}
             ownerId={session?.user?.id || undefined}
+            sizeUnit={formState.sizeUnit}
             onQuickAction={
               isPreviewActive
                 ? undefined

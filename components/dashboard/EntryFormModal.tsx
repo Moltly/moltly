@@ -6,9 +6,10 @@ import { X, Upload, Trash2, Calendar, Droplets, Thermometer } from "lucide-react
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
-import { FormState, Attachment, Stage, FeedingOutcome } from "@/types/molt";
-import { cToF, fToC } from "@/lib/utils";
+import { FormState, Attachment, Stage, FeedingOutcome, SizeUnit } from "@/types/molt";
+import { cToF, fToC, cmToInches, inchesToCm } from "@/lib/utils";
 import { saveTempUnit } from "@/lib/temperature";
+import { saveSizeUnit } from "@/lib/size-unit";
 
 interface EntryFormModalProps {
   isOpen: boolean;
@@ -113,10 +114,40 @@ export default function EntryFormModal({
     onSubmit();
   };
 
+  const roundSize = (value: number, precision = 2) => {
+    const factor = 10 ** precision;
+    return Math.round(value * factor) / factor;
+  };
+
+  const convertSizeValue = (value: string, from: SizeUnit, to: SizeUnit) => {
+    if (!value) return value;
+    const parsed = Number.parseFloat(value);
+    if (!Number.isFinite(parsed)) return "";
+    const cmValue = from === "cm" ? parsed : inchesToCm(parsed);
+    const target = to === "cm" ? cmValue : cmToInches(cmValue);
+    return roundSize(target, 2).toString();
+  };
+
+  const handleSizeUnitChange = (nextUnit: SizeUnit) => {
+    if (formState.sizeUnit === nextUnit) return;
+    onFormChange({
+      sizeUnit: nextUnit,
+      oldSize: convertSizeValue(formState.oldSize, formState.sizeUnit, nextUnit),
+      newSize: convertSizeValue(formState.newSize, formState.sizeUnit, nextUnit),
+    });
+    saveSizeUnit(nextUnit);
+  };
+
   const isMolt = formState.entryType === "molt";
   const isFeeding = formState.entryType === "feeding";
   const isWater = formState.entryType === "water";
   const isCustom = !isMolt && !isFeeding && !isWater;
+  const parsedTemp = formState.temperature ? Number.parseFloat(formState.temperature) : NaN;
+  const convertedTemp = Number.isFinite(parsedTemp)
+    ? formState.temperatureUnit === "F"
+      ? fToC(parsedTemp)
+      : cToF(parsedTemp)
+    : null;
   const ensureTrailingSpace = (s: string) => (/\s$/.test(s) ? s : s + " ");
   const insertAtCursor = (text: string) => {
     const el = notesEl;
@@ -288,32 +319,58 @@ export default function EntryFormModal({
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                      Old Size (cm)
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-[rgb(var(--text))]">
+                      Size
                     </label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="0.0"
-                      value={formState.oldSize}
-                      onChange={(e) => onFormChange({ oldSize: e.target.value })}
-                    />
+                    <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
+                      <button
+                        type="button"
+                        className={`px-2 py-0.5 text-xs ${formState.sizeUnit === "cm" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                        onClick={() => handleSizeUnitChange("cm")}
+                        aria-label="Use centimeters"
+                      >
+                        cm
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-2 py-0.5 text-xs ${formState.sizeUnit === "in" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                        onClick={() => handleSizeUnitChange("in")}
+                        aria-label="Use inches"
+                      >
+                        in
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                      New Size (cm)
-                    </label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      placeholder="0.0"
-                      value={formState.newSize}
-                      onChange={(e) => onFormChange({ newSize: e.target.value })}
-                    />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                        Old Size ({formState.sizeUnit})
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0.0"
+                        value={formState.oldSize}
+                        onChange={(e) => onFormChange({ oldSize: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                        New Size ({formState.sizeUnit})
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        placeholder="0.0"
+                        value={formState.newSize}
+                        onChange={(e) => onFormChange({ newSize: e.target.value })}
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -422,6 +479,11 @@ export default function EntryFormModal({
                         °F
                       </button>
                     </div>
+                    {convertedTemp !== null && (
+                      <div className="text-[10px] text-[rgb(var(--text-subtle))] mt-1">
+                        ≈ {Math.round(convertedTemp * 10) / 10}°{formState.temperatureUnit === "F" ? "C" : "F"}
+                      </div>
+                    )}
                   </div>
                   <Input
                     type="number"

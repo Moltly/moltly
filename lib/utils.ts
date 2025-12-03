@@ -69,3 +69,11 @@ export function cToF(celsius: number): number {
 export function fToC(fahrenheit: number): number {
   return ((fahrenheit - 32) * 5) / 9;
 }
+
+export function cmToInches(cm: number): number {
+  return cm / 2.54;
+}
+
+export function inchesToCm(inches: number): number {
+  return inches * 2.54;
+}

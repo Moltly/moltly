@@ -2,6 +2,7 @@
 export type EntryType = string;
 export type Stage = "Pre-molt" | "Molt" | "Post-molt";
 export type FeedingOutcome = "Offered" | "Ate" | "Refused" | "Not Observed";
+export type SizeUnit = "cm" | "in";
 
 export type Attachment = {
   id: string;
@@ -41,6 +42,7 @@ export type FormState = {
   stage: Stage;
   oldSize: string;
   newSize: string;
+   sizeUnit: SizeUnit;
   humidity: string;
   temperature: string;
   temperatureUnit: "C" | "F";

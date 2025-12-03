@@ -6,9 +6,8 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import CachedImage from "@/components/ui/CachedImage";
-import { MoltEntry, SpecimenDashboard } from "@/types/molt";
-import { formatDate, getReminderStatus } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { MoltEntry, SpecimenDashboard, SizeUnit } from "@/types/molt";
+import { formatDate, getReminderStatus, cn, cmToInches } from "@/lib/utils";
 import SpecimenQrModal from "@/components/dashboard/SpecimenQrModal";
 
 interface SpecimensViewProps {
@@ -20,12 +19,19 @@ interface SpecimensViewProps {
   initialFocusSpecimen?: string;
   readOnly?: boolean;
   ownerId?: string;
+  sizeUnit: SizeUnit;
 }
 
-export default function SpecimensView({ entries, covers, healthEntries = [], breedingEntries = [], onQuickAction, initialFocusSpecimen, readOnly, ownerId }: SpecimensViewProps) {
+export default function SpecimensView({ entries, covers, healthEntries = [], breedingEntries = [], onQuickAction, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [showQrModal, setShowQrModal] = useState(false);
   const hasFocusedRef = useRef(false);
+
+  const formatSize = (value?: number) => {
+    if (value === undefined || value === null) return "?";
+    const converted = sizeUnit === "in" ? cmToInches(value) : value;
+    return Number((Math.round(converted * 100) / 100).toFixed(2)).toString();
+  };
 
   const specimenDashboards = useMemo(() => {
     // Pre-compute per-specimen health and breeding counts
@@ -496,7 +502,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                             </div>
                             {entry.oldSize && entry.newSize && (
                               <span className="text-xs text-[rgb(var(--text-soft))] whitespace-nowrap">
-                                {entry.oldSize} → {entry.newSize} cm
+                                {formatSize(entry.oldSize)} → {formatSize(entry.newSize)} {sizeUnit}
                               </span>
                             )}
                           </div>
