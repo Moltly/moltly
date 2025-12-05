@@ -34,7 +34,9 @@ const UserSchema = new Schema(
       }
     ],
     passkeyChallenge: { type: String, select: false },
-    passkeyChallengeExpires: { type: Date, select: false }
+    passkeyChallengeExpires: { type: Date, select: false },
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpires: { type: Date, select: false }
   },
   { timestamps: true, collection: "users" }
 );
