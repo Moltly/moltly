@@ -17,32 +17,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
     }
 
-    private func injectStatusBarOverlayFix() {
-        guard let bridgeVC = self.window?.rootViewController as? CAPBridgeViewController else { return }
-        configurePasskeySupport()
-        let js = """
-        (function() {
-          function setOverlayFalse(){
-            try {
-              var sb = (window && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.StatusBar);
-              if (sb && sb.setOverlaysWebView) { sb.setOverlaysWebView({ overlay: false }); return true; }
-            } catch (e) {}
-            return false;
-          }
-          if (!setOverlayFalse()) {
-            var t = setInterval(function(){ if (setOverlayFalse()) { clearInterval(t); } }, 200);
-            setTimeout(function(){ clearInterval(t); }, 5000);
-          }
-        })();
-        """
-        let userScript = WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
-        bridgeVC.bridge?.webView?.configuration.userContentController.addUserScript(userScript)
-        bridgeVC.bridge?.webView?.evaluateJavaScript(js, completionHandler: nil)
-    }
-
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
-        injectStatusBarOverlayFix()
         return true
     }
 
@@ -62,7 +38,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-        injectStatusBarOverlayFix()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
