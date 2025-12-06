@@ -425,8 +425,9 @@ export default function MobileDashboard() {
   }, []);
 
   useEffect(() => {
+    const timers = noteSaveTimers.current;
     return () => {
-      Object.values(noteSaveTimers.current).forEach((timer) => window.clearTimeout(timer));
+      Object.values(timers).forEach((timer) => window.clearTimeout(timer));
     };
   }, []);
 

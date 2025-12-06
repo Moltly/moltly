@@ -84,7 +84,7 @@ export default function SpecimenQrModal({ isOpen, onClose, specimens, ownerId }:
       }
       return url.toString();
     },
-    [appOrigin, collectionTag, extraLines, includeSpecies]
+    [appOrigin, collectionTag, extraLines, includeSpecies, ownerId]
   );
 
   const previewPayload =

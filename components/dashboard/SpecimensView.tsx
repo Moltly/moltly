@@ -206,7 +206,9 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
     const match = specimenDashboards.find((d) => d.key === initialFocusSpecimen);
     if (match) {
       hasFocusedRef.current = true;
-      setExpandedKeys((prev) => (prev.includes(match.key) ? prev : [...prev, match.key]));
+      queueMicrotask(() => {
+        setExpandedKeys((prev) => (prev.includes(match.key) ? prev : [...prev, match.key]));
+      });
       requestAnimationFrame(() => {
         const el = document.getElementById(`specimen-${encodeURIComponent(match.key)}`);
         el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -230,7 +232,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
     );
   }
 
-    return (
+  return (
     <>
       <div className="space-y-4">
         {readOnly && (
@@ -315,12 +317,12 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                             <Egg className="w-3 h-3" /> {dashboard._breedingCount} breeding
                           </Badge>
                         )}
-                      {dashboard.attachmentsCount > 0 && (
-                        <Badge variant="neutral">
-                          {dashboard.attachmentsCount}{" "}
-                          {dashboard.attachmentsCount === 1 ? "photo" : "photos"}
-                        </Badge>
-                      )}
+                        {dashboard.attachmentsCount > 0 && (
+                          <Badge variant="neutral">
+                            {dashboard.attachmentsCount}{" "}
+                            {dashboard.attachmentsCount === 1 ? "photo" : "photos"}
+                          </Badge>
+                        )}
                         {onQuickAction && (
                           <Button
                             type="button"
@@ -470,8 +472,8 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                               entry.entryType === "molt"
                                 ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary))]"
                                 : entry.entryType === "feeding"
-                                ? "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
-                                : "bg-[rgb(var(--bg-muted))] text-[rgb(var(--text-soft))]"
+                                  ? "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
+                                  : "bg-[rgb(var(--bg-muted))] text-[rgb(var(--text-soft))]"
                             )}>
                               {entry.entryType === "molt" ? (
                                 <TrendingUp className="w-3 h-3" />
