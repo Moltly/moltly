@@ -37,28 +37,29 @@
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: 15 17 23;
-      --bg-muted: 17 21 31;
-      --surface: 24 28 36;
-      --border: 51 65 85;
-      --border-strong: 71 85 105;
-      --text: 236 241 255;
-      --text-soft: 148 163 184;
-      --text-subtle: 100 116 139;
-      --primary: 96 165 250;
-      --primary-soft: 30 58 138;
-      --primary-strong: 147 197 253;
+      /* Mobile shell colorscheme - pure blacks with purple primary */
+      --bg: 4 4 4;
+      --bg-muted: 10 10 10;
+      --surface: 15 15 15;
+      --border: 26 26 26;
+      --border-strong: 38 38 38;
+      --text: 244 244 244;
+      --text-soft: 179 179 179;
+      --text-subtle: 128 128 128;
+      --primary: 124 58 237;
+      --primary-soft: 46 16 101;
+      --primary-strong: 139 92 246;
       --danger: 248 113 113;
       --danger-soft: 127 29 29;
-      --success: 74 222 128;
-      --success-soft: 20 83 45;
+      --success: 196 181 253;
+      --success-soft: 76 29 149;
       --warning: 253 224 71;
       --warning-soft: 113 63 18;
 
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
-      --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
-      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+      --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
     }
   }
 
@@ -89,28 +90,29 @@
   }
 
   :root[data-theme="dark"] {
-    --bg: 15 17 23;
-    --bg-muted: 17 21 31;
-    --surface: 24 28 36;
-    --border: 51 65 85;
-    --border-strong: 71 85 105;
-    --text: 236 241 255;
-    --text-soft: 148 163 184;
-    --text-subtle: 100 116 139;
-    --primary: 96 165 250;
-    --primary-soft: 30 58 138;
-    --primary-strong: 147 197 253;
+    /* Mobile shell colorscheme - pure blacks with purple primary */
+    --bg: 4 4 4;
+    --bg-muted: 10 10 10;
+    --surface: 15 15 15;
+    --border: 26 26 26;
+    --border-strong: 38 38 38;
+    --text: 244 244 244;
+    --text-soft: 179 179 179;
+    --text-subtle: 128 128 128;
+    --primary: 124 58 237;
+    --primary-soft: 46 16 101;
+    --primary-strong: 139 92 246;
     --danger: 248 113 113;
     --danger-soft: 127 29 29;
-    --success: 74 222 128;
-    --success-soft: 20 83 45;
+    --success: 196 181 253;
+    --success-soft: 76 29 149;
     --warning: 253 224 71;
     --warning-soft: 113 63 18;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.7);
   }
 
   * {
@@ -123,7 +125,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-feature-settings: "rlig" 1, "calt" 1;
-    background: radial-gradient(120% 120% at 50% -20%, rgba(96, 165, 250, 0.08), transparent), rgb(var(--bg));
+    background: radial-gradient(120% 120% at 50% -20%, rgba(var(--primary), 0.08), transparent), rgb(var(--bg));
     min-height: 100dvh;
     /* Prevent accidental horizontal bounce on mobile */
     overflow-x: hidden;
