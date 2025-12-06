@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3, KeyRound } from "lucide-react";
+import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3, KeyRound, Server } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { useSearchParams } from "next/navigation";
@@ -124,7 +124,7 @@ const syncBreedingReminder = async (prev: BreedingEntry | undefined, next: Breed
   if (prevFollowUp && !nextFollowUp) {
     try {
       await cancelReminderNotification(breedingReminderKey(next.id));
-    } catch {}
+    } catch { }
     return;
   }
 
@@ -505,7 +505,7 @@ export default function MobileDashboard() {
     setEntries((prev) => prev.filter((e) => e.id !== id));
     try {
       await cancelReminderNotification(id);
-    } catch {}
+    } catch { }
   };
 
   const onSubmit = async () => {
@@ -571,8 +571,8 @@ export default function MobileDashboard() {
                 (saved.entryType === "feeding"
                   ? "Feeding due."
                   : saved.entryType === "water"
-                  ? "Water change due."
-                  : "Care reminder."),
+                    ? "Water change due."
+                    : "Care reminder."),
             });
           }
         } catch (err) {
@@ -640,8 +640,8 @@ export default function MobileDashboard() {
             (nextSaved.entryType === "feeding"
               ? "Feeding due."
               : nextSaved.entryType === "water"
-              ? "Water change due."
-              : "Care reminder."),
+                ? "Water change due."
+                : "Care reminder."),
         });
       }
     } catch (err) {
@@ -805,7 +805,7 @@ export default function MobileDashboard() {
     if (existing?.followUpDate) {
       try {
         await cancelReminderNotification(healthReminderKey(id));
-      } catch {}
+      } catch { }
     }
   };
 
@@ -912,7 +912,7 @@ export default function MobileDashboard() {
     if (existing?.followUpDate) {
       try {
         await cancelReminderNotification(breedingReminderKey(id));
-      } catch {}
+      } catch { }
     }
   };
 
@@ -1280,7 +1280,7 @@ export default function MobileDashboard() {
 
     try {
       await cancelReminderNotification(id);
-    } catch {}
+    } catch { }
   };
 
   const onSnooze = async (id: string, days: number) => {
@@ -1339,7 +1339,7 @@ export default function MobileDashboard() {
           body: entry.notes || (entry.entryType === "feeding" ? "Feeding due." : entry.entryType === "water" ? "Water change due." : "Care reminder."),
         });
       }
-    } catch {}
+    } catch { }
   };
 
   // Account deletion (sync mode only)
@@ -1419,7 +1419,7 @@ export default function MobileDashboard() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))]">
-            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <LogoMark size={36} />
                 <div>
                   <h2 id="info-title" className="text-xl font-bold">About Moltly</h2>
@@ -1485,7 +1485,7 @@ export default function MobileDashboard() {
                     <span className="flex items-center gap-2"><Smartphone className="w-4 h-4" /> iOS TestFlight</span>
                     <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
                   </a>
-                                    <a
+                  <a
                     href="https://github.com/moltly/moltly/releases/latest"
                     target="_blank"
                     rel="noreferrer"
@@ -1514,6 +1514,24 @@ export default function MobileDashboard() {
                     <Sparkles className="w-4 h-4" /> What’s new
                   </button>
                 </div>
+                {/* Change Server button - only on native platforms */}
+                {Capacitor.getPlatform() !== "web" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Switch to a different server? You'll need to sign in again on the new server.")) {
+                        try {
+                          localStorage.removeItem("moltly:server-url");
+                        } catch { }
+                        // Navigate to the mobile shell root to show server selection
+                        window.location.href = "/";
+                      }
+                    }}
+                    className="mt-3 w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))] inline-flex items-center justify-center gap-2"
+                  >
+                    <Server className="w-4 h-4" /> Change Server
+                  </button>
+                )}
               </section>
 
               {/* Account */}
@@ -1561,7 +1579,7 @@ export default function MobileDashboard() {
                             } catch {
                               setWscaSyncStatus(res.ok ? "WSCA sync triggered successfully." : `WSCA sync failed (${res.status}).`);
                             }
-                            try { console.log("WSCA sync response:", text); } catch {}
+                            try { console.log("WSCA sync response:", text); } catch { }
                           } catch (err) {
                             setWscaSyncStatus("WSCA sync failed. Please try again.");
                           } finally {
@@ -1674,7 +1692,7 @@ export default function MobileDashboard() {
                                   setStacks(Array.isArray(r) ? r : []);
                                   if (r.length > 0) setSelectedStackId(r[0].id);
                                 }
-                              } catch {}
+                              } catch { }
                             } catch (err) {
                               setImportError(err instanceof Error ? err.message : "Import failed.");
                             } finally {
@@ -2024,22 +2042,22 @@ export default function MobileDashboard() {
               isPreviewActive
                 ? undefined
                 : (specimen, species, label) => {
-                    const d = new Date();
-                    const pad = (n: number) => String(n).padStart(2, "0");
-                    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-                    const note = label ? `- ${label} ` : "";
-                    setEditingId(null);
-                    setAttachments([]);
-                    setFormState({
-                      ...defaultForm(),
-                      entryType: "water",
-                      specimen,
-                      species: species || "",
-                      date: date,
-                      notes: note,
-                    });
-                    setFormOpen(true);
-                  }
+                  const d = new Date();
+                  const pad = (n: number) => String(n).padStart(2, "0");
+                  const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+                  const note = label ? `- ${label} ` : "";
+                  setEditingId(null);
+                  setAttachments([]);
+                  setFormState({
+                    ...defaultForm(),
+                    entryType: "water",
+                    specimen,
+                    species: species || "",
+                    date: date,
+                    notes: note,
+                  });
+                  setFormOpen(true);
+                }
             }
           />
         </div>

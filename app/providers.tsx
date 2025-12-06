@@ -15,8 +15,8 @@ function useCapacitorUniversalLinks() {
       const sub = App.addListener("appUrlOpen", ({ url }) => {
         try {
           const target = new URL(url);
-          // Only handle our domain
-          if (target.host === "moltly.xyz" || target.host === "www.moltly.xyz") {
+          // Handle deep links from the current server (supports self-hosted)
+          if (target.host === window.location.host) {
             window.location.href = url;
           }
         } catch {
@@ -94,11 +94,11 @@ export default function Providers({ children, session }: { children: ReactNode; 
     import("@capacitor/status-bar").then(({ StatusBar, Style }) => {
       // On Android, stop the status bar from overlaying the WebView
       if (Capacitor.getPlatform() === "android") {
-        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+        StatusBar.setOverlaysWebView({ overlay: false }).catch(() => { });
         // Prefer a dark status bar background with light content
-        StatusBar.setBackgroundColor({ color: "#0B0B0B" }).catch(() => {});
+        StatusBar.setBackgroundColor({ color: "#0B0B0B" }).catch(() => { });
         // Dark style = light icons/text (for dark backgrounds)
-        StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+        StatusBar.setStyle({ style: Style.Dark }).catch(() => { });
         // As a defensive fallback for Android 15 edge-to-edge enforcement,
         // compute the status bar height and expose it as a CSS var that
         // our CSS uses to pad headers away from the bar when necessary.
@@ -108,7 +108,7 @@ export default function Providers({ children, session }: { children: ReactNode; 
             const pad = info.overlays && info.visible ? `${h}px` : "0px";
             document.documentElement.style.setProperty("--android-statusbar-pad", pad);
           })
-          .catch(() => {});
+          .catch(() => { });
       }
     }).catch(() => {
       // Plugin not available; ignore

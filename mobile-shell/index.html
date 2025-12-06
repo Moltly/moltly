@@ -3,24 +3,370 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>Moltly Mobile Shell</title>
+    <title>Moltly</title>
     <style>
       :root { 
-        /* ensure safe-area vars are available */
         --safe-top: env(safe-area-inset-top);
         --safe-bottom: env(safe-area-inset-bottom);
+        --bg: #040404;
+        --surface: #0f0f0f;
+        --border: #1a1a1a;
+        --text: #f4f4f4;
+        --text-soft: rgba(255,255,255,0.7);
+        --text-subtle: rgba(255,255,255,0.5);
+        --primary: #7c3aed;
+        --primary-hover: #6d28d9;
+        --danger: #ef4444;
+        --radius: 12px;
       }
-      body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; margin: 0; padding: calc(24px + var(--safe-top, 0)) 24px calc(24px + var(--safe-bottom, 0)); display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #040404; color: #f4f4f4; }
-      main { max-width: 460px; text-align: center; }
-      h1 { font-size: 1.5rem; margin-bottom: 0.75rem; }
-      p { line-height: 1.4; color: rgba(255,255,255,0.8); }
-      code { background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px; }
+      * { box-sizing: border-box; }
+      body { 
+        font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; 
+        margin: 0; 
+        padding: calc(24px + var(--safe-top, 0)) 24px calc(24px + var(--safe-bottom, 0)); 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        min-height: 100vh; 
+        background: var(--bg); 
+        color: var(--text); 
+      }
+      main { 
+        width: 100%;
+        max-width: 400px; 
+        text-align: center; 
+      }
+      .logo {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 24px;
+        background: linear-gradient(135deg, var(--primary), #a855f7);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        box-shadow: 0 8px 32px rgba(124, 58, 237, 0.3);
+      }
+      h1 { 
+        font-size: 1.75rem; 
+        margin: 0 0 8px; 
+        font-weight: 700;
+      }
+      p { 
+        line-height: 1.5; 
+        color: var(--text-soft); 
+        margin: 0 0 32px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        text-align: left;
+      }
+      .option {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: var(--bg);
+        border: 2px solid var(--border);
+        border-radius: var(--radius);
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+        margin-bottom: 12px;
+      }
+      .option:hover {
+        border-color: rgba(124, 58, 237, 0.5);
+      }
+      .option.selected {
+        border-color: var(--primary);
+        background: rgba(124, 58, 237, 0.1);
+      }
+      .option-radio {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: border-color 0.15s;
+      }
+      .option.selected .option-radio {
+        border-color: var(--primary);
+      }
+      .option-radio::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        background: var(--primary);
+        border-radius: 50%;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+      .option.selected .option-radio::after {
+        opacity: 1;
+      }
+      .option-content {
+        flex: 1;
+        min-width: 0;
+      }
+      .option-title {
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .option-desc {
+        font-size: 13px;
+        color: var(--text-subtle);
+      }
+      .custom-input-wrapper {
+        margin-top: 8px;
+        display: none;
+      }
+      .custom-input-wrapper.visible {
+        display: block;
+      }
+      input[type="url"] {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text);
+        font-size: 15px;
+        outline: none;
+        transition: border-color 0.15s;
+      }
+      input[type="url"]:focus {
+        border-color: var(--primary);
+      }
+      input[type="url"]::placeholder {
+        color: var(--text-subtle);
+      }
+      .error {
+        color: var(--danger);
+        font-size: 13px;
+        margin-top: 8px;
+        display: none;
+      }
+      .error.visible {
+        display: block;
+      }
+      .btn {
+        display: block;
+        width: 100%;
+        padding: 14px 24px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: var(--radius);
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s, transform 0.1s;
+        margin-top: 20px;
+      }
+      .btn:hover {
+        background: var(--primary-hover);
+      }
+      .btn:active {
+        transform: scale(0.98);
+      }
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 200px;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      .loading-text {
+        margin-top: 16px;
+        color: var(--text-soft);
+      }
+      .hidden { display: none !important; }
     </style>
   </head>
   <body>
     <main>
-      <h1>Moltly Mobile Shell</h1>
-      <p>This placeholder is bundled inside the Capacitor container. The live experience is loaded from the remote server configured in <code>capacitor.config.ts</code>.</p>
+      <!-- Loading state -->
+      <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Connecting...</div>
+      </div>
+
+      <!-- Server selection form -->
+      <div id="selection" class="hidden">
+        <div class="logo">🕷️</div>
+        <h1>Welcome to Moltly</h1>
+        <p>Choose a server to connect to. Use the official server or enter your own self-hosted instance.</p>
+        
+        <div class="card">
+          <div class="option selected" data-value="https://moltly.xyz" id="opt-official">
+            <div class="option-radio"></div>
+            <div class="option-content">
+              <div class="option-title">Official Server</div>
+              <div class="option-desc">moltly.xyz</div>
+            </div>
+          </div>
+
+          <div class="option" data-value="custom" id="opt-custom">
+            <div class="option-radio"></div>
+            <div class="option-content">
+              <div class="option-title">Self-Hosted / Custom</div>
+              <div class="option-desc">Enter your server URL</div>
+            </div>
+          </div>
+
+          <div class="custom-input-wrapper" id="custom-input-wrapper">
+            <input 
+              type="url" 
+              id="custom-url" 
+              placeholder="https://your-server.com"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+            />
+            <div class="error" id="error">Please enter a valid URL starting with http:// or https://</div>
+          </div>
+
+          <button class="btn" id="connect-btn">Connect</button>
+        </div>
+      </div>
     </main>
+
+    <script>
+      (function() {
+        const STORAGE_KEY = 'moltly:server-url';
+        const DEFAULT_SERVER = 'https://moltly.xyz';
+
+        const loadingEl = document.getElementById('loading');
+        const selectionEl = document.getElementById('selection');
+        const optOfficial = document.getElementById('opt-official');
+        const optCustom = document.getElementById('opt-custom');
+        const customInputWrapper = document.getElementById('custom-input-wrapper');
+        const customUrlInput = document.getElementById('custom-url');
+        const errorEl = document.getElementById('error');
+        const connectBtn = document.getElementById('connect-btn');
+
+        let selectedOption = 'official'; // 'official' or 'custom'
+
+        function isValidUrl(str) {
+          try {
+            const url = new URL(str);
+            return url.protocol === 'http:' || url.protocol === 'https:';
+          } catch {
+            return false;
+          }
+        }
+
+        function getSavedServer() {
+          try {
+            return localStorage.getItem(STORAGE_KEY);
+          } catch {
+            return null;
+          }
+        }
+
+        function saveServer(url) {
+          try {
+            localStorage.setItem(STORAGE_KEY, url);
+          } catch {
+            // Storage may be unavailable
+          }
+        }
+
+        function navigateToServer(url) {
+          window.location.href = url;
+        }
+
+        function showSelection() {
+          loadingEl.classList.add('hidden');
+          selectionEl.classList.remove('hidden');
+        }
+
+        function selectOption(option) {
+          selectedOption = option;
+          if (option === 'official') {
+            optOfficial.classList.add('selected');
+            optCustom.classList.remove('selected');
+            customInputWrapper.classList.remove('visible');
+            errorEl.classList.remove('visible');
+          } else {
+            optOfficial.classList.remove('selected');
+            optCustom.classList.add('selected');
+            customInputWrapper.classList.add('visible');
+            customUrlInput.focus();
+          }
+        }
+
+        function handleConnect() {
+          let serverUrl;
+          
+          if (selectedOption === 'official') {
+            serverUrl = DEFAULT_SERVER;
+          } else {
+            const customUrl = customUrlInput.value.trim();
+            if (!isValidUrl(customUrl)) {
+              errorEl.classList.add('visible');
+              customUrlInput.focus();
+              return;
+            }
+            errorEl.classList.remove('visible');
+            // Normalize: remove trailing slash
+            serverUrl = customUrl.replace(/\/+$/, '');
+          }
+
+          connectBtn.disabled = true;
+          connectBtn.textContent = 'Connecting...';
+          
+          saveServer(serverUrl);
+          navigateToServer(serverUrl);
+        }
+
+        // Event listeners
+        optOfficial.addEventListener('click', () => selectOption('official'));
+        optCustom.addEventListener('click', () => selectOption('custom'));
+        
+        customUrlInput.addEventListener('input', () => {
+          errorEl.classList.remove('visible');
+        });
+
+        customUrlInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            handleConnect();
+          }
+        });
+
+        connectBtn.addEventListener('click', handleConnect);
+
+        // Check for saved server on load
+        const savedServer = getSavedServer();
+        if (savedServer && isValidUrl(savedServer)) {
+          // Redirect immediately to saved server
+          navigateToServer(savedServer);
+        } else {
+          // Show selection UI
+          showSelection();
+        }
+      })();
+    </script>
   </body>
 </html>
