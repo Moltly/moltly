@@ -6,6 +6,14 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "1.9.1",
+    date: "2025-12-05",
+    highlights: [
+      "Ability to reset password via email.",
+      "Fix iOS Application Expanding past status bar."
+    ]
+  },
+  {
     version: "1.9.0",
     date: "2025-12-02",
     highlights: [
@@ -22,8 +30,8 @@ const entries: ChangelogEntry[] = [
       "Add support for Passkeys authentication.",
       "Make Email Optional and add usernames",
       "Allow oauth users to set a username/password/passkey for auth",
-      "Change logo/icon" 
-    ]       
+      "Change logo/icon"
+    ]
   },
   {
     version: "1.7.7",
