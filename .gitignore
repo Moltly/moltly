@@ -13,3 +13,5 @@ wsca
 android/signing.properties
 *.keystore
 *.jks
+mongo/
+minio/

@@ -1,24 +1,4 @@
 services:
-  traefik:
-    image: traefik:latest
-    container_name: moltly-traefik
-    restart: unless-stopped
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      - --certificatesresolvers.le.acme.httpchallenge=true
-      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
-      - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL:-contact@moltly.xyz}
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-data:/letsencrypt
-
   web:
     build: .
     container_name: molt-log-web
@@ -35,17 +15,8 @@ services:
       - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
       - S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
       - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-true}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.web.rule=Host(`${TRAEFIK_WEB_HOST:-moltly.xyz}`)"
-      - "traefik.http.routers.web.entrypoints=websecure"
-      - "traefik.http.routers.web.tls=true"
-      - "traefik.http.routers.web.tls.certresolver=le"
-      - "traefik.http.services.web.loadbalancer.server.port=5777"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.routers.web-http.rule=Host(`${TRAEFIK_WEB_HOST:-moltly.xyz}`)"
-      - "traefik.http.routers.web-http.entrypoints=web"
-      - "traefik.http.routers.web-http.middlewares=redirect-to-https"
+    ports:
+      - "127.0.0.1:5777:5777"
     depends_on:
       - mongo
       - minio
@@ -62,7 +33,7 @@ services:
     ports:
       - "127.0.0.1:13777:13777"
     volumes:
-      - mongo-data:/data/db
+      - ./mongo:/data/db
 
   minio:
     image: minio/minio:latest
@@ -71,18 +42,11 @@ services:
     environment:
       - MINIO_ROOT_USER=${S3_ACCESS_KEY:-minioadmin}
       - MINIO_ROOT_PASSWORD=${S3_SECRET_KEY:-minioadmin}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.minio.rule=Host(`${TRAEFIK_MINIO_HOST:-image.moltly.xyz}`)"
-      - "traefik.http.routers.minio.entrypoints=websecure"
-      - "traefik.http.routers.minio.tls=true"
-      - "traefik.http.routers.minio.tls.certresolver=le"
-      - "traefik.http.services.minio.loadbalancer.server.port=9000"
-      - "traefik.http.routers.minio-http.rule=Host(`${TRAEFIK_MINIO_HOST:-image.moltly.xyz}`)"
-      - "traefik.http.routers.minio-http.entrypoints=web"
-      - "traefik.http.routers.minio-http.middlewares=redirect-to-https"
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
-      - minio-data:/data
+      - ./minio:/data
 
   minio-setup:
     image: minio/mc:latest
@@ -105,4 +69,3 @@ services:
 volumes:
   mongo-data:
   minio-data:
-  traefik-data:
