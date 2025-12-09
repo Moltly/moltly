@@ -354,6 +354,10 @@
       }
 
       function navigateToServer(url) {
+        if (!isValidUrl(url)) {
+          console.error('Invalid URL:', url);
+          return;
+        }
         window.location.href = url;
       }
 
