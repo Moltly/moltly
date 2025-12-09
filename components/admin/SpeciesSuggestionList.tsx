@@ -55,7 +55,7 @@ export default function SpeciesSuggestionList({ initial, mode }: { initial: Item
   return (
     <div className="space-y-3">
       {items.map((s) => (
-        <div key={s.id} className="border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 flex items-center justify-between gap-3 opacity-100">
+        <div key={s.id} className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-[var(--radius)] p-3 flex items-center justify-between gap-3 opacity-100">
           <div>
             <div className="font-medium">{s.fullName}</div>
             <div className="text-xs text-[rgb(var(--text-soft))]">
