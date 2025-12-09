@@ -12,7 +12,7 @@ const entries: ChangelogEntry[] = [
       "Fix theme issue on species page and admin dashboard.",
       "Fix custom entry titles on specimen tab.",
       "Fix bug when uploading an image to an entry.",
-      "Upgrade to Capacitor 8."
+      "Update iOS/Android apps to Capacitor 8."
     ]
   },
   {
