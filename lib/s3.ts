@@ -30,7 +30,9 @@ export function publicUrlForKey(key: string): string | null {
   if (!bucket) return null;
   const base = getPublicBaseUrl();
   if (!base) return null;
-  return `${base.replace(/\/$/, "")}/${bucket}/${encodeURIComponent(key)}`;
+  // Encode each path segment individually to preserve slashes
+  const encodedKey = key.split('/').map(segment => encodeURIComponent(segment)).join('/');
+  return `${base.replace(/\/$/, "")}/${bucket}/${encodedKey}`;
 }
 
 export async function putObject({ key, body, contentType }: { key: string; body: Buffer | Uint8Array | Blob | string; contentType?: string; }) {

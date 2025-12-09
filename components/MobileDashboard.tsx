@@ -551,7 +551,9 @@ export default function MobileDashboard() {
           body: JSON.stringify(payload),
         });
         if (!res.ok) {
-          alert("Unable to save entry");
+          const errorBody = await res.text().catch(() => "");
+          console.error("[MobileDashboard] Save failed:", res.status, errorBody);
+          alert(`Unable to save entry: ${errorBody || res.status}`);
           return;
         }
         const saved = (await res.json()) as MoltEntry;

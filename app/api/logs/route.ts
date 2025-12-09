@@ -1,6 +1,9 @@
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// Increase body size limit to handle large payloads with data URL attachments
+export const maxDuration = 60;
+
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth-options";
@@ -52,7 +55,7 @@ async function trySyncToWSCA(userId: string, entry: any) {
       try {
         const t = await res.text();
         console.log("[WSCA_SYNC] POST", syncUrl, "status=", res.status, "body=", t);
-      } catch {}
+      } catch { }
     }
   } catch {
     // best-effort only
@@ -105,6 +108,8 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const parsed = MoltEntryCreateSchema.safeParse(payload);
     if (!parsed.success) {
+      console.error("[/api/logs POST] Validation failed:", JSON.stringify(parsed.error.flatten(), null, 2));
+      console.error("[/api/logs POST] Payload attachments:", JSON.stringify(payload.attachments?.map((a: any) => ({ id: a.id, name: a.name, urlLength: a.url?.length, urlStart: a.url?.slice(0, 100) })), null, 2));
       return NextResponse.json(
         {
           error: "Invalid request body.",

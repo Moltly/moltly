@@ -4,6 +4,24 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'image.moltly.xyz',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+      },
+    ],
+    // Allow unoptimized images for data URLs
+    unoptimized: false,
+  },
   async headers() {
     return [
       // Strong caching for static uploads served from `public/uploads`

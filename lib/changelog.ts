@@ -6,6 +6,14 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "2.0.1",
+    date: "2025-12-09",
+    highlights: [
+      "Fix theme issue on species page and admin dashboard.",
+      "Fix custom entry titles on specimen tab."
+    ]
+  },
+  {
     version: "2.0.0",
     date: "2025-12-06",
     highlights: [

@@ -486,7 +486,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm text-[rgb(var(--text))]">
-                                  {entry.entryType === "molt" ? "Molt" : entry.entryType === "feeding" ? "Feeding" : "Water"}
+                                  {entry.entryType === "molt" ? "Molt" : entry.entryType === "feeding" ? "Feeding" : entry.entryType === "water" ? "Water" : entry.entryType}
                                 </span>
                                 {entry.stage && (
                                   <Badge variant="neutral" className="text-xs">

@@ -72,14 +72,19 @@ export default function EntryFormModal({
       try {
         const form = new FormData();
         for (const file of Array.from(files)) form.append("file", file);
+        console.log("[EntryFormModal] Uploading files to /api/upload...");
         const res = await fetch("/api/upload", { method: "POST", body: form, credentials: "include" });
         if (res.ok) {
           const payload = (await res.json()) as { attachments: Attachment[] };
+          console.log("[EntryFormModal] Upload success, received attachments:", payload.attachments?.length);
           if (Array.isArray(payload.attachments)) newAttachments.push(...payload.attachments);
         } else {
-          throw new Error(`Upload failed with status ${res.status}`);
+          const errorBody = await res.text().catch(() => "");
+          console.error("[EntryFormModal] Upload failed:", res.status, errorBody);
+          throw new Error(`Upload failed with status ${res.status}: ${errorBody}`);
         }
       } catch (err) {
+        console.warn("[EntryFormModal] Upload failed, falling back to data URLs:", err);
         for (const file of Array.from(files)) {
           const dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
@@ -87,6 +92,7 @@ export default function EntryFormModal({
             reader.onerror = () => reject(reader.error);
             reader.readAsDataURL(file);
           });
+          console.log("[EntryFormModal] Created data URL for", file.name, "length:", dataUrl.length);
           newAttachments.push({
             id: crypto.randomUUID(),
             name: file.name,
@@ -167,7 +173,7 @@ export default function EntryFormModal({
         el.focus();
         const pos = start + toInsert.length;
         el.setSelectionRange(pos, pos);
-      } catch (_) {}
+      } catch (_) { }
     });
   };
   const nowStamp = () => {
