@@ -10,7 +10,9 @@ const entries: ChangelogEntry[] = [
     date: "2025-12-09",
     highlights: [
       "Fix theme issue on species page and admin dashboard.",
-      "Fix custom entry titles on specimen tab."
+      "Fix custom entry titles on specimen tab.",
+      "Fix bug when uploading an image to an entry.",
+      "Upgrade to Capacitor 8."
     ]
   },
   {
