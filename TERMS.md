@@ -58,7 +58,7 @@ You agree not to:
 - You agree to defend, indemnify, and hold harmless the Service operator and its affiliates, officers, agents, and employees from and against any claims, damages, obligations, losses, liabilities, costs, or debt arising from (a) your use of the Service; (b) your violation of these Terms; or (c) your content.
 
 12. Termination
-- You may stop using the Service at any time. You can delete your account in the app, which deletes your synced entries and research data associated with your account.
+- You may stop using the Service at any time. You can delete your account in the app, which permanently deletes all synced data associated with your account, including: molt/feeding entries, health entries, breeding entries, research stacks and notes, specimen cover images, and all photo attachments you have uploaded.
 - We may suspend or terminate your access to the Service at any time if we reasonably believe you have violated these Terms or to address security or operational risks.
 
 13. Changes to These Terms

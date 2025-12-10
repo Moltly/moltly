@@ -1,6 +1,6 @@
 # Moltly — Privacy Policy
 
-Last updated: 2025-12-02
+Last updated: 2025-12-10
 
 This Privacy Policy explains how Moltly (the “Service”) collects, uses, and shares information when you use moltly.xyz and any related applications or APIs.
 
@@ -41,7 +41,7 @@ Where GDPR/UK GDPR applies, we process personal data on these bases:
 - We do not sell personal information.
 
 6) Data Retention
-- Account‑linked data (entries, research, attachments) are retained while your account is active. You can delete your account in the app; this deletes your account and associated synced data (including entries and research stacks) from our database. OAuth account records associated with your sign‑in method may also be deleted as part of account deletion.
+- Account‑linked data (entries, research, attachments) are retained while your account is active. You can delete your account in the app; this permanently deletes your account and all associated synced data from our systems, including: molt/feeding entries, health entries, breeding entries, research stacks and notes, specimen cover images, and all photo attachments you have uploaded (removed from our object storage). OAuth account records associated with your sign‑in method may also be deleted as part of account deletion.
 - Security rate‑limit data (login identifier + IP pairing, e.g., username or email) is stored in memory only and automatically expires within minutes; lockouts typically last up to ~15 minutes.
 - Guest mode data is stored only in your browser; we do not receive or retain it.
 - Cloudflare logs and caches: Cloudflare maintains security logs, request metadata, and edge caches as needed to deliver and protect the Service. Cloudflare’s retention is governed by its own policies and service configuration; we do not extend Cloudflare’s retention beyond what the service provides. We access Cloudflare logs only for operations, troubleshooting, and security.
