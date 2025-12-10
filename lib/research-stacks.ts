@@ -12,6 +12,7 @@ export type StackPayload = {
   isPublic?: unknown;
   alias?: unknown;
   saveCount?: unknown;
+  isEncryptedStack?: unknown;
 };
 
 type SanitizedResearchNote = {
@@ -30,6 +31,10 @@ type SanitizedResearchNote = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // E2E encryption fields
+  isEncrypted?: boolean;
+  encryptionSalt?: string;
+  encryptionIV?: string;
 };
 
 type SanitizedStackCreate = {
@@ -44,6 +49,7 @@ type SanitizedStackCreate = {
   isPublic?: boolean;
   alias?: string;
   saveCount?: number;
+  isEncryptedStack?: boolean;
 };
 
 type SanitizedStackUpdate = Partial<Omit<SanitizedStackCreate, "notes">> & {
@@ -66,6 +72,10 @@ type NormalizedResearchNote = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // E2E encryption fields
+  isEncrypted?: boolean;
+  encryptionSalt?: string;
+  encryptionIV?: string;
 };
 
 type NormalizedResearchStack = {
@@ -83,6 +93,7 @@ type NormalizedResearchStack = {
   isPublic?: boolean;
   alias?: string;
   saveCount?: number;
+  isEncryptedStack?: boolean;
 };
 
 function normalizeDate(value: unknown, fallback: string) {
@@ -190,7 +201,11 @@ function sanitizeNote(note: unknown): SanitizedResearchNote | null {
     ...(sourceMessageId ? { sourceMessageId } : {}),
     ...(sourceChannelId ? { sourceChannelId } : {}),
     ...(sourceGuildId ? { sourceGuildId } : {}),
-    ...(authorId ? { authorId } : {})
+    ...(authorId ? { authorId } : {}),
+    // E2E encryption fields
+    ...(record.isEncrypted === true ? { isEncrypted: true } : {}),
+    ...(typeof record.encryptionSalt === "string" && record.encryptionSalt.length > 0 ? { encryptionSalt: record.encryptionSalt } : {}),
+    ...(typeof record.encryptionIV === "string" && record.encryptionIV.length > 0 ? { encryptionIV: record.encryptionIV } : {})
   };
 }
 
@@ -232,7 +247,8 @@ export function sanitizeStackCreate(payload: StackPayload): SanitizedStackCreate
       : {}),
     ...(typeof payload.saveCount === "number" && Number.isFinite(payload.saveCount)
       ? { saveCount: payload.saveCount }
-      : {})
+      : {}),
+    ...(typeof payload.isEncryptedStack === "boolean" ? { isEncryptedStack: payload.isEncryptedStack } : {})
   };
 }
 
@@ -297,6 +313,10 @@ export function sanitizeStackUpdate(payload: StackPayload): SanitizedStackUpdate
     }
   }
 
+  if (typeof payload.isEncryptedStack === "boolean") {
+    update.isEncryptedStack = payload.isEncryptedStack;
+  }
+
   return update;
 }
 
@@ -310,8 +330,8 @@ export function normalizeStack(document: unknown): NormalizedResearchStack | nul
     typeof record.id === "string"
       ? record.id
       : record._id && typeof record._id === "object" && "toString" in record._id
-      ? (record._id as { toString: () => string }).toString()
-      : null;
+        ? (record._id as { toString: () => string }).toString()
+        : null;
 
   if (!identifier) {
     return null;
@@ -322,81 +342,90 @@ export function normalizeStack(document: unknown): NormalizedResearchStack | nul
 
   const notes = Array.isArray(record.notes)
     ? record.notes
-        .map((note, index) => {
-          if (!note || typeof note !== "object") {
-            return null;
+      .map((note, index) => {
+        if (!note || typeof note !== "object") {
+          return null;
+        }
+        const noteRecord = note as Record<string, unknown>;
+        const noteId =
+          typeof noteRecord.id === "string" && noteRecord.id.length > 0
+            ? noteRecord.id
+            : `${identifier}-note-${index}`;
+        const title =
+          typeof noteRecord.title === "string" && noteRecord.title.trim().length > 0
+            ? noteRecord.title.trim()
+            : "Untitled note";
+        const individualLabel =
+          typeof noteRecord.individualLabel === "string" && noteRecord.individualLabel.trim().length > 0
+            ? noteRecord.individualLabel.trim()
+            : undefined;
+        const content = typeof noteRecord.content === "string" ? noteRecord.content : "";
+        const tags = ensureStringArray(noteRecord.tags);
+        const noteCreatedAt = normalizeDate(noteRecord.createdAt, createdAt);
+        const noteUpdatedAt = normalizeDate(noteRecord.updatedAt, noteCreatedAt);
+
+        const normalizedNote: NormalizedResearchNote = {
+          id: noteId,
+          title,
+          content,
+          tags,
+          createdAt: noteCreatedAt,
+          updatedAt: noteUpdatedAt,
+          ...(individualLabel ? { individualLabel } : {})
+        };
+        const externalSource =
+          typeof noteRecord.externalSource === "string" && noteRecord.externalSource.trim().length > 0
+            ? noteRecord.externalSource.trim()
+            : undefined;
+        const externalId =
+          typeof noteRecord.externalId === "string" && noteRecord.externalId.trim().length > 0
+            ? noteRecord.externalId.trim()
+            : undefined;
+        const entryType =
+          typeof noteRecord.entryType === "string" && noteRecord.entryType.trim().length > 0
+            ? noteRecord.entryType.trim()
+            : undefined;
+        const url =
+          typeof noteRecord.url === "string" && noteRecord.url.trim().length > 0
+            ? noteRecord.url.trim()
+            : undefined;
+
+        const toStringId = (value: unknown) => {
+          if (typeof value === "string" && value.trim().length > 0) {
+            return value.trim();
           }
-          const noteRecord = note as Record<string, unknown>;
-          const noteId =
-            typeof noteRecord.id === "string" && noteRecord.id.length > 0
-              ? noteRecord.id
-              : `${identifier}-note-${index}`;
-          const title =
-            typeof noteRecord.title === "string" && noteRecord.title.trim().length > 0
-              ? noteRecord.title.trim()
-              : "Untitled note";
-          const individualLabel =
-            typeof noteRecord.individualLabel === "string" && noteRecord.individualLabel.trim().length > 0
-              ? noteRecord.individualLabel.trim()
-              : undefined;
-          const content = typeof noteRecord.content === "string" ? noteRecord.content : "";
-          const tags = ensureStringArray(noteRecord.tags);
-          const noteCreatedAt = normalizeDate(noteRecord.createdAt, createdAt);
-          const noteUpdatedAt = normalizeDate(noteRecord.updatedAt, noteCreatedAt);
+          if (typeof value === "number" && Number.isFinite(value)) {
+            return String(value);
+          }
+          return undefined;
+        };
 
-          const normalizedNote: NormalizedResearchNote = {
-            id: noteId,
-            title,
-            content,
-            tags,
-            createdAt: noteCreatedAt,
-            updatedAt: noteUpdatedAt,
-            ...(individualLabel ? { individualLabel } : {})
-          };
-          const externalSource =
-            typeof noteRecord.externalSource === "string" && noteRecord.externalSource.trim().length > 0
-              ? noteRecord.externalSource.trim()
-              : undefined;
-          const externalId =
-            typeof noteRecord.externalId === "string" && noteRecord.externalId.trim().length > 0
-              ? noteRecord.externalId.trim()
-              : undefined;
-          const entryType =
-            typeof noteRecord.entryType === "string" && noteRecord.entryType.trim().length > 0
-              ? noteRecord.entryType.trim()
-              : undefined;
-          const url =
-            typeof noteRecord.url === "string" && noteRecord.url.trim().length > 0
-              ? noteRecord.url.trim()
-              : undefined;
+        const sourceMessageId = toStringId(noteRecord.sourceMessageId);
+        const sourceChannelId = toStringId(noteRecord.sourceChannelId);
+        const sourceGuildId = toStringId(noteRecord.sourceGuildId);
+        const authorId = toStringId(noteRecord.authorId);
 
-          const toStringId = (value: unknown) => {
-            if (typeof value === "string" && value.trim().length > 0) {
-              return value.trim();
-            }
-            if (typeof value === "number" && Number.isFinite(value)) {
-              return String(value);
-            }
-            return undefined;
-          };
+        if (externalSource) normalizedNote.externalSource = externalSource;
+        if (externalId) normalizedNote.externalId = externalId;
+        if (entryType) normalizedNote.entryType = entryType;
+        if (url) normalizedNote.url = url;
+        if (sourceMessageId) normalizedNote.sourceMessageId = sourceMessageId;
+        if (sourceChannelId) normalizedNote.sourceChannelId = sourceChannelId;
+        if (sourceGuildId) normalizedNote.sourceGuildId = sourceGuildId;
+        if (authorId) normalizedNote.authorId = authorId;
 
-          const sourceMessageId = toStringId(noteRecord.sourceMessageId);
-          const sourceChannelId = toStringId(noteRecord.sourceChannelId);
-          const sourceGuildId = toStringId(noteRecord.sourceGuildId);
-          const authorId = toStringId(noteRecord.authorId);
+        // E2E encryption fields
+        if (noteRecord.isEncrypted === true) normalizedNote.isEncrypted = true;
+        if (typeof noteRecord.encryptionSalt === "string" && noteRecord.encryptionSalt.length > 0) {
+          normalizedNote.encryptionSalt = noteRecord.encryptionSalt;
+        }
+        if (typeof noteRecord.encryptionIV === "string" && noteRecord.encryptionIV.length > 0) {
+          normalizedNote.encryptionIV = noteRecord.encryptionIV;
+        }
 
-          if (externalSource) normalizedNote.externalSource = externalSource;
-          if (externalId) normalizedNote.externalId = externalId;
-          if (entryType) normalizedNote.entryType = entryType;
-          if (url) normalizedNote.url = url;
-          if (sourceMessageId) normalizedNote.sourceMessageId = sourceMessageId;
-          if (sourceChannelId) normalizedNote.sourceChannelId = sourceChannelId;
-          if (sourceGuildId) normalizedNote.sourceGuildId = sourceGuildId;
-          if (authorId) normalizedNote.authorId = authorId;
-
-          return normalizedNote;
-        })
-        .filter((note): note is NormalizedResearchNote => Boolean(note))
+        return normalizedNote;
+      })
+      .filter((note): note is NormalizedResearchNote => Boolean(note))
     : [];
 
   return {
@@ -433,6 +462,7 @@ export function normalizeStack(document: unknown): NormalizedResearchStack | nul
       : {}),
     ...(typeof record.saveCount === "number" && Number.isFinite(record.saveCount)
       ? { saveCount: record.saveCount }
-      : {})
+      : {}),
+    ...(typeof record.isEncryptedStack === "boolean" ? { isEncryptedStack: record.isEncryptedStack } : {})
   };
 }

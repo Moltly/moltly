@@ -1047,6 +1047,7 @@ export default function MobileDashboard() {
       description: updates.description,
       tags: updates.tags,
       notes: updates.notes,
+      isEncryptedStack: updates.isEncryptedStack,
     };
 
     const localOnly = isLocalOnly(existing);
@@ -1139,6 +1140,10 @@ export default function MobileDashboard() {
       tags: note.tags ?? [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      // E2E encryption fields
+      isEncrypted: note.isEncrypted,
+      encryptionSalt: note.encryptionSalt,
+      encryptionIV: note.encryptionIV,
     };
     const stack = stacks.find((s) => s.id === stackId);
     if (!stack) return;

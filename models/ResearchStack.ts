@@ -16,6 +16,10 @@ type ResearchNoteDocument = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // E2E encryption fields
+  isEncrypted?: boolean;
+  encryptionSalt?: string;
+  encryptionIV?: string;
 };
 
 const ResearchNoteSchema = new Schema<ResearchNoteDocument>(
@@ -43,7 +47,11 @@ const ResearchNoteSchema = new Schema<ResearchNoteDocument>(
     sourceMessageId: { type: String, trim: true },
     sourceChannelId: { type: String, trim: true },
     sourceGuildId: { type: String, trim: true },
-    authorId: { type: String, trim: true }
+    authorId: { type: String, trim: true },
+    // E2E encryption fields
+    isEncrypted: { type: Boolean, default: false },
+    encryptionSalt: { type: String, trim: true },
+    encryptionIV: { type: String, trim: true }
   },
   { _id: false }
 );
@@ -64,6 +72,8 @@ const ResearchStackSchema = new Schema(
     isPublic: { type: Boolean },
     alias: { type: String, trim: true },
     saveCount: { type: Number, default: 0 },
+    // E2E encryption: when true, all notes in this stack are encrypted
+    isEncryptedStack: { type: Boolean, default: false },
     notes: {
       type: [ResearchNoteSchema],
       default: []

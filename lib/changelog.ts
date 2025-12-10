@@ -6,6 +6,13 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "2.0.3",
+    date: "2025-12-10",
+    highlights: [
+      "Add the ability to make Notes/Note Stacks End-To-End Encrypted."
+    ]
+  },
+  {
     version: "2.0.2",
     date: "2025-12-10",
     highlights: [

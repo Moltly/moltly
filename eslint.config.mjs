@@ -14,7 +14,7 @@ const config = [
   },
   // Ignore build output and dependencies
   {
-    ignores: ['.next/**', 'node_modules/**'],
+    ignores: ['.next/**', 'node_modules/**', 'mongo/**', 'minio/**', 'wsca/**'],
   },
 ];
 

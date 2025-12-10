@@ -73,6 +73,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       stack.notes = updates.notes ?? [];
     }
 
+    if (Object.prototype.hasOwnProperty.call(updates, "isEncryptedStack")) {
+      stack.isEncryptedStack = updates.isEncryptedStack;
+    }
+
     await stack.save();
     const normalized = normalizeStack(stack.toObject());
     if (!normalized) {

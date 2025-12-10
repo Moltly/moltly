@@ -88,44 +88,46 @@ function buildWscaNotePayload(stackInput: StackLike) {
 
   const entries = Array.isArray(stack.notes)
     ? stack.notes
-        .map((note: any) => {
-          const noteObj = toPlainObject(note);
-          const createdIso = toIsoString(noteObj.createdAt);
-          const updatedIso = toIsoString(noteObj.updatedAt, createdIso);
-          const entry: Record<string, any> = {
-            id: toStringId(noteObj.externalId) ?? toStringId(noteObj.id) ?? toStringId(noteObj._id),
-            title: typeof noteObj.title === "string" ? noteObj.title : undefined,
-            content: typeof noteObj.content === "string" ? noteObj.content : undefined,
-            entry_type:
-              typeof noteObj.entryType === "string" && noteObj.entryType.trim().length > 0
-                ? noteObj.entryType.trim()
-                : "text",
-            url: typeof noteObj.url === "string" && noteObj.url.trim().length > 0 ? noteObj.url.trim() : undefined,
-            source_message_id: toStringId(noteObj.sourceMessageId),
-            source_channel_id: toStringId(noteObj.sourceChannelId),
-            source_guild_id: toStringId(noteObj.sourceGuildId),
-            author_id: toStringId(noteObj.authorId),
-            created_at: createdIso,
-            updated_at: updatedIso
-          };
+      // Skip encrypted notes - E2E encrypted content should not sync to WSCA
+      .filter((note: any) => note?.isEncrypted !== true)
+      .map((note: any) => {
+        const noteObj = toPlainObject(note);
+        const createdIso = toIsoString(noteObj.createdAt);
+        const updatedIso = toIsoString(noteObj.updatedAt, createdIso);
+        const entry: Record<string, any> = {
+          id: toStringId(noteObj.externalId) ?? toStringId(noteObj.id) ?? toStringId(noteObj._id),
+          title: typeof noteObj.title === "string" ? noteObj.title : undefined,
+          content: typeof noteObj.content === "string" ? noteObj.content : undefined,
+          entry_type:
+            typeof noteObj.entryType === "string" && noteObj.entryType.trim().length > 0
+              ? noteObj.entryType.trim()
+              : "text",
+          url: typeof noteObj.url === "string" && noteObj.url.trim().length > 0 ? noteObj.url.trim() : undefined,
+          source_message_id: toStringId(noteObj.sourceMessageId),
+          source_channel_id: toStringId(noteObj.sourceChannelId),
+          source_guild_id: toStringId(noteObj.sourceGuildId),
+          author_id: toStringId(noteObj.authorId),
+          created_at: createdIso,
+          updated_at: updatedIso
+        };
 
-          if (noteObj.individualLabel) {
-            entry.individual_label = String(noteObj.individualLabel);
-          }
+        if (noteObj.individualLabel) {
+          entry.individual_label = String(noteObj.individualLabel);
+        }
 
-          if (Array.isArray(noteObj.tags) && noteObj.tags.length > 0) {
-            entry.tags = noteObj.tags.filter((tag: any) => typeof tag === "string" && tag.trim().length > 0);
-          }
+        if (Array.isArray(noteObj.tags) && noteObj.tags.length > 0) {
+          entry.tags = noteObj.tags.filter((tag: any) => typeof tag === "string" && tag.trim().length > 0);
+        }
 
-          entry.external_source =
-            typeof noteObj.externalSource === "string" && noteObj.externalSource.trim().length > 0
-              ? noteObj.externalSource.trim()
-              : undefined;
+        entry.external_source =
+          typeof noteObj.externalSource === "string" && noteObj.externalSource.trim().length > 0
+            ? noteObj.externalSource.trim()
+            : undefined;
 
-          entry.external_id = toStringId(noteObj.externalId);
-          return entry;
-        })
-        .filter((entry: Record<string, any>) => Boolean(entry.id || entry.content || entry.url))
+        entry.external_id = toStringId(noteObj.externalId);
+        return entry;
+      })
+      .filter((entry: Record<string, any>) => Boolean(entry.id || entry.content || entry.url))
     : [];
 
   // Keep most recent entries first by created_at descending
@@ -176,13 +178,13 @@ async function sendToWsca(
   const body =
     method.toUpperCase() === "DELETE"
       ? JSON.stringify({
-          discord_user_id: discordUserId,
-          note_id: options?.noteIdForDelete ?? payload?.note?.id ?? payload?.id
-        })
+        discord_user_id: discordUserId,
+        note_id: options?.noteIdForDelete ?? payload?.note?.id ?? payload?.id
+      })
       : JSON.stringify({
-          discord_user_id: discordUserId,
-          note: payload
-        });
+        discord_user_id: discordUserId,
+        note: payload
+      });
 
   await fetch(NOTE_SYNC_URL, {
     method,

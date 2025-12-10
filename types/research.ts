@@ -14,6 +14,10 @@ export type ResearchNote = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // E2E encryption fields
+  isEncrypted?: boolean;
+  encryptionSalt?: string;
+  encryptionIV?: string;
 };
 
 export type ResearchStack = {
@@ -31,4 +35,6 @@ export type ResearchStack = {
   isPublic?: boolean;
   alias?: string;
   saveCount?: number;
+  // E2E encryption: when true, all notes in this stack are encrypted
+  isEncryptedStack?: boolean;
 };
