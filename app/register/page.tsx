@@ -194,6 +194,29 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* Legal consent */}
+          <p className="text-xs text-[rgb(var(--text-subtle))] text-center">
+            By creating an account, you agree to our{" "}
+            <a
+              href="https://raw.githubusercontent.com/Moltly/moltly/refs/heads/main/TERMS.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[rgb(var(--primary))] hover:underline"
+            >
+              Terms of Service
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://raw.githubusercontent.com/Moltly/moltly/refs/heads/main/PRIVACY.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[rgb(var(--primary))] hover:underline"
+            >
+              Privacy Policy
+            </a>
+            .
+          </p>
+
           <Button
             type="submit"
             variant="primary"
