@@ -10,7 +10,8 @@ const entries: ChangelogEntry[] = [
     date: "2025-12-10",
     highlights: [
       "More comprehensively delete all data and images when deleting an account.",
-      "Update Terms/Privacy Policy to reflect that all data is deleted when deleting an account."
+      "Update Terms/Privacy Policy to reflect that all data is deleted when deleting an account.",
+      "Add Terms/Privacy Policy to account creation."
     ]
   },
   {
