@@ -18,8 +18,10 @@ services:
     ports:
       - "127.0.0.1:5777:5777"
     depends_on:
-      - mongo
-      - minio
+      mongo:
+        condition: service_healthy
+      minio:
+        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -34,6 +36,12 @@ services:
       - "127.0.0.1:13777:13777"
     volumes:
       - ./mongo:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "13777", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   minio:
     image: minio/minio:latest
@@ -47,12 +55,19 @@ services:
       - "127.0.0.1:9001:9001"
     volumes:
       - ./minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   minio-setup:
     image: minio/mc:latest
     container_name: molt-log-minio-setup
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     entrypoint: ["/bin/sh","-c"]
     environment:
       - S3_BUCKET=${S3_BUCKET:-molt-uploads}
