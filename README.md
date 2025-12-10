@@ -32,12 +32,6 @@ S3_PUBLIC_URL=http://localhost:9000
 S3_ACCESS_KEY=Change_ME!
 S3_SECRET_KEY=Change_ME!
 S3_FORCE_PATH_STYLE=true
-
-TRAEFIK_WEB_HOST=localhost
-TRAEFIK_MINIO_HOST=localhost
-
-# Optional: enable World Spider Catalog API on species pages
-WSC_API_KEY=your_wsc_api_key
 ```
 
 ### Docker
