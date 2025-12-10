@@ -1,6 +1,6 @@
 # Moltly — Terms of Service
 
-Last updated: 2025-12-02
+Last updated: 2025-12-10
 
 These Terms of Service (the “Terms”) govern your access to and use of Moltly (the “Service”), available at moltly.xyz and any related applications or APIs.
 
@@ -12,7 +12,6 @@ Contact: contact@moltly.xyz
 1. Eligibility and Accounts
 - You must be at least 13 years old to use the Service. If you are under the age of majority in your jurisdiction, you may only use the Service with a parent or legal guardian’s consent.
 - To access certain features, you must create an account using a username and password (email is optional) or by using a supported third‑party sign‑in provider such as Discord, Apple, or Google. You are responsible for maintaining the confidentiality of your credentials and for all activities under your account.
-- You must provide accurate information and keep it up to date. We may suspend or terminate your account if information is inaccurate, misleading, or if you violate these Terms.
 
 2. The Service
 - Moltly is a logbook for tarantula keepers to record molts, feedings, notes, reminders, and related photos.
@@ -29,7 +28,6 @@ You agree not to:
 - Upload unlawful, defamatory, infringing, sexually explicit, or violent content, or content that promotes harm to people or animals.
 - Attempt to gain unauthorized access to the Service or other accounts, or circumvent rate limits, security features, or access controls.
 - Interfere with or disrupt the Service, including by distributing malware, scraping without permission, or performing denial‑of‑service attacks.
-- Reverse engineer, decompile, or attempt to derive the source code of the Service except to the extent such restrictions are prohibited by law.
 
 5. Third‑Party Services
 - The Service offers sign‑in via third‑party providers such as Discord, Apple, and Google. Your use of those providers is governed by their own terms and privacy policies. We are not responsible for third‑party services.
