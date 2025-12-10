@@ -30,7 +30,7 @@ import { cancelReminderNotification, scheduleReminderNotification } from "@/lib/
 import type { GalleryImage } from "@/components/ui/ImageGallery";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { decodeCreationOptions, serializePublicKeyCredential } from "@/lib/passkey-client";
-import { cmToInches, inchesToCm } from "@/lib/utils";
+import { cmToInches, inchesToCm, formatDate } from "@/lib/utils";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
@@ -1854,7 +1854,7 @@ export default function MobileDashboard() {
                 <p className="text-sm text-[rgb(var(--text-soft))]">
                   {pendingUpdates.length > 1
                     ? `Catch up on everything since version ${pendingUpdates[pendingUpdates.length - 1].version}.`
-                    : `Released ${new Date(pendingUpdates[0].date).toLocaleDateString()}`}
+                    : `Released ${formatDate(pendingUpdates[0].date)}`}
                 </p>
               </div>
               <button
@@ -1876,7 +1876,7 @@ export default function MobileDashboard() {
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="font-semibold">Version {entry.version}</h3>
                     <time className="text-xs text-[rgb(var(--text-subtle))]" dateTime={entry.date}>
-                      {new Date(entry.date).toLocaleDateString()}
+                      {formatDate(entry.date)}
                     </time>
                   </div>
                   <ul className="list-disc pl-5 text-sm text-[rgb(var(--text))]">
