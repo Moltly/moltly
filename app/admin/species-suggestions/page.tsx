@@ -3,9 +3,10 @@ import { connectMongoose } from "@/lib/mongoose";
 import SpeciesSuggestion from "@/models/SpeciesSuggestion";
 import SpeciesSuggestionList from "@/components/admin/SpeciesSuggestionList";
 import SuggestionTabs from "@/components/admin/SuggestionTabs";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 export default async function SpeciesSuggestionsPage({
-  // In Next 15/16, searchParams may be a Promise; await works for both
   searchParams,
 }: {
   searchParams?: { [key: string]: string | string[] | undefined } | Promise<{ [key: string]: string | string[] | undefined }>;
@@ -48,6 +49,15 @@ export default async function SpeciesSuggestionsPage({
 
   return (
     <div className="max-w-3xl mx-auto p-4">
+      <div className="flex items-center gap-3 mb-4">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--surface-hover))] transition-colors"
+        >
+          <ArrowLeft size={16} />
+          Back to Moltly
+        </Link>
+      </div>
       <h1 className="text-2xl font-semibold mb-4">Species Suggestions</h1>
       <SuggestionTabs />
       <p className="text-sm text-[rgb(var(--text-soft))] mb-4">

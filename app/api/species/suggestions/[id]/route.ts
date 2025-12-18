@@ -31,16 +31,26 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   let action: string | undefined;
   let reason: string | undefined;
+  let fullName: string | undefined;
+  let genus: string | undefined;
+  let species: string | undefined;
+  let subspecies: string | undefined;
+  let family: string | undefined;
   try {
     const payload = await request.json();
     action = (payload?.action || "").toLowerCase();
     reason = payload?.reason;
+    fullName = payload?.fullName;
+    genus = payload?.genus;
+    species = payload?.species;
+    subspecies = payload?.subspecies;
+    family = payload?.family;
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!action || (action !== "approve" && action !== "reject" && action !== "remove")) {
-    return NextResponse.json({ error: "action must be 'approve' or 'reject' or 'remove'" }, { status: 400 });
+  if (!action || (action !== "approve" && action !== "reject" && action !== "remove" && action !== "edit")) {
+    return NextResponse.json({ error: "action must be 'approve', 'reject', 'remove', or 'edit'" }, { status: 400 });
   }
 
   await connectMongoose();
@@ -97,6 +107,48 @@ export async function PATCH(request: Request, context: RouteContext) {
     suggestion.reviewedAt = new Date();
     suggestion.reviewedBy = session!.user!.email || session!.user!.id;
     await suggestion.save();
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "edit") {
+    if (suggestion.status !== "pending" && suggestion.status !== "approved") {
+      return NextResponse.json({ error: "Only pending or approved suggestions can be edited" }, { status: 400 });
+    }
+    if (!fullName || !fullName.trim()) {
+      return NextResponse.json({ error: "fullName is required for edit" }, { status: 400 });
+    }
+
+    const oldFullNameLC = suggestion.fullNameLC;
+    const newFullName = fullName.trim();
+    const newFullNameLC = newFullName.toLowerCase();
+    const parts = parseSpeciesFullName(newFullName);
+
+    // Update suggestion document
+    suggestion.fullName = newFullName;
+    suggestion.fullNameLC = newFullNameLC;
+    suggestion.genus = genus?.trim() || parts.genus || undefined;
+    suggestion.species = species?.trim() || parts.species || undefined;
+    suggestion.subspecies = subspecies?.trim() || parts.subspecies || undefined;
+    suggestion.family = family?.trim() || undefined;
+    await suggestion.save();
+
+    // If approved, also update the species collection
+    if (suggestion.status === "approved") {
+      await db.collection("species").updateOne(
+        { fullNameLC: oldFullNameLC },
+        {
+          $set: {
+            fullName: newFullName,
+            fullNameLC: newFullNameLC,
+            genus: suggestion.genus || null,
+            species: suggestion.species || null,
+            subspecies: suggestion.subspecies || null,
+            family: suggestion.family || null,
+          },
+        }
+      );
+    }
+
     return NextResponse.json({ ok: true });
   }
 
