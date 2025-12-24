@@ -27,6 +27,7 @@ import {
   cachePasswordHash,
   getCachedPasswordHash,
 } from "@/lib/note-crypto";
+import MarkdownRenderer from "@/components/ui/MarkdownRenderer";
 
 interface NotebookViewProps {
   stacks: ResearchStack[];
@@ -761,9 +762,9 @@ export default function NotebookView({
                                     </p>
                                   )}
                                   {displayContent.content && (
-                                    <p className="text-sm text-[rgb(var(--text-soft))] line-clamp-2 mt-1 whitespace-pre-line">
-                                      {displayContent.content}
-                                    </p>
+                                    <div className="text-sm text-[rgb(var(--text-soft))] line-clamp-2 mt-1">
+                                      <MarkdownRenderer>{displayContent.content}</MarkdownRenderer>
+                                    </div>
                                   )}
                                   {note.tags.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-2">

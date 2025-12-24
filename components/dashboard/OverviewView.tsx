@@ -6,19 +6,23 @@ import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import StatCard from "./StatCard";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
-import { MoltEntry, ViewKey } from "@/types/molt";
+import { MoltEntry, ViewKey, Specimen } from "@/types/molt";
 import { formatDate, formatRelativeDate, getReminderStatus } from "@/lib/utils";
 import CachedImage from "@/components/ui/CachedImage";
 
 interface OverviewViewProps {
   entries: MoltEntry[];
+  specimens?: Specimen[];
   onViewChange: (view: ViewKey) => void;
   covers?: Record<string, string>;
 }
 
-export default function OverviewView({ entries, onViewChange, covers }: OverviewViewProps) {
+export default function OverviewView({ entries, specimens = [], onViewChange, covers }: OverviewViewProps) {
   const stats = useMemo(() => {
-    const uniqueSpecimens = new Set(entries.map((e) => e.specimen ?? "Unnamed")).size;
+    // Count unique specimens using specimenId when available, otherwise name+species
+    const uniqueSpecimens = new Set(
+      entries.map((e) => e.specimenId ?? `${e.specimen ?? "Unnamed"}-${e.species ?? ""}`)
+    ).size;
 
     const molts = entries.filter((e) => e.entryType === "molt");
     const currentYear = new Date().getFullYear();
@@ -60,6 +64,23 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
       default:
         return "neutral";
     }
+  };
+
+  const getSpecimenImage = (name: string, specimenId?: string) => {
+    // 1. Try pinned cover passed in via props (covers)
+    let coverUrl = covers?.[name];
+
+    // 2. If not pinned, see if we can find the specimen in the specimens list
+    if (!coverUrl && specimens) {
+      const found = specimenId
+        ? specimens.find(s => s.id === specimenId)
+        : specimens.find(s => s.name === name);
+
+      if (found?.imageUrl) {
+        coverUrl = found.imageUrl;
+      }
+    }
+    return coverUrl;
   };
 
   if (entries.length === 0) {
@@ -142,7 +163,7 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
               <div className="flex items-center gap-2 mb-1">
                 {(() => {
                   const key = stats.nextReminder.specimen || "Unnamed";
-                  const coverUrl = covers?.[key];
+                  const coverUrl = getSpecimenImage(key, stats.nextReminder.specimenId);
                   if (!coverUrl) return null;
                   return (
                     <div className="w-8 h-8 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
@@ -207,7 +228,7 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {(() => {
                         const key = entry.specimen || "Unnamed";
-                        const coverUrl = covers?.[key];
+                        const coverUrl = getSpecimenImage(key, entry.specimenId);
                         if (!coverUrl) return null;
                         return (
                           <div className="w-7 h-7 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
@@ -256,13 +277,12 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                 key={entry.id}
                 className="flex items-start gap-3 p-3 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))] transition-colors"
               >
-                <div className={`p-2 rounded-[var(--radius-sm)] ${
-                  entry.entryType === "molt"
-                    ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary))]"
-                    : entry.entryType === "feeding"
+                <div className={`p-2 rounded-[var(--radius-sm)] ${entry.entryType === "molt"
+                  ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary))]"
+                  : entry.entryType === "feeding"
                     ? "bg-[rgb(var(--success-soft))] text-[rgb(var(--success))]"
                     : "bg-[rgb(var(--bg-muted))] text-[rgb(var(--text-soft))]"
-                }`}>
+                  }`}>
                   {entry.entryType === "molt" ? (
                     <TrendingUp className="w-4 h-4" />
                   ) : entry.entryType === "feeding" ? (
@@ -273,7 +293,7 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                 </div>
                 {(() => {
                   const key = entry.specimen || "Unnamed";
-                  const coverUrl = covers?.[key];
+                  const coverUrl = getSpecimenImage(key, entry.specimenId);
                   if (!coverUrl) return null;
                   return (
                     <div className="w-8 h-8 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
@@ -283,9 +303,9 @@ export default function OverviewView({ entries, onViewChange, covers }: Overview
                 })()}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
+                    <p className="font-medium text-sm text-[rgb(var(--text))] truncate">
                       {entry.specimen || "Unnamed"}
-                      </p>
+                    </p>
                     <Badge variant={entry.entryType === "molt" ? "primary" : entry.entryType === "feeding" ? "success" : "neutral"}>
                       {entry.entryType === "water" ? "water" : entry.entryType}
                     </Badge>

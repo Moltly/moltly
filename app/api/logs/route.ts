@@ -91,7 +91,8 @@ export async function GET(request: Request) {
       entryType,
       stage: entryType === "molt" ? entry.stage : undefined,
       id: document._id.toString(),
-      userId: document.userId.toString()
+      userId: document.userId.toString(),
+      specimenId: document.specimenId?.toString()
     };
   });
 
@@ -139,7 +140,8 @@ export async function POST(request: Request) {
       {
         ...entry.toObject(),
         id: entry._id.toString(),
-        userId: entry.userId.toString()
+        userId: entry.userId.toString(),
+        specimenId: entry.specimenId?.toString()
       },
       { status: 201 }
     );

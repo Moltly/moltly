@@ -1,9 +1,10 @@
 import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DataMode, MoltEntry } from "@/types/molt";
+import type { DataMode, MoltEntry, Specimen } from "@/types/molt";
 import type { HealthEntry } from "@/types/health";
 import type { BreedingEntry } from "@/types/breeding";
 import type { ResearchStack } from "@/types/research";
+import type { CultureEntry } from "@/types/culture";
 import { readLocalEntries, writeLocalEntries } from "@/lib/local-entries";
 import { readLocalHealthEntries, writeLocalHealthEntries } from "@/lib/local-health";
 import { readLocalBreedingEntries, writeLocalBreedingEntries } from "@/lib/local-breeding";
@@ -36,11 +37,13 @@ const CACHE_KEYS = {
   breeding: "moltly:cache:breeding",
   covers: "moltly:cache:covers",
   stacks: "moltly:cache:stacks",
+  cultures: "moltly:cache:cultures",
+  specimens: "moltly:cache:specimens",
 } as const;
 
 const SYNC_QUEUE_KEY = "moltly:sync:queue:v1";
 
-type SyncEntity = "entries" | "health" | "breeding" | "stacks" | "specimens";
+type SyncEntity = "entries" | "health" | "breeding" | "stacks" | "specimens" | "cultures";
 type SyncAction = "create" | "update" | "delete";
 
 type SyncItem = {
@@ -90,7 +93,7 @@ export function useDashboardData() {
   };
   const writeCache = (key: string, value: unknown) => {
     if (typeof window === "undefined") return;
-    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { }
   };
 
   const persistEntries = useCallback(
@@ -149,6 +152,22 @@ export function useDashboardData() {
   );
   const [stacks, setStacks] = usePersistedState<ResearchStack[]>([], persistStacks);
   const [selectedStackId, setSelectedStackId] = useState<string | null>(null);
+
+  const persistCultures = useCallback(
+    (value: CultureEntry[]) => {
+      writeCache(CACHE_KEYS.cultures, value ?? []);
+    },
+    []
+  );
+  const [cultureEntries, setCultureEntries] = usePersistedState<CultureEntry[]>([], persistCultures);
+
+  const persistSpecimens = useCallback(
+    (value: Specimen[]) => {
+      writeCache(CACHE_KEYS.specimens, value ?? []);
+    },
+    []
+  );
+  const [specimens, setSpecimens] = usePersistedState<Specimen[]>([], persistSpecimens);
 
   const flushInProgressRef = useRef(false);
 
@@ -354,6 +373,48 @@ export function useDashboardData() {
     }
   }, [mode, isSync, setStacks]);
 
+  const refreshCultures = useCallback(async () => {
+    if (!mode) return;
+    try {
+      if (isSync) {
+        const res = await fetch("/api/cultures", { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to load cultures");
+        const data = (await res.json()) as CultureEntry[];
+        setCultureEntries(Array.isArray(data) ? data : []);
+      } else {
+        // Cultures don't support local mode
+        setCultureEntries([]);
+      }
+    } catch (error) {
+      console.error(error);
+      if (isSync) {
+        const cached = readCache<CultureEntry[]>(CACHE_KEYS.cultures, []);
+        if (cached.length > 0) setCultureEntries(cached);
+      }
+    }
+  }, [mode, isSync, setCultureEntries]);
+
+  const refreshSpecimens = useCallback(async () => {
+    if (!mode) return;
+    try {
+      if (isSync) {
+        const res = await fetch("/api/specimens?includeArchived=true", { credentials: "include" });
+        if (!res.ok) throw new Error("Failed to load specimens");
+        const data = (await res.json()) as Specimen[];
+        setSpecimens(Array.isArray(data) ? data : []);
+      } else {
+        // Local mode - specimens not supported
+        setSpecimens([]);
+      }
+    } catch (error) {
+      console.error(error);
+      if (isSync) {
+        const cached = readCache<Specimen[]>(CACHE_KEYS.specimens, []);
+        if (cached.length > 0) setSpecimens(cached);
+      }
+    }
+  }, [mode, isSync, setSpecimens]);
+
   const flushSyncQueue = useCallback(async () => {
     if (!isSync) return;
     if (typeof window === "undefined") return;
@@ -403,6 +464,13 @@ export function useDashboardData() {
               });
             } else if (item.entity === "specimens") {
               res = await fetch("/api/specimens", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
+            } else if (item.entity === "cultures") {
+              res = await fetch("/api/cultures", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 credentials: "include",
@@ -466,6 +534,13 @@ export function useDashboardData() {
                 credentials: "include",
                 body: JSON.stringify(payload)
               });
+            } else if (item.entity === "cultures") {
+              res = await fetch(`/api/cultures/${item.resourceId}`, {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+              });
             }
             if (!res) continue;
             if (!res.ok) {
@@ -502,6 +577,11 @@ export function useDashboardData() {
                 method: "DELETE",
                 credentials: "include"
               });
+            } else if (item.entity === "cultures") {
+              res = await fetch(`/api/cultures/${item.resourceId}`, {
+                method: "DELETE",
+                credentials: "include"
+              });
             }
             if (!res) continue;
             if (!res.ok) {
@@ -532,7 +612,8 @@ export function useDashboardData() {
             refreshHealth(),
             refreshBreeding(),
             refreshSpecimenCovers(),
-            refreshStacks()
+            refreshStacks(),
+            refreshCultures()
           ]);
         } catch {
           // ignore refresh failures; UI will retry later
@@ -541,7 +622,7 @@ export function useDashboardData() {
     } finally {
       flushInProgressRef.current = false;
     }
-  }, [isSync, refreshEntries, refreshHealth, refreshBreeding, refreshSpecimenCovers, refreshStacks]);
+  }, [isSync, refreshEntries, refreshHealth, refreshBreeding, refreshSpecimenCovers, refreshStacks, refreshCultures]);
 
   const updateSpecimenCover = useCallback(
     async (specimenKey: string, imageUrl: string | null) => {
@@ -598,6 +679,14 @@ export function useDashboardData() {
   useEffect(() => {
     void refreshStacks();
   }, [refreshStacks]);
+
+  useEffect(() => {
+    void refreshCultures();
+  }, [refreshCultures]);
+
+  useEffect(() => {
+    void refreshSpecimens();
+  }, [refreshSpecimens]);
 
   useEffect(() => {
     if (!isSync) return;
@@ -657,6 +746,12 @@ export function useDashboardData() {
     setSelectedStackId,
     queueOfflineCreate,
     queueOfflineMutation,
-    clearOfflineCreate
+    clearOfflineCreate,
+    cultureEntries,
+    setCultureEntries,
+    refreshCultures,
+    specimens,
+    setSpecimens,
+    refreshSpecimens
   };
 }

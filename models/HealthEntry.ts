@@ -4,6 +4,7 @@ import { AttachmentSchema } from "./shared";
 const HealthEntrySchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    specimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
     specimen: { type: String, trim: true },
     species: { type: String, trim: true },
     date: { type: Date, required: true },

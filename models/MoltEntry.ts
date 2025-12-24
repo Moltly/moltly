@@ -4,6 +4,7 @@ import { AttachmentSchema } from "./shared";
 const MoltEntrySchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    specimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
     specimen: { type: String, trim: true },
     species: { type: String, trim: true },
     date: { type: Date, required: true },
@@ -39,6 +40,7 @@ const MoltEntrySchema = new Schema(
       enum: ["Offered", "Ate", "Refused", "Not Observed"]
     },
     feedingAmount: String,
+    cultureId: { type: Types.ObjectId, ref: "CultureEntry", index: true },
     attachments: [AttachmentSchema]
   },
   { timestamps: true, collection: "moltEntries" }

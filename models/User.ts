@@ -36,7 +36,21 @@ const UserSchema = new Schema(
     passkeyChallenge: { type: String, select: false },
     passkeyChallengeExpires: { type: Date, select: false },
     resetPasswordToken: { type: String, select: false },
-    resetPasswordExpires: { type: Date, select: false }
+    resetPasswordExpires: { type: Date, select: false },
+    preferences: {
+      actionButtons: {
+        items: [
+          {
+            id: { type: String, required: true },
+            label: { type: String, required: true },
+            type: { type: String, enum: ["default", "custom"], default: "custom" },
+            enabled: { type: Boolean, default: true },
+            usageCount: { type: Number, default: 0 },
+            lastUsedAt: { type: Date }
+          }
+        ]
+      }
+    }
   },
   { timestamps: true, collection: "users" }
 );

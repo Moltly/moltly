@@ -4,7 +4,9 @@ import { AttachmentSchema } from "./shared";
 const BreedingEntrySchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    femaleSpecimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
     femaleSpecimen: { type: String, trim: true },
+    maleSpecimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
     maleSpecimen: { type: String, trim: true },
     species: { type: String, trim: true },
     pairingDate: { type: Date, required: true },

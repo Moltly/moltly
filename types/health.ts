@@ -3,6 +3,7 @@ import type { Attachment } from "./molt";
 type HealthCondition = "Stable" | "Observation" | "Critical";
 export type HealthEntry = {
   id: string;
+  specimenId?: string;
   specimen?: string;
   species?: string;
   date: string;

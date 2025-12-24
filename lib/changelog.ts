@@ -6,6 +6,20 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "2.0.4",
+    date: "2025-12-24",
+    highlights: [
+      "Add Cultures Tracking.",
+      "Change how specimens are stored in the database to allow multiple specimens to have the same name.",
+      "Improve design for log action buttons.",
+      "Improve custom actions for specimens.",
+      "Ability to archive specimens.",
+      "Ability to add specimen cover images in specimens tab.",
+      "Markdown Support for Notes.",
+      "Show specimen cover images in more places."
+    ]
+  },
+  {
     version: "2.0.3",
     date: "2025-12-10",
     highlights: [

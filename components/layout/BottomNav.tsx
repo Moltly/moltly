@@ -68,6 +68,11 @@ const navItems = [
     label: "Notebook",
     icon: BookOpen,
   },
+  {
+    key: "cultures" as ViewKey,
+    label: "Cultures",
+    icon: Users,
+  },
 ];
 
 type NavPrefs = {
@@ -104,7 +109,7 @@ function loadPrefs(defaultOrder: ViewKey[]): NavPrefs {
 
 function savePrefs(prefs: NavPrefs) {
   if (typeof window === "undefined") return;
-  try { window.localStorage.setItem(NAV_PREFS_KEY, JSON.stringify(prefs)); } catch {}
+  try { window.localStorage.setItem(NAV_PREFS_KEY, JSON.stringify(prefs)); } catch { }
 }
 
 export default function BottomNav({ activeView, onViewChange }: BottomNavProps) {
@@ -251,7 +256,7 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                   try {
                     e.dataTransfer?.setData("text/plain", item.key);
                     if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                  } catch {}
+                  } catch { }
                   setDraggingKey(item.key);
                 }}
                 onDragOver={(e) => { if (!reorderMode) return; e.preventDefault(); setOverKey(item.key); }}
@@ -261,7 +266,7 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                   // Enable touch drag on mobile for reorder mode
                   if (!reorderMode || e.pointerType === "mouse") return;
                   e.preventDefault();
-                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { }
                   setDraggingKey(item.key);
                   setOverKey(item.key);
                 }}
@@ -288,40 +293,40 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                   if (target && draggingKey) reorder(draggingKey, target);
                   setDraggingKey(null);
                   setOverKey(null);
-                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
                 }}
                 onPointerCancel={(e) => {
                   if (!reorderMode) return;
                   setDraggingKey(null);
                   setOverKey(null);
-                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+                  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { }
                 }}
                 className={cn(
-                "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-[var(--radius)] transition-all min-w-[70px] flex-shrink-0 snap-center",
-                isActive
-                  ? "text-[rgb(var(--primary))]"
-                  : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]",
-                reorderMode ? "cursor-grab select-none border border-dashed border-[rgb(var(--border))] touch-none" : undefined,
-                reorderMode && overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined
-              )}
-            >
-              <Icon
-                className={cn(
-                  "transition-all",
-                  isActive ? "w-6 h-6" : "w-5 h-5"
-                )}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
-              <span
-                className={cn(
-                  "text-xs font-medium transition-all",
-                  isActive ? "scale-100 opacity-100" : "scale-95 opacity-70"
+                  "flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-[var(--radius)] transition-all min-w-[70px] flex-shrink-0 snap-center",
+                  isActive
+                    ? "text-[rgb(var(--primary))]"
+                    : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]",
+                  reorderMode ? "cursor-grab select-none border border-dashed border-[rgb(var(--border))] touch-none" : undefined,
+                  reorderMode && overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined
                 )}
               >
-                {item.label}
-              </span>
-            </button>
-          );
+                <Icon
+                  className={cn(
+                    "transition-all",
+                    isActive ? "w-6 h-6" : "w-5 h-5"
+                  )}
+                  strokeWidth={isActive ? 2.5 : 2}
+                />
+                <span
+                  className={cn(
+                    "text-xs font-medium transition-all",
+                    isActive ? "scale-100 opacity-100" : "scale-95 opacity-70"
+                  )}
+                >
+                  {item.label}
+                </span>
+              </button>
+            );
           })}
 
           {/* More / Customize */}
@@ -387,7 +392,7 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                             try {
                               e.dataTransfer?.setData("text/plain", item.key);
                               if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                            } catch {}
+                            } catch { }
                             setDraggingKey(item.key);
                           }}
                           onDragOver={(e) => { e.preventDefault(); setOverKey(item.key); }}
@@ -401,10 +406,10 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                           onPointerDown={(e) => {
                             if (e.pointerType === "mouse") return;
                             e.preventDefault();
-                            try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-                    setDraggingKey(item.key);
-                    setOverKey(item.key);
-                  }}
+                            try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { }
+                            setDraggingKey(item.key);
+                            setOverKey(item.key);
+                          }}
                           onPointerMove={(e) => {
                             if (!draggingKey || e.pointerType === "mouse") return;
                             e.preventDefault();
@@ -418,24 +423,24 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                             for (const c of centers) {
                               const d = Math.abs(c.y - y);
                               if (d < min) { min = d; target = c.key; }
-                    }
-                    if (target && target !== overKey) setOverKey(target);
-                  }}
-                  onPointerUp={(e) => {
-                    if (!draggingKey) return;
-                    const target = overKey ?? draggingKey;
-                    if (target && draggingKey) reorder(draggingKey, target);
-                    setDraggingKey(null);
-                    setOverKey(null);
-                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-                  }}
-                  onPointerCancel={(e) => {
-                    setDraggingKey(null);
-                    setOverKey(null);
-                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-                  }}
-                  className={cn(
-                    "flex items-center justify-between gap-2 p-3 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))]",
+                            }
+                            if (target && target !== overKey) setOverKey(target);
+                          }}
+                          onPointerUp={(e) => {
+                            if (!draggingKey) return;
+                            const target = overKey ?? draggingKey;
+                            if (target && draggingKey) reorder(draggingKey, target);
+                            setDraggingKey(null);
+                            setOverKey(null);
+                            try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+                          }}
+                          onPointerCancel={(e) => {
+                            setDraggingKey(null);
+                            setOverKey(null);
+                            try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+                          }}
+                          className={cn(
+                            "flex items-center justify-between gap-2 p-3 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))]",
                             overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined,
                           )}
                           data-sheet-item
@@ -521,105 +526,105 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
                 {orderedItems.map((item) => (
                   <div
                     key={item.key}
-                  draggable
-                onDragStart={(e) => {
-                  // Ensure HTML5 drag works consistently (e.g., Safari)
-                  try {
-                    e.dataTransfer?.setData("text/plain", item.key);
-                    if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
-                  } catch {}
-                  setDraggingKey(item.key);
-                }}
-                onDragOver={(e) => { e.preventDefault(); setOverKey(item.key); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (draggingKey) reorder(draggingKey, item.key);
-                  setDraggingKey(null);
-                  setOverKey(null);
-                }}
-                onDragEnd={() => { setDraggingKey(null); setOverKey(null); }}
-                onPointerDown={(e) => {
-                  if (e.pointerType === "mouse") return;
-                  e.preventDefault();
-                  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-                  setDraggingKey(item.key);
-                  setOverKey(item.key);
-                }}
-                onPointerMove={(e) => {
-                  if (!draggingKey || e.pointerType === "mouse") return;
-                  e.preventDefault();
-                  const container = modalListRef.current;
-                  if (!container) return;
-                  const nodes = Array.from(container.querySelectorAll<HTMLDivElement>('[data-customize-item]'));
-                  const centers = nodes.map((n) => ({ key: n.getAttribute('data-key') as ViewKey, y: n.getBoundingClientRect().top + n.getBoundingClientRect().height / 2 }));
-                  const y = e.clientY;
-                  let target = centers[0]?.key;
-                  let min = Infinity;
-                  for (const c of centers) {
-                    const d = Math.abs(c.y - y);
-                    if (d < min) { min = d; target = c.key; }
-                  }
-                  if (target && target !== overKey) setOverKey(target);
-                }}
-                  onPointerUp={(e) => {
-                    if (!draggingKey) return;
-                    const target = overKey ?? draggingKey;
-                    if (target && draggingKey) reorder(draggingKey, target);
-                    setDraggingKey(null);
-                    setOverKey(null);
-                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-                  }}
-                  onPointerCancel={(e) => {
-                    setDraggingKey(null);
-                    setOverKey(null);
-                    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-                  }}
-                  className={cn(
-                    "flex items-center justify-between gap-2 border border-[rgb(var(--border))] rounded-[var(--radius)] px-3 py-2 bg-[rgb(var(--surface))]",
-                    overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined,
-                  )}
-                  data-customize-item
-                  data-key={item.key}
-                >
-                  <div className="flex items-center gap-2">
-                    <GripVertical className="w-4 h-4 text-[rgb(var(--text-soft))] cursor-grab" />
-                    <item.icon className="w-4 h-4" />
-                    <span className="text-sm">{item.label}</span>
+                    draggable
+                    onDragStart={(e) => {
+                      // Ensure HTML5 drag works consistently (e.g., Safari)
+                      try {
+                        e.dataTransfer?.setData("text/plain", item.key);
+                        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                      } catch { }
+                      setDraggingKey(item.key);
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); setOverKey(item.key); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggingKey) reorder(draggingKey, item.key);
+                      setDraggingKey(null);
+                      setOverKey(null);
+                    }}
+                    onDragEnd={() => { setDraggingKey(null); setOverKey(null); }}
+                    onPointerDown={(e) => {
+                      if (e.pointerType === "mouse") return;
+                      e.preventDefault();
+                      try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { }
+                      setDraggingKey(item.key);
+                      setOverKey(item.key);
+                    }}
+                    onPointerMove={(e) => {
+                      if (!draggingKey || e.pointerType === "mouse") return;
+                      e.preventDefault();
+                      const container = modalListRef.current;
+                      if (!container) return;
+                      const nodes = Array.from(container.querySelectorAll<HTMLDivElement>('[data-customize-item]'));
+                      const centers = nodes.map((n) => ({ key: n.getAttribute('data-key') as ViewKey, y: n.getBoundingClientRect().top + n.getBoundingClientRect().height / 2 }));
+                      const y = e.clientY;
+                      let target = centers[0]?.key;
+                      let min = Infinity;
+                      for (const c of centers) {
+                        const d = Math.abs(c.y - y);
+                        if (d < min) { min = d; target = c.key; }
+                      }
+                      if (target && target !== overKey) setOverKey(target);
+                    }}
+                    onPointerUp={(e) => {
+                      if (!draggingKey) return;
+                      const target = overKey ?? draggingKey;
+                      if (target && draggingKey) reorder(draggingKey, target);
+                      setDraggingKey(null);
+                      setOverKey(null);
+                      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+                    }}
+                    onPointerCancel={(e) => {
+                      setDraggingKey(null);
+                      setOverKey(null);
+                      try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { }
+                    }}
+                    className={cn(
+                      "flex items-center justify-between gap-2 border border-[rgb(var(--border))] rounded-[var(--radius)] px-3 py-2 bg-[rgb(var(--surface))]",
+                      overKey === item.key && draggingKey && draggingKey !== item.key ? "ring-2 ring-[rgb(var(--primary-soft))]" : undefined,
+                    )}
+                    data-customize-item
+                    data-key={item.key}
+                  >
+                    <div className="flex items-center gap-2">
+                      <GripVertical className="w-4 h-4 text-[rgb(var(--text-soft))] cursor-grab" />
+                      <item.icon className="w-4 h-4" />
+                      <span className="text-sm">{item.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        draggable={false}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onDragStart={(e) => e.preventDefault()}
+                        className="p-1 rounded hover:bg-[rgb(var(--bg-muted))]"
+                        onClick={() => move(item.key, -1)}
+                        aria-label="Move up"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        draggable={false}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onDragStart={(e) => e.preventDefault()}
+                        className="p-1 rounded hover:bg-[rgb(var(--bg-muted))]"
+                        onClick={() => move(item.key, 1)}
+                        aria-label="Move down"
+                      >
+                        <ArrowDown className="w-4 h-4" />
+                      </button>
+                      <button
+                        draggable={false}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onDragStart={(e) => e.preventDefault()}
+                        className="p-1 rounded hover:bg-[rgb(var(--bg-muted))]"
+                        onClick={() => toggleHidden(item.key)}
+                        aria-label={prefs.hidden.includes(item.key) ? "Show" : "Hide"}
+                      >
+                        {prefs.hidden.includes(item.key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      draggable={false}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onDragStart={(e) => e.preventDefault()}
-                      className="p-1 rounded hover:bg-[rgb(var(--bg-muted))]"
-                      onClick={() => move(item.key, -1)}
-                      aria-label="Move up"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </button>
-                    <button
-                      draggable={false}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onDragStart={(e) => e.preventDefault()}
-                      className="p-1 rounded hover:bg-[rgb(var(--bg-muted))]"
-                      onClick={() => move(item.key, 1)}
-                      aria-label="Move down"
-                    >
-                      <ArrowDown className="w-4 h-4" />
-                    </button>
-                    <button
-                      draggable={false}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onDragStart={(e) => e.preventDefault()}
-                      className="p-1 rounded hover:bg-[rgb(var(--bg-muted))]"
-                      onClick={() => toggleHidden(item.key)}
-                      aria-label={prefs.hidden.includes(item.key) ? "Show" : "Hide"}
-                    >
-                      {prefs.hidden.includes(item.key) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
                 <div className="flex items-center justify-between pt-2">
                   <button className="text-sm text-[rgb(var(--text-subtle))] hover:text-[rgb(var(--text))]" onClick={resetPrefs}>Reset</button>
                   <button

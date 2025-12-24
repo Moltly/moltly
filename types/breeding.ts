@@ -5,7 +5,9 @@ type EggSacStatus = "Not Laid" | "Laid" | "Pulled" | "Failed" | "Hatched";
 
 export type BreedingEntry = {
   id: string;
+  femaleSpecimenId?: string;
   femaleSpecimen?: string;
+  maleSpecimenId?: string;
   maleSpecimen?: string;
   species?: string;
   pairingDate: string;

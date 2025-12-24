@@ -11,6 +11,7 @@ const temperatureUnitEnum = z.enum(["C", "F"]);
 const conditionEnum = z.enum(["Stable", "Observation", "Critical"]);
 
 export const HealthEntryBaseSchema = z.object({
+  specimenId: optionalTrimmedString(32),
   specimen: optionalTrimmedString(160),
   species: optionalTrimmedString(160),
   date: requiredDateString,
@@ -28,6 +29,7 @@ export const HealthEntryBaseSchema = z.object({
 });
 
 export const HealthEntryCreateSchema = HealthEntryBaseSchema.transform((data) => ({
+  specimenId: data.specimenId,
   specimen: data.specimen,
   species: data.species,
   date: data.date,

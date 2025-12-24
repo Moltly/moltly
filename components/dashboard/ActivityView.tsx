@@ -6,13 +6,15 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { MoltEntry, Filters, SizeUnit } from "@/types/molt";
+import { MoltEntry, Filters, SizeUnit, Specimen } from "@/types/molt";
 import { cmToInches, formatDate, getReminderStatus } from "@/lib/utils";
 import ImageGallery, { type GalleryImage } from "@/components/ui/ImageGallery";
 import CachedImage from "@/components/ui/CachedImage";
+import MarkdownRenderer from "@/components/ui/MarkdownRenderer";
 
 interface ActivityViewProps {
   entries: MoltEntry[];
+  specimens?: Specimen[];
   onEdit: (entry: MoltEntry) => void;
   onDelete: (id: string) => void;
   onSetCover?: (specimenKey: string, image: GalleryImage) => void;
@@ -21,7 +23,7 @@ interface ActivityViewProps {
   sizeUnit: SizeUnit;
 }
 
-export default function ActivityView({ entries, onEdit, onDelete, onSetCover, covers, onUnsetCover, sizeUnit }: ActivityViewProps) {
+export default function ActivityView({ entries, specimens = [], onEdit, onDelete, onSetCover, covers, onUnsetCover, sizeUnit }: ActivityViewProps) {
   const [filters, setFilters] = useState<Filters>({
     search: "",
     stage: "all",
@@ -104,311 +106,328 @@ export default function ActivityView({ entries, onEdit, onDelete, onSetCover, co
 
   return (
     <>
-    <div className="space-y-4">
-      {/* Search & Filter Bar */}
-      <div className="space-y-3">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
-            <Input
-              placeholder="Search by specimen or species..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="pl-10"
-            />
-          </div>
-          <Button
-            variant={showFilters ? "primary" : "secondary"}
-            size="icon"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="w-4 h-4" />
-          </Button>
-        </div>
-
-        {showFilters && (
-          <Card className="p-4 animate-slide-down">
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
-                  Entry Type
-                </label>
-                <div className="flex gap-2">
-                  {["all", "molt", "feeding", "water"].map((type) => (
-                    <Button
-                      key={type}
-                      variant={filters.type === type ? "primary" : "secondary"}
-                      size="sm"
-                      onClick={() => setFilters({ ...filters, type: type as Filters["type"] })}
-                      className="flex-1 capitalize"
-                    >
-                      {type}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
-                  Molt Stage
-                </label>
-                <div className="flex gap-2">
-                  {["all", "Pre-molt", "Molt", "Post-molt"].map((stage) => (
-                    <Button
-                      key={stage}
-                      variant={filters.stage === stage ? "primary" : "secondary"}
-                      size="sm"
-                      onClick={() => setFilters({ ...filters, stage: stage as Filters["stage"] })}
-                      className="flex-1 text-xs"
-                    >
-                      {stage}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
-                  Sort Order
-                </label>
-                <div className="flex gap-2">
-                  <Button
-                    variant={filters.order === "desc" ? "primary" : "secondary"}
-                    size="sm"
-                    onClick={() => setFilters({ ...filters, order: "desc" })}
-                    className="flex-1"
-                  >
-                    Newest First
-                  </Button>
-                  <Button
-                    variant={filters.order === "asc" ? "primary" : "secondary"}
-                    size="sm"
-                    onClick={() => setFilters({ ...filters, order: "asc" })}
-                    className="flex-1"
-                  >
-                    Oldest First
-                  </Button>
-                </div>
-              </div>
+      <div className="space-y-4">
+        {/* Search & Filter Bar */}
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
+              <Input
+                placeholder="Search by specimen or species..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                className="pl-10"
+              />
             </div>
-          </Card>
-        )}
-      </div>
+            <Button
+              variant={showFilters ? "primary" : "secondary"}
+              size="icon"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="w-4 h-4" />
+            </Button>
+          </div>
 
-      {/* Results Count */}
-      <div className="flex items-center justify-between text-sm text-[rgb(var(--text-soft))]">
-        <span>
-          {filteredEntries.length} {filteredEntries.length === 1 ? "entry" : "entries"}
-        </span>
-        {filters.search || filters.type !== "all" || filters.stage !== "all" ? (
-          <button
-            onClick={() =>
-              setFilters({ search: "", stage: "all", type: "all", order: filters.order })
-            }
-            className="text-[rgb(var(--primary))] hover:underline"
-          >
-            Clear filters
-          </button>
-        ) : null}
-      </div>
-
-      {/* Entry Cards */}
-      <div className="space-y-3 pb-4">
-        {filteredEntries.map((entry) => {
-          const reminderStatus = getReminderStatus(entry.reminderDate);
-
-          return (
-            <Card key={entry.id} className="p-4 hover:shadow-[var(--shadow-md)] transition-all">
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-start justify-between gap-3">
-                  {(() => {
-                    const key = entry.specimen ?? "Unnamed";
-                    const coverUrl = covers?.[key];
-                    if (!coverUrl) return null;
-                    return (
-                      <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
-                        <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
-                      </div>
-                    );
-                  })()}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-[rgb(var(--text))] truncate">
-                        {entry.specimen || "Unnamed"}
-                      </h3>
-                      <Badge variant={entry.entryType === "molt" ? "primary" : entry.entryType === "feeding" ? "success" : "neutral"}>
-                        {entry.entryType === "water" ? "water" : entry.entryType}
-                      </Badge>
-                    </div>
-                    {entry.species && (
-                      <p className="text-sm text-[rgb(var(--text-soft))] mb-2">
-                        <a
-                          href={`/species/${encodeURIComponent(entry.species)}`}
-                          className="hover:underline"
-                          onClick={(e) => e.stopPropagation?.()}
-                        >
-                          {entry.species}
-                        </a>
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 text-xs text-[rgb(var(--text-subtle))]">
-                      <Calendar className="w-3 h-3" />
-                      <span>{formatDate(entry.date)}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onEdit(entry)}
-                      className="h-8 w-8"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onDelete(entry.id)}
-                      className="h-8 w-8 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+          {showFilters && (
+            <Card className="p-4 animate-slide-down">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
+                    Entry Type
+                  </label>
+                  <div className="flex gap-2">
+                    {["all", "molt", "feeding", "water"].map((type) => (
+                      <Button
+                        key={type}
+                        variant={filters.type === type ? "primary" : "secondary"}
+                        size="sm"
+                        onClick={() => setFilters({ ...filters, type: type as Filters["type"] })}
+                        className="flex-1 capitalize"
+                      >
+                        {type}
+                      </Button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Molt Details */}
-                {entry.entryType === "molt" && (
-                  <div className="space-y-2">
-                    {entry.stage && (
-                      <Badge variant="neutral">{entry.stage}</Badge>
-                    )}
-                    {(entry.oldSize || entry.newSize) && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <TrendingUp className="w-4 h-4 text-[rgb(var(--primary))]" />
-                        <span className="text-[rgb(var(--text))]">
-                          {formatSize(entry.oldSize)} {sizeUnit} → {formatSize(entry.newSize)} {sizeUnit}
-                        </span>
-                      </div>
-                    )}
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
+                    Molt Stage
+                  </label>
+                  <div className="flex gap-2">
+                    {["all", "Pre-molt", "Molt", "Post-molt"].map((stage) => (
+                      <Button
+                        key={stage}
+                        variant={filters.stage === stage ? "primary" : "secondary"}
+                        size="sm"
+                        onClick={() => setFilters({ ...filters, stage: stage as Filters["stage"] })}
+                        className="flex-1 text-xs"
+                      >
+                        {stage}
+                      </Button>
+                    ))}
                   </div>
-                )}
+                </div>
 
-                {/* Water Change */}
-                {entry.entryType === "water" && (
-                  <div className="text-sm text-[rgb(var(--text-soft))]">
-                    Water dish refreshed.
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
+                    Sort Order
+                  </label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={filters.order === "desc" ? "primary" : "secondary"}
+                      size="sm"
+                      onClick={() => setFilters({ ...filters, order: "desc" })}
+                      className="flex-1"
+                    >
+                      Newest First
+                    </Button>
+                    <Button
+                      variant={filters.order === "asc" ? "primary" : "secondary"}
+                      size="sm"
+                      onClick={() => setFilters({ ...filters, order: "asc" })}
+                      className="flex-1"
+                    >
+                      Oldest First
+                    </Button>
                   </div>
-                )}
-
-                {/* Feeding Details */}
-                {entry.entryType === "feeding" && (
-                  <div className="space-y-2">
-                    {entry.feedingPrey && (
-                      <div className="text-sm text-[rgb(var(--text))]">
-                        <span className="text-[rgb(var(--text-soft))]">Prey:</span>{" "}
-                        {entry.feedingPrey}
-                      </div>
-                    )}
-                    {entry.feedingOutcome && (
-                      <Badge variant={entry.feedingOutcome === "Ate" ? "success" : "neutral"}>
-                        {entry.feedingOutcome}
-                      </Badge>
-                    )}
-                    {entry.feedingAmount && (
-                      <div className="text-sm text-[rgb(var(--text-soft))]">
-                        Amount: {entry.feedingAmount}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Environmental Data */}
-                {(entry.humidity || entry.temperature) && (
-                  <div className="flex gap-4 pt-2 border-t border-[rgb(var(--border))]">
-                    {entry.humidity && (
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Droplets className="w-4 h-4 text-[rgb(var(--primary))]" />
-                        <span className="text-[rgb(var(--text))]">{entry.humidity}%</span>
-                      </div>
-                    )}
-                    {entry.temperature && (
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <Thermometer className="w-4 h-4 text-[rgb(var(--danger))]" />
-                        <span className="text-[rgb(var(--text))]">
-                          {typeof entry.temperature === "number" ? `${entry.temperature}°${entry.temperatureUnit === "F" ? "F" : "C"}` : "—"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Notes */}
-                {entry.notes && (
-                  <p className="text-sm text-[rgb(var(--text-soft))] pt-2 border-t border-[rgb(var(--border))]">
-                    {entry.notes}
-                  </p>
-                )}
-
-                {/* Attachments */}
-                {entry.attachments && entry.attachments.length > 0 && (
-                  <button
-                    type="button"
-                    className="flex items-center gap-2 pt-2 border-t border-[rgb(var(--border))] w-full text-left hover:bg-[rgb(var(--bg-muted))] rounded"
-                    onClick={() => {
-                      const imgs: GalleryImage[] = entry.attachments!.map((a) => ({ id: a.id, url: a.url, name: a.name }));
-                      setGalleryImages(imgs);
-                      setGalleryIndex(0);
-                      setCurrentSpecimenKey(entry.specimen ?? "Unnamed");
-                      setGalleryOpen(true);
-                    }}
-                    aria-label="View attachments"
-                  >
-                    <ImageIcon className="w-4 h-4 text-[rgb(var(--text-subtle))]" />
-                    <span className="text-sm text-[rgb(var(--text-soft))]">
-                      {entry.attachments.length} {entry.attachments.length === 1 ? "photo" : "photos"}
-                    </span>
-                  </button>
-                )}
-
-                {/* Reminder */}
-                {entry.reminderDate && (
-                  <div className="pt-2 border-t border-[rgb(var(--border))]">
-                    <Badge variant={getVariantForReminderStatus(reminderStatus)}>
-                      Reminder: {formatDate(entry.reminderDate)}
-                    </Badge>
-                  </div>
-                )}
+                </div>
               </div>
             </Card>
-          );
-        })}
-      </div>
-
-      {filteredEntries.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-          <p className="text-[rgb(var(--text-soft))] mb-2">No entries match your filters</p>
-          <button
-            onClick={() =>
-              setFilters({ search: "", stage: "all", type: "all", order: filters.order })
-            }
-            className="text-sm text-[rgb(var(--primary))] hover:underline"
-          >
-            Clear all filters
-          </button>
+          )}
         </div>
-      )}
-    </div>
-    <ImageGallery
-      open={galleryOpen}
-      images={galleryImages}
-      index={galleryIndex}
-      onClose={() => setGalleryOpen(false)}
-      onIndexChange={(i) => setGalleryIndex(i)}
-      onSetCover={onSetCover ? (img) => onSetCover(currentSpecimenKey ?? "Unnamed", img) : undefined}
-      currentCoverUrl={currentSpecimenKey ? covers?.[currentSpecimenKey] : undefined}
-      onUnsetCover={onUnsetCover ? () => onUnsetCover(currentSpecimenKey ?? "Unnamed") : undefined}
-    />
+
+        {/* Results Count */}
+        <div className="flex items-center justify-between text-sm text-[rgb(var(--text-soft))]">
+          <span>
+            {filteredEntries.length} {filteredEntries.length === 1 ? "entry" : "entries"}
+          </span>
+          {filters.search || filters.type !== "all" || filters.stage !== "all" ? (
+            <button
+              onClick={() =>
+                setFilters({ search: "", stage: "all", type: "all", order: filters.order })
+              }
+              className="text-[rgb(var(--primary))] hover:underline"
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+
+        {/* Entry Cards */}
+        <div className="space-y-3 pb-4">
+          {filteredEntries.map((entry) => {
+            const reminderStatus = getReminderStatus(entry.reminderDate);
+
+            return (
+              <Card key={entry.id} className="p-4 hover:shadow-[var(--shadow-md)] transition-all">
+                <div className="space-y-3">
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-3">
+                    {(() => {
+                      const key = entry.specimen ?? "Unnamed";
+
+                      // Resolve cover image:
+                      // 1. Try pinned cover passed in via props (covers)
+                      let coverUrl = covers?.[key];
+
+                      // 2. If not pinned, see if we can find the specimen in the specimens list
+                      if (!coverUrl && specimens) {
+                        const found = entry.specimenId
+                          ? specimens.find(s => s.id === entry.specimenId)
+                          : specimens.find(s => s.name === entry.specimen);
+
+                        if (found?.imageUrl) {
+                          coverUrl = found.imageUrl;
+                        }
+                      }
+
+                      if (!coverUrl) return null;
+                      return (
+                        <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
+                          <CachedImage src={coverUrl} alt={`${key} photo`} className="w-full h-full object-cover" loading="lazy" />
+                        </div>
+                      );
+                    })()}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-[rgb(var(--text))] truncate">
+                          {entry.specimen || "Unnamed"}
+                        </h3>
+                        <Badge variant={entry.entryType === "molt" ? "primary" : entry.entryType === "feeding" ? "success" : "neutral"}>
+                          {entry.entryType === "water" ? "water" : entry.entryType}
+                        </Badge>
+                      </div>
+                      {entry.species && (
+                        <p className="text-sm text-[rgb(var(--text-soft))] mb-2">
+                          <a
+                            href={`/species/${encodeURIComponent(entry.species)}`}
+                            className="hover:underline"
+                            onClick={(e) => e.stopPropagation?.()}
+                          >
+                            {entry.species}
+                          </a>
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-[rgb(var(--text-subtle))]">
+                        <Calendar className="w-3 h-3" />
+                        <span>{formatDate(entry.date)}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEdit(entry)}
+                        className="h-8 w-8"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(entry.id)}
+                        className="h-8 w-8 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Molt Details */}
+                  {entry.entryType === "molt" && (
+                    <div className="space-y-2">
+                      {entry.stage && (
+                        <Badge variant="neutral">{entry.stage}</Badge>
+                      )}
+                      {(entry.oldSize || entry.newSize) && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <TrendingUp className="w-4 h-4 text-[rgb(var(--primary))]" />
+                          <span className="text-[rgb(var(--text))]">
+                            {formatSize(entry.oldSize)} {sizeUnit} → {formatSize(entry.newSize)} {sizeUnit}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Water Change */}
+                  {entry.entryType === "water" && (
+                    <div className="text-sm text-[rgb(var(--text-soft))]">
+                      Water dish refreshed.
+                    </div>
+                  )}
+
+                  {/* Feeding Details */}
+                  {entry.entryType === "feeding" && (
+                    <div className="space-y-2">
+                      {entry.feedingPrey && (
+                        <div className="text-sm text-[rgb(var(--text))]">
+                          <span className="text-[rgb(var(--text-soft))]">Prey:</span>{" "}
+                          {entry.feedingPrey}
+                        </div>
+                      )}
+                      {entry.feedingOutcome && (
+                        <Badge variant={entry.feedingOutcome === "Ate" ? "success" : "neutral"}>
+                          {entry.feedingOutcome}
+                        </Badge>
+                      )}
+                      {entry.feedingAmount && (
+                        <div className="text-sm text-[rgb(var(--text-soft))]">
+                          Amount: {entry.feedingAmount}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Environmental Data */}
+                  {(entry.humidity || entry.temperature) && (
+                    <div className="flex gap-4 pt-2 border-t border-[rgb(var(--border))]">
+                      {entry.humidity && (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <Droplets className="w-4 h-4 text-[rgb(var(--primary))]" />
+                          <span className="text-[rgb(var(--text))]">{entry.humidity}%</span>
+                        </div>
+                      )}
+                      {entry.temperature && (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <Thermometer className="w-4 h-4 text-[rgb(var(--danger))]" />
+                          <span className="text-[rgb(var(--text))]">
+                            {typeof entry.temperature === "number" ? `${entry.temperature}°${entry.temperatureUnit === "F" ? "F" : "C"}` : "—"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {entry.notes && (
+                    <div className="pt-2 border-t border-[rgb(var(--border))]">
+                      <div className="text-sm text-[rgb(var(--text-soft))]">
+                        <MarkdownRenderer>{entry.notes}</MarkdownRenderer>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attachments */}
+                  {entry.attachments && entry.attachments.length > 0 && (
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 pt-2 border-t border-[rgb(var(--border))] w-full text-left hover:bg-[rgb(var(--bg-muted))] rounded"
+                      onClick={() => {
+                        const imgs: GalleryImage[] = entry.attachments!.map((a) => ({ id: a.id, url: a.url, name: a.name }));
+                        setGalleryImages(imgs);
+                        setGalleryIndex(0);
+                        setCurrentSpecimenKey(entry.specimen ?? "Unnamed");
+                        setGalleryOpen(true);
+                      }}
+                      aria-label="View attachments"
+                    >
+                      <ImageIcon className="w-4 h-4 text-[rgb(var(--text-subtle))]" />
+                      <span className="text-sm text-[rgb(var(--text-soft))]">
+                        {entry.attachments.length} {entry.attachments.length === 1 ? "photo" : "photos"}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Reminder */}
+                  {entry.reminderDate && (
+                    <div className="pt-2 border-t border-[rgb(var(--border))]">
+                      <Badge variant={getVariantForReminderStatus(reminderStatus)}>
+                        Reminder: {formatDate(entry.reminderDate)}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+
+        {filteredEntries.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+            <p className="text-[rgb(var(--text-soft))] mb-2">No entries match your filters</p>
+            <button
+              onClick={() =>
+                setFilters({ search: "", stage: "all", type: "all", order: filters.order })
+              }
+              className="text-sm text-[rgb(var(--primary))] hover:underline"
+            >
+              Clear all filters
+            </button>
+          </div>
+        )}
+      </div>
+      <ImageGallery
+        open={galleryOpen}
+        images={galleryImages}
+        index={galleryIndex}
+        onClose={() => setGalleryOpen(false)}
+        onIndexChange={(i) => setGalleryIndex(i)}
+        onSetCover={onSetCover ? (img) => onSetCover(currentSpecimenKey ?? "Unnamed", img) : undefined}
+        currentCoverUrl={currentSpecimenKey ? covers?.[currentSpecimenKey] : undefined}
+        onUnsetCover={onUnsetCover ? () => onUnsetCover(currentSpecimenKey ?? "Unnamed") : undefined}
+      />
     </>
   );
 }

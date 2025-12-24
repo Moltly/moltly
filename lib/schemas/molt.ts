@@ -15,6 +15,7 @@ const temperatureUnitEnum = z.enum(["C", "F"]);
 
 export const MoltEntryBaseSchema = z
   .object({
+    specimenId: optionalTrimmedString(32),
     specimen: optionalTrimmedString(160),
     species: optionalTrimmedString(160),
     date: requiredDateString,
@@ -30,6 +31,7 @@ export const MoltEntryBaseSchema = z
     feedingPrey: optionalTrimmedString(256),
     feedingOutcome: feedingOutcomeEnum.optional(),
     feedingAmount: optionalTrimmedString(128),
+    cultureId: optionalTrimmedString(32),
     attachments: z.array(AttachmentInputSchema).optional()
   })
   .superRefine((data, ctx) => {
@@ -76,6 +78,7 @@ export const MoltEntryBaseSchema = z
 export const MoltEntryCreateSchema = MoltEntryBaseSchema.transform((data) => {
   const entryType = data.entryType ?? "molt";
   return {
+    specimenId: data.specimenId,
     specimen: data.specimen,
     species: data.species,
     date: data.date,
@@ -91,6 +94,7 @@ export const MoltEntryCreateSchema = MoltEntryBaseSchema.transform((data) => {
     feedingPrey: entryType === "feeding" ? data.feedingPrey : undefined,
     feedingOutcome: entryType === "feeding" ? data.feedingOutcome : undefined,
     feedingAmount: entryType === "feeding" ? data.feedingAmount : undefined,
+    cultureId: entryType === "feeding" ? data.cultureId : undefined,
     attachments: (data.attachments ?? []).map<AttachmentInput>((attachment) => ({
       ...attachment,
       id: attachment.id,

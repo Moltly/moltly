@@ -12,9 +12,24 @@ export type Attachment = {
   addedAt: string;
 };
 
+export type Specimen = {
+  id: string;
+  name: string;
+  species?: string;
+  imageUrl?: string;
+  notes?: string;
+  attachments?: Attachment[];
+  archived?: boolean;
+  archivedAt?: string;
+  archivedReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type MoltEntry = {
   id: string;
   entryType: EntryType;
+  specimenId?: string;
   specimen?: string;
   species?: string;
   date: string;
@@ -29,6 +44,7 @@ export type MoltEntry = {
   feedingPrey?: string;
   feedingOutcome?: FeedingOutcome;
   feedingAmount?: string;
+  cultureId?: string;
   attachments?: Attachment[];
   createdAt: string;
   updatedAt: string;
@@ -42,7 +58,7 @@ export type FormState = {
   stage: Stage;
   oldSize: string;
   newSize: string;
-   sizeUnit: SizeUnit;
+  sizeUnit: SizeUnit;
   humidity: string;
   temperature: string;
   temperatureUnit: "C" | "F";
@@ -55,6 +71,7 @@ export type FormState = {
 
 export type SpecimenDashboard = {
   key: string;
+  specimenId?: string;
   specimen: string;
   species?: string;
   // Optional cover image URL for this specimen, derived from attachments
@@ -71,9 +88,12 @@ export type SpecimenDashboard = {
   reminder: { tone: string; label: string; date?: string } | null;
   recentEntries: MoltEntry[];
   latestEntry: MoltEntry | null;
+  archived?: boolean;
+  archivedAt?: string;
+  archivedReason?: string;
 };
 
-export type ViewKey = "overview" | "activity" | "specimens" | "reminders" | "notebook" | "health" | "breeding" | "analytics";
+export type ViewKey = "overview" | "activity" | "specimens" | "reminders" | "notebook" | "health" | "breeding" | "analytics" | "cultures";
 export type DataMode = "sync" | "local" | null;
 
 export type Filters = {

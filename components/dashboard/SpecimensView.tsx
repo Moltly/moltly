@@ -1,31 +1,77 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg, QrCode } from "lucide-react";
+import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg, QrCode, Search, Edit2, X, Archive, ArchiveRestore, Upload, ImagePlus, Trash2 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
 import CachedImage from "@/components/ui/CachedImage";
-import { MoltEntry, SpecimenDashboard, SizeUnit } from "@/types/molt";
+import { MoltEntry, SpecimenDashboard, SizeUnit, Specimen } from "@/types/molt";
 import { formatDate, getReminderStatus, cn, cmToInches } from "@/lib/utils";
 import SpecimenQrModal from "@/components/dashboard/SpecimenQrModal";
+import { ActionButton, useActionButtons } from "@/hooks/useActionButtons";
+import ActionButtonsEditor from "./ActionButtonsEditor";
+import MarkdownRenderer from "@/components/ui/MarkdownRenderer";
 
 interface SpecimensViewProps {
   entries: MoltEntry[];
+  specimens?: Specimen[];
   covers?: Record<string, string>;
-  healthEntries?: Array<{ specimen?: string; species?: string }>;
-  breedingEntries?: Array<{ femaleSpecimen?: string; maleSpecimen?: string }>;
-  onQuickAction?: (specimen: string, species: string | undefined, action: string) => void;
+  healthEntries?: Array<{ specimenId?: string; specimen?: string; species?: string }>;
+  breedingEntries?: Array<{ femaleSpecimenId?: string; femaleSpecimen?: string; maleSpecimenId?: string; maleSpecimen?: string }>;
+  onQuickAction?: (specimenId: string | undefined, specimen: string, species: string | undefined, action: string) => void;
+  onEdit?: (entry: MoltEntry) => void;
+  onArchive?: (specimenId: string, archived: boolean, reason?: string) => Promise<void>;
+  onUpdateCover?: (specimenId: string, imageUrl: string | null) => Promise<void>;
   initialFocusSpecimen?: string;
   readOnly?: boolean;
   ownerId?: string;
   sizeUnit: SizeUnit;
 }
 
-export default function SpecimensView({ entries, covers, healthEntries = [], breedingEntries = [], onQuickAction, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
+export default function SpecimensView({ entries, specimens = [], covers, healthEntries = [], breedingEntries = [], onQuickAction, onEdit, onArchive, onUpdateCover, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+
+  const { sortedButtons, buttons, addCustomButton, removeButton, toggleButton, trackUsage } = useActionButtons();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [uploadingCoverId, setUploadingCoverId] = useState<string | null>(null);
   const hasFocusedRef = useRef(false);
+
+  // Handle cover image upload for a specimen
+  const handleCoverUpload = async (specimenId: string, files: FileList | null) => {
+    if (!files || files.length === 0 || !onUpdateCover) return;
+
+    setUploadingCoverId(specimenId);
+    try {
+      const form = new FormData();
+      form.append("file", files[0]);
+
+      const res = await fetch("/api/upload", { method: "POST", body: form, credentials: "include" });
+      if (!res.ok) {
+        const errorBody = await res.text().catch(() => "");
+        throw new Error(`Upload failed: ${errorBody || res.status}`);
+      }
+
+      const payload = (await res.json()) as { attachments: Array<{ url: string }> };
+      const imageUrl = payload.attachments?.[0]?.url;
+
+      if (imageUrl) {
+        await onUpdateCover(specimenId, imageUrl);
+      }
+    } catch (error) {
+      console.error("Cover upload failed:", error);
+      alert("Failed to upload cover image. Please try again.");
+    } finally {
+      setUploadingCoverId(null);
+    }
+  };
+
+
 
   const formatSize = (value?: number) => {
     if (value === undefined || value === null) return "?";
@@ -34,19 +80,26 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
   };
 
   const specimenDashboards = useMemo(() => {
+    // Build a map of specimen data by ID for quick lookups
+    const specimenDataById = new Map<string, Specimen>();
+    for (const spec of specimens) {
+      specimenDataById.set(spec.id, spec);
+    }
+
     // Pre-compute per-specimen health and breeding counts
     const healthCounts = new Map<string, number>();
     const breedingCounts = new Map<string, number>();
     for (const h of healthEntries) {
-      const key = (h.specimen ?? "").trim();
+      // Prefer specimenId, fall back to name
+      const key = h.specimenId ?? (h.specimen ?? "").trim();
       const species = (h.species ?? "").trim();
       if (key) healthCounts.set(key, (healthCounts.get(key) ?? 0) + 1);
       // If no specimen but species exists, tally by species (best-effort match)
       if (!key && species) healthCounts.set(species, (healthCounts.get(species) ?? 0) + 1);
     }
     for (const b of breedingEntries) {
-      const f = (b.femaleSpecimen ?? "").trim();
-      const m = (b.maleSpecimen ?? "").trim();
+      const f = b.femaleSpecimenId ?? (b.femaleSpecimen ?? "").trim();
+      const m = b.maleSpecimenId ?? (b.maleSpecimen ?? "").trim();
       if (f) breedingCounts.set(f, (breedingCounts.get(f) ?? 0) + 1);
       if (m) breedingCounts.set(m, (breedingCounts.get(m) ?? 0) + 1);
     }
@@ -54,14 +107,50 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
     // Track the most-recent attachment timestamp per specimen to pick a cover image
     const imageTs = new Map<string, number>();
 
+    // First, create dashboards for all known specimens (using their unique IDs)
+    // This ensures specimens with the same name but different species stay separate
+    for (const spec of specimens) {
+      dashboardMap.set(spec.id, {
+        key: spec.id,
+        specimenId: spec.id,
+        specimen: spec.name,
+        species: spec.species,
+        imageUrl: spec.imageUrl,
+        totalMolts: 0,
+        totalFeedings: 0,
+        stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
+        lastMoltDate: null,
+        firstMoltDate: null,
+        averageIntervalDays: null,
+        lastIntervalDays: null,
+        yearMolts: 0,
+        attachmentsCount: 0,
+        reminder: null,
+        recentEntries: [],
+        latestEntry: null,
+        archived: spec.archived ?? false,
+        archivedAt: spec.archivedAt,
+        archivedReason: spec.archivedReason,
+      });
+    }
+
+    // Then process entries, adding data to existing specimen dashboards or creating new ones for legacy entries
     entries.forEach((entry) => {
-      const key = entry.specimen ?? "Unnamed";
+      // Use specimenId if available, otherwise fall back to specimen name for legacy entries
+      const key = entry.specimenId ?? entry.specimen ?? "Unnamed";
+      const specimenName = entry.specimenId && specimenDataById.has(entry.specimenId)
+        ? specimenDataById.get(entry.specimenId)!.name
+        : entry.specimen ?? "Unnamed";
+
       if (!dashboardMap.has(key)) {
+        // Legacy entry without a specimen ID - create a dashboard based on name
+        const specimenData = entry.specimenId ? specimenDataById.get(entry.specimenId) : undefined;
         dashboardMap.set(key, {
           key,
-          specimen: key,
-          species: entry.species,
-          imageUrl: undefined,
+          specimenId: entry.specimenId,
+          specimen: specimenName,
+          species: specimenData?.species ?? entry.species,
+          imageUrl: specimenData?.imageUrl,
           totalMolts: 0,
           totalFeedings: 0,
           stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
@@ -74,8 +163,9 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
           reminder: null,
           recentEntries: [],
           latestEntry: null,
-          // Inject external counts lazily by key match
-          // We'll read from these maps at render time
+          archived: specimenData?.archived ?? false,
+          archivedAt: specimenData?.archivedAt,
+          archivedReason: specimenData?.archivedReason,
         });
       }
 
@@ -185,7 +275,29 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
       _healthCount: healthCounts.get(d.key) ?? healthCounts.get(d.species ?? "") ?? 0,
       _breedingCount: breedingCounts.get(d.key) ?? 0,
     })) as Array<typeof dashboards[number] & { _healthCount: number; _breedingCount: number }>;
-  }, [entries, covers, healthEntries, breedingEntries]);
+  }, [entries, specimens, covers, healthEntries, breedingEntries]);
+
+  // Filter specimens by search query and archive status
+  const filteredDashboards = useMemo(() => {
+    let result = specimenDashboards;
+
+    // Filter by archive status
+    if (!showArchived) {
+      result = result.filter((d) => !d.archived);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (d) =>
+          d.specimen.toLowerCase().includes(q) ||
+          (d.species && d.species.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [specimenDashboards, searchQuery, showArchived]);
 
   const toggleExpand = (key: string) => {
     setExpandedKeys((prev) =>
@@ -194,7 +306,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
   };
 
   const expandAll = () => {
-    setExpandedKeys(specimenDashboards.map((d) => d.key));
+    setExpandedKeys(filteredDashboards.map((d) => d.key));
   };
 
   const collapseAll = () => {
@@ -240,12 +352,42 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
             Read-only preview. Sign in as the owner to edit or log care for this specimen.
           </div>
         )}
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
+          <Input
+            placeholder="Search by specimen or species..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
         {/* Header Actions */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-sm text-[rgb(var(--text-soft))]">
-            {specimenDashboards.length} {specimenDashboards.length === 1 ? "specimen" : "specimens"}
-          </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-[rgb(var(--text-soft))]">
+              {filteredDashboards.length} {filteredDashboards.length === 1 ? "specimen" : "specimens"}
+            </p>
+            {searchQuery && filteredDashboards.length !== specimenDashboards.length && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="text-xs text-[rgb(var(--primary))] hover:underline"
+              >
+                Clear search
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <label className="flex items-center gap-1.5 text-sm text-[rgb(var(--text-soft))] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--primary))] focus:ring-[rgb(var(--primary))] focus:ring-offset-0"
+              />
+              <Archive className="w-3.5 h-3.5" />
+              Show archived
+            </label>
             <Button variant="secondary" size="sm" onClick={() => setShowQrModal(true)} className="whitespace-nowrap">
               <QrCode className="w-4 h-4" /> QR labels
             </Button>
@@ -260,7 +402,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
 
         {/* Specimen Cards */}
         <div className="space-y-3 pb-4">
-          {specimenDashboards.map((dashboard) => {
+          {filteredDashboards.map((dashboard) => {
             const isExpanded = expandedKeys.includes(dashboard.key);
 
             return (
@@ -323,13 +465,19 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                             {dashboard.attachmentsCount === 1 ? "photo" : "photos"}
                           </Badge>
                         )}
+                        {dashboard.archived && (
+                          <Badge variant="warning">
+                            <Archive className="w-3 h-3" /> Archived
+                            {dashboard.archivedReason && ` (${dashboard.archivedReason})`}
+                          </Badge>
+                        )}
                         {onQuickAction && (
                           <Button
                             type="button"
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
                             className="px-2 py-1 text-xs"
-                            onClick={(e) => { e.stopPropagation(); onQuickAction(dashboard.specimen, dashboard.species, ""); }}
+                            onClick={(e) => { e.stopPropagation(); onQuickAction(dashboard.specimenId, dashboard.specimen, dashboard.species, ""); }}
                             title="Log a quick note"
                           >
                             log action
@@ -417,43 +565,15 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
 
                     {/* Quick Actions (care notes) */}
                     {onQuickAction && (
-                      <div>
-                        <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">Quick log</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {[
-                            "watered",
-                            "seen",
-                            "hidden",
-                            "threat posed",
-                            "stress response",
-                            "webbed increase",
-                            "burrowed",
-                          ].map((label) => (
-                            <Button
-                              key={label}
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="px-2 py-1 text-xs"
-                              onClick={() => onQuickAction(dashboard.specimen, dashboard.species, label)}
-                            >
-                              {label}
-                            </Button>
-                          ))}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="px-2 py-1 text-xs"
-                            onClick={() => {
-                              const val = typeof window !== "undefined" ? window.prompt("Custom action") : null;
-                              if (val && val.trim()) onQuickAction(dashboard.specimen, dashboard.species, val.trim());
-                            }}
-                          >
-                            custom…
-                          </Button>
-                        </div>
-                      </div>
+                      <ActionButtons
+                        specimenId={dashboard.specimenId}
+                        specimen={dashboard.specimen}
+                        species={dashboard.species}
+                        onQuickAction={onQuickAction}
+                        buttons={sortedButtons}
+                        onTrackUsage={trackUsage}
+                        onOpenEditor={() => setEditorOpen(true)}
+                      />
                     )}
 
                     {/* Recent Activity */}
@@ -465,7 +585,14 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                         {dashboard.recentEntries.map((entry) => (
                           <div
                             key={entry.id}
-                            className="flex items-center gap-3 p-2 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))]"
+                            className={cn(
+                              "flex items-center gap-3 p-2 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))]",
+                              onEdit && !readOnly && "cursor-pointer hover:bg-[rgb(var(--bg-muted))]/80 transition-colors"
+                            )}
+                            onClick={onEdit && !readOnly ? () => onEdit(entry) : undefined}
+                            role={onEdit && !readOnly ? "button" : undefined}
+                            tabIndex={onEdit && !readOnly ? 0 : undefined}
+                            onKeyDown={onEdit && !readOnly ? (e) => { if (e.key === "Enter" || e.key === " ") onEdit(entry); } : undefined}
                           >
                             <div className={cn(
                               "p-1.5 rounded-[var(--radius-sm)]",
@@ -499,7 +626,7 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                                 <span>{formatDate(entry.date)}</span>
                               </div>
                               {entry.entryType === "water" && entry.notes && (
-                                <div className="text-xs text-[rgb(var(--text))] truncate">{entry.notes}</div>
+                                <div className="text-xs text-[rgb(var(--text))] truncate"><MarkdownRenderer>{entry.notes}</MarkdownRenderer></div>
                               )}
                             </div>
                             {entry.oldSize && entry.newSize && (
@@ -507,10 +634,139 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
                                 {formatSize(entry.oldSize)} → {formatSize(entry.newSize)} {sizeUnit}
                               </span>
                             )}
+                            {onEdit && !readOnly && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0"
+                                onClick={(e) => { e.stopPropagation(); onEdit(entry); }}
+                                title="Edit entry"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
+
+                    {/* Cover Image Management */}
+                    {onUpdateCover && dashboard.specimenId && !readOnly && (
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">
+                          Cover Image
+                        </p>
+                        <div className="flex items-start gap-4">
+                          {dashboard.imageUrl ? (
+                            <div className="relative group w-24 h-24 rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))] flex-shrink-0">
+                              <CachedImage
+                                src={dashboard.imageUrl}
+                                alt="Cover"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                <label className="cursor-pointer p-1.5 rounded bg-[rgb(var(--surface))] hover:bg-[rgb(var(--primary-soft))] text-[rgb(var(--text))] transition-colors" title="Change cover">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleCoverUpload(dashboard.specimenId!, e.target.files)}
+                                    disabled={uploadingCoverId === dashboard.specimenId}
+                                  />
+                                  <Upload className="w-4 h-4" />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="p-1.5 rounded bg-[rgb(var(--surface))] hover:bg-[rgb(var(--danger-soft))] text-[rgb(var(--danger))] transition-colors"
+                                  onClick={() => onUpdateCover(dashboard.specimenId!, null)}
+                                  title="Remove cover"
+                                  disabled={uploadingCoverId === dashboard.specimenId}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                              {uploadingCoverId === dashboard.specimenId && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <label className="flex flex-col items-center justify-center w-24 h-24 rounded-[var(--radius)] border-2 border-dashed border-[rgb(var(--border))] hover:border-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-soft))]/20 cursor-pointer transition-colors group">
+                              {uploadingCoverId === dashboard.specimenId ? (
+                                <div className="w-6 h-6 border-2 border-[rgb(var(--primary-soft))] border-t-[rgb(var(--primary))] rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <ImagePlus className="w-6 h-6 text-[rgb(var(--text-soft))] group-hover:text-[rgb(var(--primary))] mb-1" />
+                                  <span className="text-[10px] text-[rgb(var(--text-soft))] group-hover:text-[rgb(var(--primary))] font-medium">Upload</span>
+                                </>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleCoverUpload(dashboard.specimenId!, e.target.files)}
+                                disabled={uploadingCoverId === dashboard.specimenId}
+                              />
+                            </label>
+                          )}
+                          <div className="flex-1 text-xs text-[rgb(var(--text-soft))] pt-1">
+                            <p>
+                              Set a cover image to identify this specimen. Valid formats: JPG, PNG, WEBP.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Archive Management */}
+                    {onArchive && dashboard.specimenId && !readOnly && (
+                      <div className="pt-2 border-t border-[rgb(var(--border))]">
+                        {dashboard.archived ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                            disabled={archivingId === dashboard.specimenId}
+                            onClick={async () => {
+                              if (!dashboard.specimenId) return;
+                              setArchivingId(dashboard.specimenId);
+                              try {
+                                await onArchive(dashboard.specimenId, false);
+                              } finally {
+                                setArchivingId(null);
+                              }
+                            }}
+                          >
+                            <ArchiveRestore className="w-3.5 h-3.5" />
+                            {archivingId === dashboard.specimenId ? "Restoring..." : "Restore from Archive"}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs text-[rgb(var(--text-soft))]"
+                            disabled={archivingId === dashboard.specimenId}
+                            onClick={async () => {
+                              if (!dashboard.specimenId) return;
+                              const reason = window.prompt("Archive reason (optional):", "");
+                              if (reason === null) return; // User cancelled
+                              setArchivingId(dashboard.specimenId);
+                              try {
+                                await onArchive(dashboard.specimenId, true, reason || undefined);
+                              } finally {
+                                setArchivingId(null);
+                              }
+                            }}
+                          >
+                            <Archive className="w-3.5 h-3.5" />
+                            {archivingId === dashboard.specimenId ? "Archiving..." : "Archive Specimen"}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>
@@ -525,6 +781,69 @@ export default function SpecimensView({ entries, covers, healthEntries = [], bre
         specimens={specimenDashboards.map((d) => ({ specimen: d.specimen, species: d.species }))}
         ownerId={ownerId}
       />
+
+      {editorOpen && (
+        <ActionButtonsEditor
+          buttons={buttons}
+          onAdd={addCustomButton}
+          onRemove={removeButton}
+          onToggle={toggleButton}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
     </>
   );
 }
+
+// Added ActionButtons helper component
+function ActionButtons({
+  specimenId,
+  specimen,
+  species,
+  onQuickAction,
+  buttons,
+  onTrackUsage,
+  onOpenEditor
+}: {
+  specimenId?: string;
+  specimen: string;
+  species?: string;
+  onQuickAction: (specimenId: string | undefined, specimen: string, species: string | undefined, action: string) => void;
+  buttons: ActionButton[];
+  onTrackUsage: (id: string) => void;
+  onOpenEditor: () => void;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">Quick log</p>
+      <div className="flex flex-wrap gap-1.5">
+        {buttons.filter(b => b.enabled).map((btn) => (
+          <Button
+            key={btn.id}
+            type="button"
+            size="sm"
+            variant="outline"
+            className="px-2 py-1 text-xs"
+            onClick={() => {
+              onTrackUsage(btn.id);
+              onQuickAction(specimenId, specimen, species, btn.label);
+            }}
+          >
+            {btn.label}
+          </Button>
+        ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="px-2 py-1 text-xs text-[rgb(var(--text-soft))]"
+          onClick={onOpenEditor}
+          title="Configure actions"
+        >
+          +
+        </Button>
+      </div>
+    </div>
+  );
+}
+

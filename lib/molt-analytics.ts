@@ -9,18 +9,20 @@ type IntervalStats = {
 export type SpecimenAnalytics = {
   specimen: string;
   species?: string;
+  specimenId?: string;
   moltIntervals: IntervalStats;
   yearlyMolts: Record<number, number>;
 };
 
 export function computeSpecimenAnalytics(entries: MoltEntry[]): SpecimenAnalytics[] {
-  const specimens = new Map<string, { specimen: string; species?: string; moltDates: number[] }>();
+  const specimens = new Map<string, { specimen: string; species?: string; specimenId?: string; moltDates: number[] }>();
 
   for (const entry of entries) {
     if (entry.entryType !== "molt") continue;
-    const key = entry.specimen ?? "Unnamed";
+    // Use specimenId when available, otherwise use name+species as key
+    const key = entry.specimenId ?? `${entry.specimen ?? "Unnamed"}-${entry.species ?? ""}`;
     if (!specimens.has(key)) {
-      specimens.set(key, { specimen: key, species: entry.species, moltDates: [] });
+      specimens.set(key, { specimen: entry.specimen ?? "Unnamed", species: entry.species, specimenId: entry.specimenId, moltDates: [] });
     }
     const dataset = specimens.get(key)!;
     dataset.moltDates.push(new Date(entry.date).getTime());
@@ -31,7 +33,7 @@ export function computeSpecimenAnalytics(entries: MoltEntry[]): SpecimenAnalytic
 
   const analytics: SpecimenAnalytics[] = [];
 
-  specimens.forEach(({ specimen, species, moltDates }) => {
+  specimens.forEach(({ specimen, species, specimenId, moltDates }) => {
     const sorted = [...moltDates].sort((a, b) => b - a); // newest → oldest
     const intervals: number[] = [];
     const yearlyMolts: Record<number, number> = {};
@@ -52,6 +54,7 @@ export function computeSpecimenAnalytics(entries: MoltEntry[]): SpecimenAnalytic
     analytics.push({
       specimen,
       species,
+      specimenId,
       moltIntervals: { averageDays, lastDays, intervals },
       yearlyMolts,
     });

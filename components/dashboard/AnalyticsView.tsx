@@ -44,7 +44,14 @@ export default function AnalyticsView({ entries }: AnalyticsViewProps) {
               .map(Number)
               .sort((a, b) => b - a);
             const lastMoltDate = entries
-              .filter((e) => (e.specimen ?? "Unnamed") === entry.specimen && e.entryType === "molt")
+              .filter((e) => {
+                if (entry.specimenId && e.specimenId) {
+                  return e.specimenId === entry.specimenId && e.entryType === "molt";
+                }
+                return (e.specimen ?? "Unnamed") === entry.specimen &&
+                  (e.species ?? "") === (entry.species ?? "") &&
+                  e.entryType === "molt";
+              })
               .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.date;
 
             return (

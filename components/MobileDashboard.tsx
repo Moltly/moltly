@@ -18,10 +18,12 @@ import NotebookView from "@/components/dashboard/NotebookView";
 import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
+import CulturesView from "@/components/dashboard/CulturesView";
 import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import type { ResearchStack, ResearchNote } from "@/types/research";
+import type { CultureEntry, CultureFormState } from "@/types/culture";
 import { APP_VERSION, LAST_SEEN_VERSION_KEY } from "@/lib/app-version";
 import { getUpdatesSince, type ChangelogEntry } from "@/lib/changelog";
 import { getSavedTempUnit } from "@/lib/temperature";
@@ -170,7 +172,13 @@ export default function MobileDashboard() {
     setSelectedStackId,
     queueOfflineCreate,
     queueOfflineMutation,
-    clearOfflineCreate
+    clearOfflineCreate,
+    cultureEntries,
+    setCultureEntries,
+    refreshCultures,
+    specimens,
+    setSpecimens,
+    refreshSpecimens
   } = useDashboardData();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -296,6 +304,36 @@ export default function MobileDashboard() {
       await updateSpecimenCover(specimenKey, null);
     },
     [updateSpecimenCover]
+  );
+
+  const handleUpdateSpecimenCover = useCallback(
+    async (specimenId: string, imageUrl: string | null) => {
+      try {
+        const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+        // Optimistically update local state
+        setSpecimens((prev) =>
+          prev.map((s) => s.id === specimenId ? { ...s, imageUrl: imageUrl ?? undefined } : s)
+        );
+
+        if (isSync && isOnline) {
+          const res = await fetch(`/api/specimens/${specimenId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageUrl: imageUrl === null ? null : imageUrl }),
+            credentials: "include",
+          });
+          if (!res.ok) throw new Error("Failed to update specimen cover");
+        } else if (isSync) {
+          queueOfflineMutation("specimens", "update", specimenId, { imageUrl });
+        }
+      } catch (error) {
+        console.error("Failed to update specimen cover:", error);
+        // Revert on failure
+        refreshSpecimens();
+      }
+    },
+    [isSync, queueOfflineMutation, setSpecimens, refreshSpecimens]
   );
 
   // Load research stacks
@@ -2021,12 +2059,13 @@ export default function MobileDashboard() {
         )}
         {/* Keep views mounted to avoid reloading images on tab swap */}
         <div style={{ display: activeView === "overview" ? undefined : "none" }}>
-          <OverviewView entries={displayEntries} onViewChange={setActiveView} covers={displayCovers} />
+          <OverviewView entries={displayEntries} specimens={specimens} onViewChange={setActiveView} covers={displayCovers} />
         </div>
 
         <div style={{ display: activeView === "activity" ? undefined : "none" }}>
           <ActivityView
             entries={displayEntries}
+            specimens={specimens}
             onEdit={onEdit}
             onDelete={onDelete}
             onSetCover={handleSetSpecimenCover}
@@ -2039,6 +2078,7 @@ export default function MobileDashboard() {
         <div style={{ display: activeView === "specimens" ? undefined : "none" }}>
           <SpecimensView
             entries={displayEntries}
+            specimens={specimens}
             covers={displayCovers}
             healthEntries={displayHealthEntries}
             breedingEntries={displayBreedingEntries}
@@ -2046,10 +2086,32 @@ export default function MobileDashboard() {
             initialFocusSpecimen={linkedSpecimen ?? undefined}
             ownerId={session?.user?.id || undefined}
             sizeUnit={formState.sizeUnit}
+            onUpdateCover={isPreviewActive ? undefined : handleUpdateSpecimenCover}
+            onEdit={isPreviewActive ? undefined : onEdit}
+            onArchive={
+              isPreviewActive || !isSync
+                ? undefined
+                : async (specimenId, archived, reason) => {
+                  try {
+                    const res = await fetch(`/api/specimens/${specimenId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ archived, archivedReason: reason }),
+                    });
+                    if (!res.ok) {
+                      throw new Error("Failed to update specimen");
+                    }
+                    await refreshSpecimens();
+                  } catch (err) {
+                    console.error("Failed to archive specimen", err);
+                    alert("Failed to update specimen. Please try again.");
+                  }
+                }
+            }
             onQuickAction={
               isPreviewActive
                 ? undefined
-                : (specimen, species, label) => {
+                : (specimenId, specimen, species, label) => {
                   const d = new Date();
                   const pad = (n: number) => String(n).padStart(2, "0");
                   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -2139,6 +2201,80 @@ export default function MobileDashboard() {
             onUpdateNote={onUpdateNote}
             onDeleteNote={onDeleteNote}
             onDuplicateNote={onDuplicateNote}
+          />
+        </div>
+
+        <div style={{ display: activeView === "cultures" ? undefined : "none" }}>
+          <CulturesView
+            entries={cultureEntries}
+            onCreate={async (form: CultureFormState) => {
+              if (!mode) throw new Error("Please wait until the session is ready.");
+              const payload = {
+                name: form.name.trim(),
+                cultureType: form.cultureType,
+                species: form.species.trim() || undefined,
+                quantity: form.quantity ? Number(form.quantity) : undefined,
+                purchaseDate: form.purchaseDate || undefined,
+                lastFed: form.lastFed || undefined,
+                lastCleaned: form.lastCleaned || undefined,
+                temperature: form.temperature ? Number(form.temperature) : undefined,
+                temperatureUnit: form.temperature ? form.temperatureUnit : undefined,
+                humidity: form.humidity ? Number(form.humidity) : undefined,
+                notes: form.notes.trim() || undefined,
+              };
+              const res = await fetch("/api/cultures", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                credentials: "include",
+              });
+              if (!res.ok) throw new Error("Failed to create culture");
+              const saved = await res.json() as CultureEntry;
+              setCultureEntries((prev) => [saved, ...prev]);
+            }}
+            onUpdate={async (id: string, form: CultureFormState) => {
+              const payload = {
+                name: form.name.trim(),
+                cultureType: form.cultureType,
+                species: form.species.trim() || undefined,
+                quantity: form.quantity ? Number(form.quantity) : undefined,
+                purchaseDate: form.purchaseDate || undefined,
+                lastFed: form.lastFed || undefined,
+                lastCleaned: form.lastCleaned || undefined,
+                temperature: form.temperature ? Number(form.temperature) : undefined,
+                temperatureUnit: form.temperature ? form.temperatureUnit : undefined,
+                humidity: form.humidity ? Number(form.humidity) : undefined,
+                notes: form.notes.trim() || undefined,
+              };
+              const res = await fetch(`/api/cultures/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+                credentials: "include",
+              });
+              if (!res.ok) throw new Error("Failed to update culture");
+              const saved = await res.json() as CultureEntry;
+              setCultureEntries((prev) => prev.map((e) => e.id === id ? saved : e));
+            }}
+            onDelete={async (id: string) => {
+              const res = await fetch(`/api/cultures/${id}`, {
+                method: "DELETE",
+                credentials: "include",
+              });
+              if (!res.ok) throw new Error("Failed to delete culture");
+              setCultureEntries((prev) => prev.filter((e) => e.id !== id));
+            }}
+            onQuickUpdate={async (id: string, field: "lastFed" | "lastCleaned", value: string) => {
+              const res = await fetch(`/api/cultures/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ [field]: value }),
+                credentials: "include",
+              });
+              if (!res.ok) throw new Error("Failed to update culture");
+              const saved = await res.json() as CultureEntry;
+              setCultureEntries((prev) => prev.map((e) => e.id === id ? saved : e));
+            }}
           />
         </div>
       </div>
