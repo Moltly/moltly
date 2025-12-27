@@ -6,6 +6,13 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "2.0.5",
+    date: "2025-12-27",
+    highlights: [
+      "Strip image exif data when uploading images."
+    ]
+  },
+  {
     version: "2.0.4",
     date: "2025-12-24",
     highlights: [
