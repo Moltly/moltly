@@ -26,7 +26,7 @@ export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: Head
         const res = await fetch("/api/account/admin", { credentials: "include" });
         const data = (await res.json().catch(() => ({}))) as { isAdmin?: boolean };
         if (!cancelled) setIsAdmin(Boolean(data.isAdmin));
-      } catch {}
+      } catch { }
     }
     loadAdmin();
     return () => { cancelled = true; };
@@ -53,9 +53,9 @@ export default function Header({ mode, onNewEntry, onSignOut, onOpenInfo }: Head
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => (window.location.href = "/admin/species-suggestions")}
+              onClick={() => (window.location.href = "/admin")}
               className="gap-1.5"
-              title="Admin: Species Suggestions"
+              title="Admin Dashboard"
             >
               <Shield className="w-4 h-4" />
               Admin
