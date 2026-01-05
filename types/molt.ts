@@ -3,6 +3,7 @@ export type EntryType = string;
 export type Stage = "Pre-molt" | "Molt" | "Post-molt";
 export type FeedingOutcome = "Offered" | "Ate" | "Refused" | "Not Observed";
 export type SizeUnit = "cm" | "in";
+export type SpecimenSex = "Male" | "Female" | "Unknown" | "Unsexed";
 
 export type Attachment = {
   id: string;
@@ -16,6 +17,7 @@ export type Specimen = {
   id: string;
   name: string;
   species?: string;
+  sex?: SpecimenSex;
   imageUrl?: string;
   notes?: string;
   attachments?: Attachment[];
@@ -54,6 +56,7 @@ export type FormState = {
   entryType: EntryType;
   specimen: string;
   species: string;
+  sex: "" | SpecimenSex;
   date: string;
   stage: Stage;
   oldSize: string;

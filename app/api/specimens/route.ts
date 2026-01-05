@@ -10,9 +10,12 @@ import SpecimenCover from "@/models/SpecimenCover";
 import { z } from "zod";
 import { runSpecimenMigration } from "@/lib/specimen-migration";
 
+const sexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
+
 const SpecimenCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   species: z.string().trim().max(160).optional(),
+  sex: sexEnum.optional(),
   imageUrl: z.string().optional(),
   notes: z.string().max(2000).optional()
 });
@@ -49,6 +52,7 @@ export async function GET(request: Request) {
     id: s._id.toString(),
     name: s.name,
     species: s.species,
+    sex: s.sex,
     imageUrl: s.imageUrl ?? legacyCovers[s.name] ?? undefined,
     notes: s.notes,
     archived: s.archived ?? false,
@@ -102,6 +106,7 @@ export async function POST(request: Request) {
       userId: session.user.id,
       name: parsed.data.name,
       species: parsed.data.species,
+      sex: parsed.data.sex,
       imageUrl: parsed.data.imageUrl,
       notes: parsed.data.notes
     });
@@ -111,6 +116,7 @@ export async function POST(request: Request) {
         id: specimen._id.toString(),
         name: specimen.name,
         species: specimen.species,
+        sex: specimen.sex,
         imageUrl: specimen.imageUrl,
         notes: specimen.notes,
         createdAt: specimen.createdAt?.toISOString(),

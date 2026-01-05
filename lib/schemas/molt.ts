@@ -12,12 +12,14 @@ const entryTypeSchema = z.string().trim().min(1).max(32);
 const stageEnum = z.enum(["Pre-molt", "Molt", "Post-molt"]);
 const feedingOutcomeEnum = z.enum(["Offered", "Ate", "Refused", "Not Observed"]);
 const temperatureUnitEnum = z.enum(["C", "F"]);
+const sexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
 
 export const MoltEntryBaseSchema = z
   .object({
     specimenId: optionalTrimmedString(32),
     specimen: optionalTrimmedString(160),
     species: optionalTrimmedString(160),
+    sex: sexEnum.optional(),
     date: requiredDateString,
     entryType: entryTypeSchema.optional(),
     stage: stageEnum.optional(),
@@ -81,6 +83,7 @@ export const MoltEntryCreateSchema = MoltEntryBaseSchema.transform((data) => {
     specimenId: data.specimenId,
     specimen: data.specimen,
     species: data.species,
+    sex: data.sex,
     date: data.date,
     entryType,
     stage: entryType === "molt" ? data.stage ?? "Molt" : undefined,

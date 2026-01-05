@@ -6,6 +6,7 @@ const SpecimenSchema = new Schema(
         userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
         name: { type: String, required: true, trim: true },
         species: { type: String, trim: true },
+        sex: { type: String, enum: ["Male", "Female", "Unknown", "Unsexed"] },
         imageUrl: { type: String },
         notes: { type: String },
         attachments: [AttachmentSchema],

@@ -9,6 +9,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../../lib/auth-options";
 import { connectMongoose } from "../../../lib/mongoose";
 import MoltEntry from "../../../models/MoltEntry";
+import Specimen from "../../../models/Specimen";
 import getMongoClientPromise from "../../../lib/mongodb";
 import { ObjectId } from "mongodb";
 import { MoltEntryCreateSchema } from "@/lib/schemas/molt";
@@ -123,9 +124,35 @@ export async function POST(request: Request) {
     const data = parsed.data;
 
     await connectMongoose();
+
+    // If specimenId is not provided, look up existing specimen by name/species
+    let specimenId = data.specimenId;
+    if (!specimenId && data.specimen) {
+      const query: Record<string, unknown> = {
+        userId: session.user.id,
+        name: data.specimen,
+      };
+      // Also match species if provided
+      if (data.species) {
+        query.species = data.species;
+      }
+      const existingSpecimen = await Specimen.findOne(query);
+      if (existingSpecimen) {
+        specimenId = existingSpecimen._id.toString();
+        // Update specimen's sex if provided and not already set
+        if (data.sex && !existingSpecimen.sex) {
+          await Specimen.updateOne({ _id: existingSpecimen._id }, { $set: { sex: data.sex } });
+        }
+      }
+    }
+
+    // Remove sex from entry data (it's a specimen property, not an entry property)
+    const { sex: _, ...entryData } = data;
+
     const entry = await MoltEntry.create({
       userId: session.user.id,
-      ...data
+      ...entryData,
+      specimenId,
     });
 
     // Fire-and-forget sync to WSCA if configured

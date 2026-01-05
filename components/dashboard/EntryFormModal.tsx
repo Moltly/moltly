@@ -294,6 +294,24 @@ export default function EntryFormModal({
               />
             </div>
 
+            {/* Specimen Sex (optional) */}
+            <div>
+              <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                Sex <span className="text-[rgb(var(--text-subtle))] font-normal">(optional)</span>
+              </label>
+              <select
+                value={formState.sex}
+                onChange={(e) => onFormChange({ sex: e.target.value as "" | "Male" | "Female" | "Unknown" | "Unsexed" })}
+                className="select"
+              >
+                <option value="">Not specified</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Unknown">Unknown</option>
+                <option value="Unsexed">Unsexed</option>
+              </select>
+            </div>
+
             {/* Date */}
             <div>
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block flex items-center gap-2">

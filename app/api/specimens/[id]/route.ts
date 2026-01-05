@@ -12,9 +12,12 @@ import BreedingEntry from "@/models/BreedingEntry";
 import { z } from "zod";
 import { Types } from "mongoose";
 
+const sexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
+
 const SpecimenUpdateSchema = z.object({
     name: z.string().trim().min(1).max(160).optional(),
     species: z.string().trim().max(160).optional(),
+    sex: sexEnum.optional().nullable(),
     imageUrl: z.string().optional().nullable(),
     notes: z.string().max(2000).optional().nullable(),
     archived: z.boolean().optional(),
@@ -47,6 +50,7 @@ export async function GET(
         id: specimen._id.toString(),
         name: specimen.name,
         species: specimen.species,
+        sex: specimen.sex,
         imageUrl: specimen.imageUrl,
         notes: specimen.notes,
         archived: specimen.archived ?? false,
@@ -87,6 +91,7 @@ export async function PATCH(
         const updates: Record<string, unknown> = {};
         if (parsed.data.name !== undefined) updates.name = parsed.data.name;
         if (parsed.data.species !== undefined) updates.species = parsed.data.species;
+        if (parsed.data.sex !== undefined) updates.sex = parsed.data.sex;
         if (parsed.data.imageUrl !== undefined) updates.imageUrl = parsed.data.imageUrl;
         if (parsed.data.notes !== undefined) updates.notes = parsed.data.notes;
 
@@ -120,6 +125,7 @@ export async function PATCH(
             id: specimen._id.toString(),
             name: specimen.name,
             species: specimen.species,
+            sex: specimen.sex,
             imageUrl: specimen.imageUrl,
             notes: specimen.notes,
             archived: specimen.archived ?? false,
