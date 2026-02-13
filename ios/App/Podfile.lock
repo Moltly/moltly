@@ -1,19 +1,19 @@
 PODS:
-  - Capacitor (8.0.0):
+  - Capacitor (8.1.0):
     - CapacitorCordova
-  - CapacitorApp (8.0.0):
+  - CapacitorApp (8.0.1):
     - Capacitor
-  - CapacitorCordova (8.0.0)
-  - CapacitorFilesystem (8.0.0):
+  - CapacitorCordova (8.1.0)
+  - CapacitorFilesystem (8.1.1):
     - Capacitor
-    - IONFilesystemLib (~> 1.0.1)
-  - CapacitorLocalNotifications (8.0.0):
+    - IONFilesystemLib (~> 1.1.0)
+  - CapacitorLocalNotifications (8.0.1):
     - Capacitor
-  - CapacitorShare (8.0.0):
+  - CapacitorShare (8.0.1):
     - Capacitor
-  - CapacitorStatusBar (8.0.0):
+  - CapacitorStatusBar (8.0.1):
     - Capacitor
-  - IONFilesystemLib (1.0.1)
+  - IONFilesystemLib (1.1.0)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
@@ -45,15 +45,15 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 341ff7cf652ec695d1a8ebf604db448ac7b6d635
-  CapacitorApp: 3963a84197280757b84f126afd1520a85ae3b092
-  CapacitorCordova: 5dc3912d25ef770a3fe0f431bb65c9fbfa2e92f9
-  CapacitorFilesystem: 2cb7c29536024668f333266a2177f8c10bbd9c98
-  CapacitorLocalNotifications: 177cfbf8228d9bd82a147e094cb7984d7afb9e29
-  CapacitorShare: 12f1d192170cbcf9f108fd675ac8e343761a4638
-  CapacitorStatusBar: 312e2e67928dfe9514c4a8916a1fd610552f5f35
-  IONFilesystemLib: 89258b8e3e85465da93127d25d7ce37f977e8a6f
+  Capacitor: 47b825120c6b8b6d6f9f053e9350a8960d436710
+  CapacitorApp: 942306cd1acf7774a00e89a3986af3a67c8cad7a
+  CapacitorCordova: e8b76fd95fc1e157775abc484c59cc0de464095d
+  CapacitorFilesystem: f2b2caa158383b3f568383b33e47296f7c48c470
+  CapacitorLocalNotifications: bc5325611c92ac302732413bc69244575cd4eaaf
+  CapacitorShare: 0c58305114538568059bfc07111f22dcb9cb2a82
+  CapacitorStatusBar: 32206abd53b14f339763da26f71286deaa891e16
+  IONFilesystemLib: 50b9a0f3052a9b40b9bedb43f328a8fe222f9f87
 
-PODFILE CHECKSUM: 2d8e7423d8d9fab7133dd06f52e8c39afd8ad4bd
+PODFILE CHECKSUM: 7766c837564cd974709470d17a5aa0bf15a995ec
 
 COCOAPODS: 1.16.2
