@@ -82,9 +82,19 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
   const specimenDashboards = useMemo(() => {
     // Build a map of specimen data by ID for quick lookups
     const specimenDataById = new Map<string, Specimen>();
+    const specimenDataByName = new Map<string, Specimen>();
     for (const spec of specimens) {
       specimenDataById.set(spec.id, spec);
+      specimenDataByName.set(spec.name, spec);
     }
+
+    const resolveExplicitCover = (key: string, specimenName: string, specimenId?: string) => {
+      const specimenCover = specimenId
+        ? specimenDataById.get(specimenId)?.imageUrl
+        : specimenDataByName.get(specimenName)?.imageUrl;
+
+      return specimenCover ?? covers?.[specimenName] ?? covers?.[key];
+    };
 
     // Pre-compute per-specimen health and breeding counts
     const healthCounts = new Map<string, number>();
@@ -104,8 +114,6 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
       if (m) breedingCounts.set(m, (breedingCounts.get(m) ?? 0) + 1);
     }
     const dashboardMap = new Map<string, SpecimenDashboard>();
-    // Track the most-recent attachment timestamp per specimen to pick a cover image
-    const imageTs = new Map<string, number>();
 
     // First, create dashboards for all known specimens (using their unique IDs)
     // This ensures specimens with the same name but different species stay separate
@@ -115,7 +123,7 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
         specimenId: spec.id,
         specimen: spec.name,
         species: spec.species,
-        imageUrl: spec.imageUrl,
+        imageUrl: resolveExplicitCover(spec.id, spec.name, spec.id),
         totalMolts: 0,
         totalFeedings: 0,
         stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
@@ -150,7 +158,7 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
           specimenId: entry.specimenId,
           specimen: specimenName,
           species: specimenData?.species ?? entry.species,
-          imageUrl: specimenData?.imageUrl,
+          imageUrl: resolveExplicitCover(key, specimenName, entry.specimenId),
           totalMolts: 0,
           totalFeedings: 0,
           stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
@@ -198,16 +206,6 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
 
       if (entry.attachments) {
         dashboard.attachmentsCount += entry.attachments.length;
-        // Attempt to pick an image attachment as the specimen cover image
-        const att = entry.attachments.find((a) => !!a.url && (!a.type || a.type.startsWith("image/")));
-        if (att && att.url) {
-          const ts = new Date(entry.createdAt).getTime();
-          const prevTs = imageTs.get(key) ?? -Infinity;
-          if (!dashboard.imageUrl || ts > prevTs) {
-            dashboard.imageUrl = att.url;
-            imageTs.set(key, ts);
-          }
-        }
       }
 
       if (entry.reminderDate) {
@@ -260,10 +258,7 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
       // Keep only 5 most recent
       dashboard.recentEntries = dashboard.recentEntries.slice(0, 5);
 
-      // Override with pinned cover if available
-      if (covers && covers[dashboard.key]) {
-        dashboard.imageUrl = covers[dashboard.key]!;
-      }
+      dashboard.imageUrl = resolveExplicitCover(dashboard.key, dashboard.specimen, dashboard.specimenId);
     });
 
     const dashboards = Array.from(dashboardMap.values()).sort((a, b) =>
@@ -846,4 +841,3 @@ function ActionButtons({
     </div>
   );
 }
-
