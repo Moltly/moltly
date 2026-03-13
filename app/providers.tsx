@@ -7,22 +7,67 @@ import type { ReactNode } from "react";
 import { ThemeProvider } from "@/lib/theme";
 import type { Session } from "next-auth";
 
+function resolveCapacitorAppUrl(rawUrl: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const target = new URL(rawUrl);
+
+    if (target.protocol === "moltly:") {
+      const normalizedPath =
+        target.hostname && target.hostname !== "open"
+          ? `/${target.hostname}${target.pathname}`.replace(/\/+/g, "/")
+          : target.pathname || "/";
+      return new URL(`${normalizedPath}${target.search}${target.hash}`, window.location.origin).toString();
+    }
+
+    if (target.protocol === "https:" || target.protocol === "http:") {
+      return target.toString();
+    }
+  } catch {
+    if (rawUrl.startsWith("/")) {
+      return new URL(rawUrl, window.location.origin).toString();
+    }
+  }
+
+  return null;
+}
+
 function useCapacitorUniversalLinks() {
   useEffect(() => {
     let remove: undefined | (() => void);
+    let lastHandledUrl: string | null = null;
     // Dynamically import to avoid SSR issues
     import("@capacitor/app").then(({ App }) => {
-      const sub = App.addListener("appUrlOpen", ({ url }) => {
-        try {
-          const target = new URL(url);
-          // Handle deep links from the current server (supports self-hosted)
-          if (target.host === window.location.host) {
-            window.location.href = url;
-          }
-        } catch {
-          // As a fallback, still try to navigate
-          window.location.href = url;
+      const handleUrl = (url: string) => {
+        const nextUrl = resolveCapacitorAppUrl(url);
+        if (!nextUrl) {
+          return;
         }
+        if (nextUrl === window.location.href || nextUrl === lastHandledUrl) {
+          return;
+        }
+        lastHandledUrl = nextUrl;
+
+        const navigate =
+          nextUrl.includes("/api/auth/") || nextUrl.includes("/login") ? window.location.replace : window.location.assign;
+        navigate.call(window.location, nextUrl);
+      };
+
+      App.getLaunchUrl()
+        .then((launch) => {
+          if (launch?.url) {
+            handleUrl(launch.url);
+          }
+        })
+        .catch(() => {
+          // Ignore missing launch URLs.
+        });
+
+      const sub = App.addListener("appUrlOpen", ({ url }) => {
+        handleUrl(url);
       });
       // App.addListener returns a Promise<PluginListenerHandle>
       sub.then((h) => {
