@@ -89,11 +89,18 @@ function defaultHiddenKeys(): ViewKey[] {
   return navItems.map((n) => n.key).filter((k) => !keep.has(k));
 }
 
+function defaultPrefs(defaultOrder: ViewKey[]): NavPrefs {
+  return {
+    order: defaultOrder,
+    hidden: defaultHiddenKeys(),
+  };
+}
+
 function loadPrefs(defaultOrder: ViewKey[]): NavPrefs {
-  if (typeof window === "undefined") return { order: defaultOrder, hidden: [] };
+  if (typeof window === "undefined") return defaultPrefs(defaultOrder);
   try {
     const raw = window.localStorage.getItem(NAV_PREFS_KEY);
-    if (!raw) return { order: defaultOrder, hidden: defaultHiddenKeys() };
+    if (!raw) return defaultPrefs(defaultOrder);
     const data = JSON.parse(raw) as Partial<NavPrefs>;
     const order = Array.isArray(data.order) && data.order.length > 0 ? (data.order as ViewKey[]) : defaultOrder;
     const hidden = Array.isArray(data.hidden) ? (data.hidden as ViewKey[]) : defaultHiddenKeys();
@@ -103,7 +110,7 @@ function loadPrefs(defaultOrder: ViewKey[]): NavPrefs {
     const missing = navItems.map((n) => n.key).filter((k) => !cleanedOrder.includes(k));
     return { order: [...cleanedOrder, ...missing], hidden: hidden.filter((k) => allowed.has(k)) };
   } catch {
-    return { order: defaultOrder, hidden: defaultHiddenKeys() };
+    return defaultPrefs(defaultOrder);
   }
 }
 
@@ -114,7 +121,7 @@ function savePrefs(prefs: NavPrefs) {
 
 export default function BottomNav({ activeView, onViewChange }: BottomNavProps) {
   const defaultKeys = useMemo(() => navItems.map((n) => n.key), []);
-  const [prefs, setPrefs] = useState<NavPrefs>(() => loadPrefs(defaultKeys));
+  const [prefs, setPrefs] = useState<NavPrefs>(() => defaultPrefs(defaultKeys));
   const [menuOpen, setMenuOpen] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [draggingKey, setDraggingKey] = useState<ViewKey | null>(null);
@@ -206,7 +213,7 @@ export default function BottomNav({ activeView, onViewChange }: BottomNavProps) 
   };
 
   const resetPrefs = () => {
-    const next = { order: defaultKeys, hidden: defaultHiddenKeys() } as NavPrefs;
+    const next = defaultPrefs(defaultKeys);
     setPrefs(next);
     savePrefs(next);
   };
