@@ -6,6 +6,15 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
     {
+        version: "2.1.2",
+        date: "2026-03-18",
+        highlights: [
+            "Add Favorites/Wishlist",
+            "Add Favorites/Wishlist sync with WSC (when logged in via discord)",
+            "Fix sync from WSC",
+        ],
+    },
+    {
         version: "2.1.1",
         date: "2026-03-17",
         highlights: ["Add ability to create a new specimen without a entry."],

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Activity, Calendar, TrendingUp, AlertCircle, Droplets } from "lucide-react";
+import { useMemo, useState, useEffect, useCallback } from "react";
+import { Activity, Calendar, TrendingUp, AlertCircle, Droplets, Heart, Star, Trash2, ExternalLink } from "lucide-react";
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import StatCard from "./StatCard";
 import Badge from "@/components/ui/Badge";
@@ -9,6 +9,15 @@ import Button from "@/components/ui/Button";
 import { MoltEntry, ViewKey, Specimen } from "@/types/molt";
 import { formatDate, formatRelativeDate, getReminderStatus } from "@/lib/utils";
 import CachedImage from "@/components/ui/CachedImage";
+
+interface CollectionItem {
+  id: string;
+  species: string;
+  family?: string;
+  author?: string;
+  notes?: string;
+  createdAt: string;
+}
 
 interface OverviewViewProps {
   entries: MoltEntry[];
@@ -18,6 +27,50 @@ interface OverviewViewProps {
 }
 
 export default function OverviewView({ entries, specimens = [], onViewChange, covers }: OverviewViewProps) {
+  const [collectionTab, setCollectionTab] = useState<"favorites" | "wishlist">("favorites");
+  const [favorites, setFavorites] = useState<CollectionItem[]>([]);
+  const [wishlist, setWishlist] = useState<CollectionItem[]>([]);
+  const [collectionLoading, setCollectionLoading] = useState(true);
+
+  const fetchCollection = useCallback(async () => {
+    try {
+      const [favRes, wishRes] = await Promise.all([
+        fetch("/api/favorites"),
+        fetch("/api/wishlists"),
+      ]);
+      if (favRes.ok) setFavorites(await favRes.json());
+      if (wishRes.ok) setWishlist(await wishRes.json());
+    } catch {
+      // silently fail
+    } finally {
+      setCollectionLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCollection();
+  }, [fetchCollection]);
+
+  const removeFromCollection = async (type: "favorites" | "wishlist", species: string) => {
+    const endpoint = type === "favorites" ? "/api/favorites" : "/api/wishlists";
+    try {
+      const res = await fetch(endpoint, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ species }),
+      });
+      if (res.ok) {
+        if (type === "favorites") {
+          setFavorites((prev) => prev.filter((f) => f.species !== species));
+        } else {
+          setWishlist((prev) => prev.filter((w) => w.species !== species));
+        }
+      }
+    } catch {
+      // silently fail
+    }
+  };
+
   const stats = useMemo(() => {
     // Count unique specimens using specimenId when available, otherwise name+species
     const uniqueSpecimens = new Set(
@@ -150,6 +203,104 @@ export default function OverviewView({ entries, specimens = [], onViewChange, co
           color="success"
         />
       </div>
+
+      {/* My Collection */}
+      {!collectionLoading && (favorites.length > 0 || wishlist.length > 0) && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">My Collection</CardTitle>
+              <div className="flex rounded-[var(--radius)] bg-[rgb(var(--bg-muted))] p-0.5">
+                <button
+                  onClick={() => setCollectionTab("favorites")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium transition-colors ${
+                    collectionTab === "favorites"
+                      ? "bg-[rgb(var(--bg))] text-[rgb(var(--text))] shadow-[var(--shadow-sm)]"
+                      : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))]"
+                  }`}
+                >
+                  <Heart className="w-3.5 h-3.5" />
+                  Favorites
+                  {favorites.length > 0 && (
+                    <span className="text-[rgb(var(--text-subtle))]">({favorites.length})</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setCollectionTab("wishlist")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-sm)] text-xs font-medium transition-colors ${
+                    collectionTab === "wishlist"
+                      ? "bg-[rgb(var(--bg))] text-[rgb(var(--text))] shadow-[var(--shadow-sm)]"
+                      : "text-[rgb(var(--text-soft))] hover:text-[rgb(var(--text))]"
+                  }`}
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  Wishlist
+                  {wishlist.length > 0 && (
+                    <span className="text-[rgb(var(--text-subtle))]">({wishlist.length})</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const items = collectionTab === "favorites" ? favorites : wishlist;
+              if (items.length === 0) {
+                return (
+                  <p className="text-sm text-[rgb(var(--text-subtle))] text-center py-4">
+                    No {collectionTab === "favorites" ? "favorites" : "wishlist items"} yet.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2">
+                  {items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))] hover:bg-[rgb(var(--border))] transition-colors group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm text-[rgb(var(--text))] truncate italic">
+                            {item.species}
+                          </p>
+                        </div>
+                        {item.family && (
+                          <p className="text-xs text-[rgb(var(--text-subtle))] mt-0.5">
+                            {item.family}
+                            {item.author && <span> &mdash; {item.author}</span>}
+                          </p>
+                        )}
+                        {item.notes && (
+                          <p className="text-xs text-[rgb(var(--text-soft))] mt-1 line-clamp-1">
+                            {item.notes}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <a
+                          href={`/species/${encodeURIComponent(item.species)}`}
+                          className="p-1.5 rounded-[var(--radius-sm)] text-[rgb(var(--text-subtle))] hover:text-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-soft))] transition-colors"
+                          title="View species"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                        <button
+                          onClick={() => removeFromCollection(collectionTab, item.species)}
+                          className="p-1.5 rounded-[var(--radius-sm)] text-[rgb(var(--text-subtle))] hover:text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))] transition-colors opacity-0 group-hover:opacity-100"
+                          title="Remove"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Next Reminder */}
       {stats.nextReminder && (

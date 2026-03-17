@@ -1,11 +1,11 @@
 "use client";
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
-import { X, Info, ExternalLink, Copy } from "lucide-react";
+import { X, Info, ExternalLink, Copy, Heart, Star } from "lucide-react";
 
 type SpeciesInfo = {
   species: {
@@ -54,6 +54,48 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
   const [data, setData] = useState<SpeciesInfo | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [collectionBusy, setCollectionBusy] = useState(false);
+
+  const checkCollectionStatus = useCallback(async () => {
+    try {
+      const [favRes, wishRes] = await Promise.all([
+        fetch("/api/favorites"),
+        fetch("/api/wishlists"),
+      ]);
+      if (favRes.ok) {
+        const favs: Array<{ species: string }> = await favRes.json();
+        setIsFavorite(favs.some((f) => f.species.toLowerCase() === name.toLowerCase()));
+      }
+      if (wishRes.ok) {
+        const wishes: Array<{ species: string }> = await wishRes.json();
+        setIsWishlisted(wishes.some((w) => w.species.toLowerCase() === name.toLowerCase()));
+      }
+    } catch {}
+  }, [name]);
+
+  useEffect(() => {
+    if (open) checkCollectionStatus();
+  }, [open, checkCollectionStatus]);
+
+  const toggleCollection = async (type: "favorite" | "wishlist") => {
+    const endpoint = type === "favorite" ? "/api/favorites" : "/api/wishlists";
+    const isActive = type === "favorite" ? isFavorite : isWishlisted;
+    setCollectionBusy(true);
+    try {
+      const res = await fetch(endpoint, {
+        method: isActive ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ species: name }),
+      });
+      if (res.ok) {
+        if (type === "favorite") setIsFavorite(!isActive);
+        else setIsWishlisted(!isActive);
+      }
+    } catch {}
+    setCollectionBusy(false);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -265,6 +307,32 @@ export default function SpeciesQuickLook({ open, name, onClose }: SpeciesQuickLo
                   className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))] text-sm"
                 >
                   {saving ? "Saving…" : "Save to Notebook"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleCollection("favorite")}
+                  disabled={collectionBusy}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border text-sm transition-colors ${
+                    isFavorite
+                      ? "border-[rgb(var(--danger))] bg-[rgb(var(--danger-soft))] text-[rgb(var(--danger))]"
+                      : "border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))]"
+                  }`}
+                  title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                >
+                  <Heart className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} /> {isFavorite ? "Favorited" : "Favorite"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleCollection("wishlist")}
+                  disabled={collectionBusy}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-[var(--radius)] border text-sm transition-colors ${
+                    isWishlisted
+                      ? "border-[rgb(var(--warning))] bg-[rgb(var(--warning-soft))] text-[rgb(var(--warning))]"
+                      : "border-[rgb(var(--border))] hover:bg-[rgb(var(--bg-muted))]"
+                  }`}
+                  title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                >
+                  <Star className="w-4 h-4" fill={isWishlisted ? "currentColor" : "none"} /> {isWishlisted ? "Wishlisted" : "Wishlist"}
                 </button>
               </div>
             </div>
