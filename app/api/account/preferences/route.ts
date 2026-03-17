@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest) {
     const user = await UserModel.findByIdAndUpdate(
         session.user.id,
         { $set: update },
-        { new: true, runValidators: true }
+        { returnDocument: 'after', runValidators: true }
     ).select("preferences");
 
     return NextResponse.json(user?.preferences || {});

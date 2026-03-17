@@ -48,7 +48,7 @@ export async function ensureSpeciesSuggestion(fullName: string, userId?: string)
           submittedAt: new Date(),
         },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
   } catch {
     // ignore errors for background upsert

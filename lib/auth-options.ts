@@ -381,7 +381,7 @@ export const authOptions: NextAuthOptions = {
         await User.findOneAndUpdate(
           { email: user.email.toLowerCase() },
           { $setOnInsert: { name: user.name, image: user.image } },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
         );
       } catch (error) {
         console.error("NextAuth signIn event error:", error);
