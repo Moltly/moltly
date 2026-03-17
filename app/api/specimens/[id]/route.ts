@@ -142,7 +142,7 @@ export async function PATCH(
         const specimen = await Specimen.findOneAndUpdate(
             { _id: id, userId: session.user.id },
             { $set: updates },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!specimen) {
