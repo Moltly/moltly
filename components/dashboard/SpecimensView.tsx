@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg, QrCode, Search, Edit2, X, Archive, ArchiveRestore, Upload, ImagePlus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg, QrCode, Search, Edit2, X, Archive, ArchiveRestore, Upload, ImagePlus, Trash2, Plus } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
@@ -23,6 +23,7 @@ interface SpecimensViewProps {
   healthEntries?: HealthEntry[];
   breedingEntries?: BreedingEntry[];
   onQuickAction?: (specimenId: string | undefined, specimen: string, species: string | undefined, action: string) => void;
+  onAddSpecimen?: () => void;
   onEdit?: (entry: MoltEntry) => void;
   onArchive?: (specimenId: string, archived: boolean, reason?: string) => Promise<void>;
   onUpdateCover?: (specimenId: string, imageUrl: string | null) => Promise<void>;
@@ -77,7 +78,7 @@ function getBreedingStatusVariant(status?: BreedingEntry["status"]): "success" |
   }
 }
 
-export default function SpecimensView({ entries, specimens = [], covers, healthEntries = [], breedingEntries = [], onQuickAction, onEdit, onArchive, onUpdateCover, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
+export default function SpecimensView({ entries, specimens = [], covers, healthEntries = [], breedingEntries = [], onQuickAction, onAddSpecimen, onEdit, onArchive, onUpdateCover, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [showQrModal, setShowQrModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -489,9 +490,14 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
         <h2 className="text-2xl font-bold text-[rgb(var(--text))] mb-2">
           No specimens yet
         </h2>
-        <p className="text-[rgb(var(--text-soft))] max-w-md">
-          Add your first entry to start tracking specimen profiles.
+        <p className="text-[rgb(var(--text-soft))] max-w-md mb-4">
+          Add your first specimen to start tracking profiles.
         </p>
+        {onAddSpecimen && (
+          <Button variant="primary" onClick={onAddSpecimen}>
+            Add Specimen
+          </Button>
+        )}
       </div>
     );
   }
@@ -530,6 +536,11 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
             )}
           </div>
           <div className="flex flex-wrap gap-2 items-center">
+            {onAddSpecimen && (
+              <Button variant="primary" size="sm" onClick={onAddSpecimen} className="gap-1.5 whitespace-nowrap">
+                <Plus className="w-4 h-4" /> Add Specimen
+              </Button>
+            )}
             <label className="flex items-center gap-1.5 text-sm text-[rgb(var(--text-soft))] cursor-pointer">
               <input
                 type="checkbox"

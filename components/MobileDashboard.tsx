@@ -19,6 +19,7 @@ import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import CulturesView from "@/components/dashboard/CulturesView";
+import NewSpecimenModal from "@/components/dashboard/NewSpecimenModal";
 import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit, Specimen } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
@@ -193,6 +194,7 @@ export default function MobileDashboard() {
 
   const [activeView, setActiveView] = useState<ViewKey>("overview");
   const [formOpen, setFormOpen] = useState(false);
+  const [newSpecimenOpen, setNewSpecimenOpen] = useState(false);
   const [formState, setFormState] = useState<FormState>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -397,16 +399,33 @@ export default function MobileDashboard() {
   );
 
   const createSpecimenRecord = useCallback(
-    async ({ name, species, sex }: { name: string; species?: string; sex?: "Male" | "Female" | "Unknown" | "Unsexed" }) => {
+    async ({ name, species, sex, notes }: { name: string; species?: string; sex?: "Male" | "Female" | "Unknown" | "Unsexed"; notes?: string }) => {
       const trimmedName = name.trim();
       const trimmedSpecies = species?.trim() || undefined;
+      const trimmedNotes = notes?.trim() || undefined;
 
       if (!trimmedName) {
         throw new Error("Specimen name is required to create a new specimen record.");
       }
 
       if (isSync) {
-        throw new Error("Use the log save flow to create synced specimens.");
+        const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+        if (!isOnline) {
+          throw new Error("Creating a new specimen while offline in sync mode is not supported yet.");
+        }
+        const res = await fetch("/api/specimens", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmedName, species: trimmedSpecies, sex, notes: trimmedNotes }),
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || "Unable to create specimen.");
+        }
+        const saved = (await res.json()) as Specimen;
+        upsertSpecimenState(saved);
+        return saved;
       }
 
       const now = new Date().toISOString();
@@ -418,6 +437,7 @@ export default function MobileDashboard() {
         name: trimmedName,
         species: trimmedSpecies,
         sex,
+        notes: trimmedNotes,
         createdAt: now,
         updatedAt: now,
       };
@@ -2477,6 +2497,7 @@ export default function MobileDashboard() {
             initialFocusSpecimen={linkedSpecimen ?? undefined}
             ownerId={isPreviewActive ? ownerParam || undefined : session?.user?.id || undefined}
             sizeUnit={formState.sizeUnit}
+            onAddSpecimen={isPreviewActive ? undefined : () => setNewSpecimenOpen(true)}
             onUpdateCover={isPreviewActive ? undefined : handleUpdateSpecimenCover}
             onEdit={isPreviewActive ? undefined : onEdit}
             onArchive={
@@ -2699,6 +2720,14 @@ export default function MobileDashboard() {
             : specimenCovers[formState.specimen || "Unnamed"]
         }
         isEditing={Boolean(editingId)}
+      />
+
+      <NewSpecimenModal
+        isOpen={newSpecimenOpen}
+        onClose={() => setNewSpecimenOpen(false)}
+        onSave={async (data) => {
+          await createSpecimenRecord(data);
+        }}
       />
 
       <BottomNav activeView={activeView} onViewChange={setActiveView} />
