@@ -278,6 +278,8 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Missing password.");
           }
 
+          await connectMongoose();
+
           const user = await User.findOne({
             $or: [{ email: identifier }, { username: identifier }]
           })

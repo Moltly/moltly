@@ -9,7 +9,7 @@ yarn-error.log
 dist
 public/uploads
 *.p8
-wsca
+/wsca
 android/signing.properties
 *.keystore
 *.jks
