@@ -32,6 +32,7 @@ export type MoltEntry = {
   id: string;
   entryType: EntryType;
   specimenId?: string;
+  detachedSpecimen?: boolean;
   specimen?: string;
   species?: string;
   date: string;
@@ -54,6 +55,7 @@ export type MoltEntry = {
 
 export type FormState = {
   entryType: EntryType;
+  specimenId?: string;
   specimen: string;
   species: string;
   sex: "" | SpecimenSex;

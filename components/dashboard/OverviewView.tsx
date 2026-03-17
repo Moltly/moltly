@@ -67,17 +67,19 @@ export default function OverviewView({ entries, specimens = [], onViewChange, co
   };
 
   const getSpecimenImage = (name: string, specimenId?: string) => {
-    // 1. Try pinned cover passed in via props (covers)
+    if (specimenId && specimens) {
+      const found = specimens.find((specimen) => specimen.id === specimenId);
+      if (found && found.imageUrl !== undefined) {
+        return found.imageUrl || undefined;
+      }
+    }
+
     let coverUrl = covers?.[name];
 
-    // 2. If not pinned, see if we can find the specimen in the specimens list
     if (!coverUrl && specimens) {
-      const found = specimenId
-        ? specimens.find(s => s.id === specimenId)
-        : specimens.find(s => s.name === name);
-
-      if (found?.imageUrl) {
-        coverUrl = found.imageUrl;
+      const found = specimens.find((specimen) => specimen.name === name);
+      if (found && found.imageUrl !== undefined) {
+        coverUrl = found.imageUrl || undefined;
       }
     }
     return coverUrl;

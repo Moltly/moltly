@@ -6,11 +6,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { connectMongoose } from "@/lib/mongoose";
 import Specimen from "@/models/Specimen";
+import SpecimenCover from "@/models/SpecimenCover";
 import MoltEntry from "@/models/MoltEntry";
 import HealthEntry from "@/models/HealthEntry";
 import BreedingEntry from "@/models/BreedingEntry";
 import { z } from "zod";
 import { Types } from "mongoose";
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const sexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
 
@@ -87,12 +90,37 @@ export async function PATCH(
         }
 
         await connectMongoose();
+        const existingSpecimen = await Specimen.findOne({ _id: id, userId: session.user.id });
+        if (!existingSpecimen) {
+            return NextResponse.json({ error: "Specimen not found" }, { status: 404 });
+        }
+
+        const targetName = parsed.data.name ?? existingSpecimen.name;
+        const targetNameDuplicateCount =
+            parsed.data.imageUrl === null
+                ? await Specimen.countDocuments({
+                    userId: session.user.id,
+                    _id: { $ne: existingSpecimen._id },
+                    name: new RegExp(`^${escapeRegex(targetName)}$`, "i"),
+                })
+                : 0;
+        const existingNameDuplicateCount =
+            parsed.data.imageUrl === null
+                ? await Specimen.countDocuments({
+                    userId: session.user.id,
+                    _id: { $ne: existingSpecimen._id },
+                    name: new RegExp(`^${escapeRegex(existingSpecimen.name)}$`, "i"),
+                })
+                : 0;
 
         const updates: Record<string, unknown> = {};
         if (parsed.data.name !== undefined) updates.name = parsed.data.name;
         if (parsed.data.species !== undefined) updates.species = parsed.data.species;
         if (parsed.data.sex !== undefined) updates.sex = parsed.data.sex;
-        if (parsed.data.imageUrl !== undefined) updates.imageUrl = parsed.data.imageUrl;
+        if (parsed.data.imageUrl !== undefined) {
+            updates.imageUrl =
+                parsed.data.imageUrl === null && targetNameDuplicateCount > 0 ? "" : parsed.data.imageUrl;
+        }
         if (parsed.data.notes !== undefined) updates.notes = parsed.data.notes;
 
         // Handle archive state changes
@@ -119,6 +147,15 @@ export async function PATCH(
 
         if (!specimen) {
             return NextResponse.json({ error: "Specimen not found" }, { status: 404 });
+        }
+
+        if (parsed.data.imageUrl === null) {
+            if (existingNameDuplicateCount === 0) {
+                await SpecimenCover.deleteMany({
+                    userId: session.user.id,
+                    key: new RegExp(`^${escapeRegex(existingSpecimen.name)}$`, "i"),
+                });
+            }
         }
 
         return NextResponse.json({
@@ -166,15 +203,19 @@ export async function DELETE(
     // Remove specimenId references from entries (but keep specimen name for history)
     await MoltEntry.updateMany(
         { specimenId: id, userId: session.user.id },
-        { $unset: { specimenId: "" } }
+        { $unset: { specimenId: "" }, $set: { detachedSpecimen: true } }
     );
     await HealthEntry.updateMany(
         { specimenId: id, userId: session.user.id },
-        { $unset: { specimenId: "" } }
+        { $unset: { specimenId: "" }, $set: { manualSpecimen: true, detachedSpecimen: true } }
     );
     await BreedingEntry.updateMany(
-        { $or: [{ femaleSpecimenId: id }, { maleSpecimenId: id }], userId: session.user.id },
-        { $unset: { femaleSpecimenId: "", maleSpecimenId: "" } }
+        { femaleSpecimenId: id, userId: session.user.id },
+        { $unset: { femaleSpecimenId: "" }, $set: { manualFemaleSpecimen: true, detachedFemaleSpecimen: true } }
+    );
+    await BreedingEntry.updateMany(
+        { maleSpecimenId: id, userId: session.user.id },
+        { $unset: { maleSpecimenId: "" }, $set: { manualMaleSpecimen: true, detachedMaleSpecimen: true } }
     );
 
     await Specimen.deleteOne({ _id: id, userId: session.user.id });

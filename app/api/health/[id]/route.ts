@@ -6,6 +6,7 @@ import { unlink } from "fs/promises";
 import { authOptions } from "@/lib/auth-options";
 import { connectMongoose } from "@/lib/mongoose";
 import HealthEntry from "@/models/HealthEntry";
+import Specimen from "@/models/Specimen";
 import { deleteObject, isS3Configured, keyFromS3Url } from "@/lib/s3";
 
 type RouteContext = {
@@ -81,6 +82,37 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if ("specimen" in updates) {
       entry.specimen = sanitizeString(updates.specimen) ?? undefined;
+    }
+
+    if ("autoLinkSpecimen" in updates) {
+      entry.manualSpecimen = updates.autoLinkSpecimen === false;
+      if (updates.autoLinkSpecimen === false) {
+        entry.specimenId = undefined;
+        entry.detachedSpecimen = false;
+      }
+    }
+
+    if ("specimenId" in updates) {
+      if (typeof updates.specimenId === "string" && updates.specimenId.trim().length > 0) {
+        if (!Types.ObjectId.isValid(updates.specimenId.trim())) {
+          return NextResponse.json({ error: "Selected specimen could not be found." }, { status: 400 });
+        }
+        const specimen = await Specimen.findOne({ _id: ensureObjectId(updates.specimenId.trim()), userId: session.user.id });
+        if (!specimen) {
+          return NextResponse.json({ error: "Selected specimen could not be found." }, { status: 400 });
+        }
+        entry.specimenId = specimen._id;
+        entry.specimen = specimen.name;
+        entry.species = specimen.species ?? undefined;
+        entry.detachedSpecimen = false;
+        if (!("autoLinkSpecimen" in updates)) {
+          entry.manualSpecimen = false;
+        }
+      } else if (updates.specimenId === null) {
+        entry.specimenId = undefined;
+        entry.manualSpecimen = true;
+        entry.detachedSpecimen = false;
+      }
     }
 
     if ("species" in updates) {
@@ -177,7 +209,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({
       ...entry.toObject(),
       id: entry._id.toString(),
-      userId: entry.userId.toString()
+      userId: entry.userId.toString(),
+      manualSpecimen: entry.manualSpecimen,
+      detachedSpecimen: entry.detachedSpecimen,
+      specimenId: entry.specimenId?.toString(),
     });
   } catch (error) {
     console.error(error);

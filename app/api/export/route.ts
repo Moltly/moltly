@@ -8,6 +8,8 @@ import MoltEntry from "../../../models/MoltEntry";
 import HealthEntry from "../../../models/HealthEntry";
 import BreedingEntry from "../../../models/BreedingEntry";
 import ResearchStack from "../../../models/ResearchStack";
+import Specimen from "../../../models/Specimen";
+import SpecimenCover from "../../../models/SpecimenCover";
 import { normalizeStack } from "../../../lib/research-stacks";
 import path from "path";
 import { readFile } from "fs/promises";
@@ -124,6 +126,68 @@ async function embedDataUrl(att: ExportAttachment): Promise<ExportAttachment> {
   }
 }
 
+function buildExportImageAttachment(url: string, contextId: string): ExportAttachment {
+  const normalizedUrl = url.trim();
+  const fallbackName = `${contextId}-cover.jpg`;
+
+  try {
+    const pathname = normalizedUrl.startsWith("/")
+      ? normalizedUrl
+      : new URL(normalizedUrl).pathname;
+    const basename = path.basename(pathname);
+    const hasExtension = basename.includes(".") && basename.split(".").pop()?.trim();
+    return {
+      id: `${contextId}-cover`,
+      name: hasExtension ? basename : fallbackName,
+      url: normalizedUrl,
+      type: guessMimeFromName(basename) || undefined,
+    };
+  } catch {
+    const basename = path.basename(normalizedUrl);
+    const hasExtension = basename.includes(".") && basename.split(".").pop()?.trim();
+    return {
+      id: `${contextId}-cover`,
+      name: hasExtension ? basename : fallbackName,
+      url: normalizedUrl,
+      type: guessMimeFromName(basename) || undefined,
+    };
+  }
+}
+
+async function normalizeImageForExport(url: string | undefined, embed: boolean, contextId: string): Promise<string | undefined> {
+  if (url === "") return "";
+  if (!url) return undefined;
+  if (!embed) return url;
+  const embedded = await embedDataUrl(buildExportImageAttachment(url, contextId));
+  return embedded.dataUrl || embedded.url;
+}
+
+function inferLegacySpecimenSpecies(
+  specimenName: string,
+  entries: Array<{ specimen?: string; species?: string }>,
+  health: Array<{ specimen?: string; species?: string }>,
+  breeding: Array<{ femaleSpecimen?: string; maleSpecimen?: string; species?: string }>
+): string | undefined {
+  const normalizedName = specimenName.trim().toLowerCase();
+  const species = new Set<string>();
+
+  const collectSpecies = (candidateName: string | undefined, candidateSpecies: string | undefined) => {
+    if (!candidateName || !candidateSpecies) return;
+    if (candidateName.trim().toLowerCase() !== normalizedName) return;
+    const normalizedSpecies = candidateSpecies.trim();
+    if (normalizedSpecies) species.add(normalizedSpecies);
+  };
+
+  entries.forEach((entry) => collectSpecies(entry.specimen, entry.species));
+  health.forEach((entry) => collectSpecies(entry.specimen, entry.species));
+  breeding.forEach((entry) => {
+    collectSpecies(entry.femaleSpecimen, entry.species);
+    collectSpecies(entry.maleSpecimen, entry.species);
+  });
+
+  return species.size === 1 ? Array.from(species)[0] : undefined;
+}
+
 async function normalizeAttachmentsForExport(
   raw: any[],
   embed: boolean,
@@ -160,6 +224,8 @@ export async function GET(request: Request) {
 
       return {
         id: doc._id.toString(),
+        detachedSpecimen: typeof obj.detachedSpecimen === "boolean" ? obj.detachedSpecimen : undefined,
+        specimenId: obj.specimenId?.toString?.() ?? undefined,
         entryType,
         specimen: obj.specimen ?? undefined,
         species: obj.species ?? undefined,
@@ -189,6 +255,9 @@ export async function GET(request: Request) {
       const attachments = await normalizeAttachmentsForExport(obj.attachments, embed, `health-${doc._id.toString()}`);
       return {
         id: doc._id.toString(),
+        manualSpecimen: typeof obj.manualSpecimen === "boolean" ? obj.manualSpecimen : undefined,
+        detachedSpecimen: typeof obj.detachedSpecimen === "boolean" ? obj.detachedSpecimen : undefined,
+        specimenId: obj.specimenId?.toString?.() ?? undefined,
         specimen: obj.specimen ?? undefined,
         species: obj.species ?? undefined,
         date: (obj.date instanceof Date ? obj.date : new Date(obj.date)).toISOString(),
@@ -217,7 +286,16 @@ export async function GET(request: Request) {
       const attachments = await normalizeAttachmentsForExport(obj.attachments, embed, `breeding-${doc._id.toString()}`);
       return {
         id: doc._id.toString(),
+        manualFemaleSpecimen:
+          typeof obj.manualFemaleSpecimen === "boolean" ? obj.manualFemaleSpecimen : undefined,
+        detachedFemaleSpecimen:
+          typeof obj.detachedFemaleSpecimen === "boolean" ? obj.detachedFemaleSpecimen : undefined,
+        femaleSpecimenId: obj.femaleSpecimenId?.toString?.() ?? undefined,
         femaleSpecimen: obj.femaleSpecimen ?? undefined,
+        manualMaleSpecimen: typeof obj.manualMaleSpecimen === "boolean" ? obj.manualMaleSpecimen : undefined,
+        detachedMaleSpecimen:
+          typeof obj.detachedMaleSpecimen === "boolean" ? obj.detachedMaleSpecimen : undefined,
+        maleSpecimenId: obj.maleSpecimenId?.toString?.() ?? undefined,
         maleSpecimen: obj.maleSpecimen ?? undefined,
         species: obj.species ?? undefined,
         pairingDate: (obj.pairingDate instanceof Date ? obj.pairingDate : new Date(obj.pairingDate)).toISOString(),
@@ -242,13 +320,69 @@ export async function GET(request: Request) {
     .map((d) => normalizeStack(d.toObject()))
     .filter((s): s is NonNullable<ReturnType<typeof normalizeStack>> => Boolean(s));
 
+  const coverDocs = await SpecimenCover.find({ userId: session.user.id }).lean();
+  const legacyCovers = coverDocs.reduce((acc, doc) => {
+    acc[String(doc.key).trim().toLowerCase()] = String(doc.imageUrl);
+    return acc;
+  }, {} as Record<string, string>);
+
+  const specimenDocs = await Specimen.find({ userId: session.user.id }).sort({ name: 1 });
+  const specimensFromRecords = await Promise.all(
+    specimenDocs.map(async (doc) => {
+      const obj = doc.toObject();
+      const attachments = await normalizeAttachmentsForExport(obj.attachments, embed, `specimen-${doc._id.toString()}`);
+      const coverUrl = obj.imageUrl ?? legacyCovers[obj.name.trim().toLowerCase()] ?? undefined;
+      const imageUrl = await normalizeImageForExport(coverUrl, embed, `specimen-${doc._id.toString()}`);
+      return {
+        id: doc._id.toString(),
+        name: obj.name,
+        species: obj.species ?? undefined,
+        sex: obj.sex ?? undefined,
+        imageUrl,
+        notes: obj.notes ?? undefined,
+        attachments,
+        archived: obj.archived ?? false,
+        archivedAt: obj.archivedAt ? new Date(obj.archivedAt).toISOString() : undefined,
+        archivedReason: obj.archivedReason ?? undefined,
+        createdAt: obj.createdAt ? new Date(obj.createdAt).toISOString() : undefined,
+        updatedAt: obj.updatedAt ? new Date(obj.updatedAt).toISOString() : undefined,
+      };
+    })
+  );
+
+  const specimenNames = new Set(specimenDocs.map((doc) => doc.name.trim().toLowerCase()));
+  const legacyOnlySpecimens = await Promise.all(
+    coverDocs
+      .filter((doc) => {
+        const key = String(doc.key ?? "").trim().toLowerCase();
+        return key.length > 0 && !specimenNames.has(key);
+      })
+      .map(async (doc) => ({
+        id: `legacy-cover-${String(doc._id)}`,
+        name: String(doc.key),
+        species: inferLegacySpecimenSpecies(String(doc.key), entries, health, breeding),
+        sex: undefined,
+        imageUrl: await normalizeImageForExport(String(doc.imageUrl), embed, `legacy-cover-${String(doc._id)}`),
+        notes: undefined,
+        attachments: [],
+        archived: false,
+        archivedAt: undefined,
+        archivedReason: undefined,
+        createdAt: doc.createdAt ? new Date(doc.createdAt as Date).toISOString() : undefined,
+        updatedAt: doc.updatedAt ? new Date(doc.updatedAt as Date).toISOString() : undefined,
+      }))
+  );
+
+  const specimens = [...specimensFromRecords, ...legacyOnlySpecimens].sort((a, b) => a.name.localeCompare(b.name));
+
   const payload = {
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     entries,
     research,
     health,
     breeding,
+    specimens,
   };
 
   const body = JSON.stringify(payload);

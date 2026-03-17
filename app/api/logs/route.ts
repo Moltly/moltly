@@ -93,7 +93,8 @@ export async function GET(request: Request) {
       stage: entryType === "molt" ? entry.stage : undefined,
       id: document._id.toString(),
       userId: document.userId.toString(),
-      specimenId: document.specimenId?.toString()
+      specimenId: document.specimenId?.toString(),
+      detachedSpecimen: entry.detachedSpecimen,
     };
   });
 
@@ -136,7 +137,8 @@ export async function POST(request: Request) {
       if (data.species) {
         query.species = data.species;
       }
-      const existingSpecimen = await Specimen.findOne(query);
+      const matchingSpecimens = await Specimen.find(query).sort({ createdAt: 1, _id: 1 }).limit(2);
+      const existingSpecimen = matchingSpecimens.length === 1 ? matchingSpecimens[0] : null;
       if (existingSpecimen) {
         specimenId = existingSpecimen._id.toString();
         // Update specimen's sex if provided and not already set
@@ -168,7 +170,8 @@ export async function POST(request: Request) {
         ...entry.toObject(),
         id: entry._id.toString(),
         userId: entry.userId.toString(),
-        specimenId: entry.specimenId?.toString()
+        specimenId: entry.specimenId?.toString(),
+        detachedSpecimen: entry.detachedSpecimen,
       },
       { status: 201 }
     );

@@ -3,12 +3,17 @@ import { AttachmentWithDataSchema } from "./attachments";
 import { MoltEntryBaseSchema } from "./molt";
 import { HealthEntryBaseSchema } from "./health";
 import { BreedingEntryBaseSchema } from "./breeding";
+import { optionalDateString, optionalTrimmedString } from "./common";
 
 const ImportMoltEntrySchema = MoltEntryBaseSchema.safeExtend({
+  detachedSpecimen: z.boolean().optional(),
+  specimenId: optionalTrimmedString(64),
   attachments: z.array(AttachmentWithDataSchema).optional()
 }).transform((data) => {
   const entryType = data.entryType ?? "molt";
   return {
+    detachedSpecimen: data.detachedSpecimen,
+    specimenId: data.specimenId,
     specimen: data.specimen,
     species: data.species,
     date: data.date,
@@ -36,8 +41,14 @@ const ImportMoltEntrySchema = MoltEntryBaseSchema.safeExtend({
 });
 
 const ImportHealthEntrySchema = HealthEntryBaseSchema.safeExtend({
+  manualSpecimen: z.boolean().optional(),
+  detachedSpecimen: z.boolean().optional(),
+  specimenId: optionalTrimmedString(64),
   attachments: z.array(AttachmentWithDataSchema).optional()
 }).transform((data) => ({
+  manualSpecimen: data.manualSpecimen,
+  detachedSpecimen: data.detachedSpecimen,
+  specimenId: data.specimenId,
   specimen: data.specimen,
   species: data.species,
   date: data.date,
@@ -62,9 +73,21 @@ const ImportHealthEntrySchema = HealthEntryBaseSchema.safeExtend({
 }));
 
 const ImportBreedingEntrySchema = BreedingEntryBaseSchema.safeExtend({
+  manualFemaleSpecimen: z.boolean().optional(),
+  detachedFemaleSpecimen: z.boolean().optional(),
+  femaleSpecimenId: optionalTrimmedString(64),
+  manualMaleSpecimen: z.boolean().optional(),
+  detachedMaleSpecimen: z.boolean().optional(),
+  maleSpecimenId: optionalTrimmedString(64),
   attachments: z.array(AttachmentWithDataSchema).optional()
 }).transform((data) => ({
+  manualFemaleSpecimen: data.manualFemaleSpecimen,
+  detachedFemaleSpecimen: data.detachedFemaleSpecimen,
+  femaleSpecimenId: data.femaleSpecimenId,
   femaleSpecimen: data.femaleSpecimen,
+  manualMaleSpecimen: data.manualMaleSpecimen,
+  detachedMaleSpecimen: data.detachedMaleSpecimen,
+  maleSpecimenId: data.maleSpecimenId,
   maleSpecimen: data.maleSpecimen,
   species: data.species,
   pairingDate: data.pairingDate,
@@ -87,18 +110,57 @@ const ImportBreedingEntrySchema = BreedingEntryBaseSchema.safeExtend({
   }))
 }));
 
+const ImportSpecimenSchema = z.object({
+  id: optionalTrimmedString(64),
+  name: z.string().trim().min(1).max(160),
+  species: optionalTrimmedString(160),
+  sex: z.enum(["Male", "Female", "Unknown", "Unsexed"]).optional(),
+  imageUrl: optionalTrimmedString(4000),
+  notes: optionalTrimmedString(4000),
+  archived: z.boolean().optional(),
+  archivedAt: optionalDateString,
+  archivedReason: optionalTrimmedString(4000),
+  attachments: z.array(AttachmentWithDataSchema).optional(),
+  createdAt: optionalDateString,
+  updatedAt: optionalDateString,
+}).transform((data) => ({
+  id: data.id,
+  name: data.name,
+  species: data.species,
+  sex: data.sex,
+  imageUrl: data.imageUrl,
+  notes: data.notes,
+  archived: data.archived ?? false,
+  archivedAt: data.archivedAt,
+  archivedReason: data.archivedReason,
+  createdAt: data.createdAt,
+  updatedAt: data.updatedAt,
+  attachments: (data.attachments ?? []).map((attachment) => ({
+    id: attachment.id,
+    name: attachment.name,
+    url: attachment.url,
+    type: attachment.type,
+    addedAt: attachment.addedAt,
+    dataUrl: attachment.dataUrl
+  }))
+}));
+
 export const ImportPayloadSchema = z
   .object({
     entries: z.array(ImportMoltEntrySchema).optional(),
     research: z.array(z.unknown()).optional(),
     health: z.array(ImportHealthEntrySchema).optional(),
-    breeding: z.array(ImportBreedingEntrySchema).optional()
+    breeding: z.array(ImportBreedingEntrySchema).optional(),
+    specimens: z.array(ImportSpecimenSchema).optional(),
+    specimenCovers: z.record(z.string(), z.string()).optional()
   })
   .transform((data) => ({
     entries: data.entries ?? [],
     research: data.research ?? [],
     health: data.health ?? [],
-    breeding: data.breeding ?? []
+    breeding: data.breeding ?? [],
+    specimens: data.specimens ?? [],
+    specimenCovers: data.specimenCovers ?? {}
   }));
 
 export type ImportPayload = z.infer<typeof ImportPayloadSchema>;

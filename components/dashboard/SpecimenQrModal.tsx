@@ -8,8 +8,10 @@ import Input from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
 
 type SpecimenForLabel = {
+  specimenId?: string;
   specimen: string;
   species?: string;
+  disambiguator?: string;
 };
 
 type SpecimenQrModalProps = {
@@ -23,6 +25,7 @@ const applyTokens = (template: string, specimen: SpecimenForLabel, index: number
   template
     .replace(/{{\s*specimen\s*}}/gi, specimen.specimen)
     .replace(/{{\s*species\s*}}/gi, specimen.species ?? "Unknown")
+    .replace(/{{\s*disambiguator\s*}}/gi, specimen.disambiguator ?? "")
     .replace(/{{\s*index\s*}}/gi, String(index + 1));
 
 export default function SpecimenQrModal({ isOpen, onClose, specimens, ownerId }: SpecimenQrModalProps) {
@@ -40,14 +43,29 @@ export default function SpecimenQrModal({ isOpen, onClose, specimens, ownerId }:
   }, []);
 
   const uniqueSpecimens = useMemo(() => {
+    const identityCounts = new Map<string, number>();
+    specimens.forEach((s) => {
+      const specimen = (s.specimen || "Unnamed").trim() || "Unnamed";
+      const species = (s.species ?? "").trim();
+      const identityKey = `${specimen}::${species}`;
+      identityCounts.set(identityKey, (identityCounts.get(identityKey) ?? 0) + 1);
+    });
+
     const map = new Map<string, SpecimenForLabel>();
     specimens.forEach((s) => {
-      const key = (s.specimen || "Unnamed").trim() || "Unnamed";
+      const specimen = (s.specimen || "Unnamed").trim() || "Unnamed";
       const species = (s.species ?? "").trim();
+      const key = s.specimenId?.trim() || `${specimen}::${species}`;
+      const identityKey = `${specimen}::${species}`;
+      const duplicateCount = identityCounts.get(identityKey) ?? 1;
+      const disambiguator =
+        duplicateCount > 1
+          ? (s.specimenId?.trim() ? `ID ${s.specimenId.trim().slice(-6)}` : "Duplicate record")
+          : undefined;
       if (!map.has(key)) {
-        map.set(key, { specimen: key, species: species || undefined });
+        map.set(key, { specimenId: s.specimenId, specimen, species: species || undefined, disambiguator });
       } else if (!map.get(key)!.species && species) {
-        map.set(key, { specimen: key, species });
+        map.set(key, { specimenId: s.specimenId, specimen, species, disambiguator });
       }
     });
     return Array.from(map.values()).sort((a, b) => a.specimen.localeCompare(b.specimen));
@@ -68,6 +86,7 @@ export default function SpecimenQrModal({ isOpen, onClose, specimens, ownerId }:
       const url = new URL("/", appOrigin);
       url.searchParams.set("view", "specimens");
       url.searchParams.set("specimen", specimen.specimen);
+      if (specimen.specimenId) url.searchParams.set("specimenId", specimen.specimenId);
       if (ownerId) url.searchParams.set("owner", ownerId);
       if (includeSpecies && specimen.species) url.searchParams.set("species", specimen.species);
       if (collectionTag.trim()) {
@@ -312,6 +331,7 @@ export default function SpecimenQrModal({ isOpen, onClose, specimens, ownerId }:
                       includeMoltlyTag ? "Moltly specimen" : null,
                       includeSpecimenName ? specimen.specimen : null,
                       includeSpecies ? specimen.species || "Unknown" : null,
+                      specimen.disambiguator || null,
                       collectionTag ? applyTokens(collectionTag, specimen, idx) : null,
                     ].filter(Boolean) as string[];
                     return (

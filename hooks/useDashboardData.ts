@@ -9,7 +9,12 @@ import { readLocalEntries, writeLocalEntries } from "@/lib/local-entries";
 import { readLocalHealthEntries, writeLocalHealthEntries } from "@/lib/local-health";
 import { readLocalBreedingEntries, writeLocalBreedingEntries } from "@/lib/local-breeding";
 import { readLocalResearchStacks, writeLocalResearchStacks } from "@/lib/local-research";
-import { readLocalSpecimenCovers, writeLocalSpecimenCovers } from "@/lib/local-specimens";
+import {
+  readLocalSpecimenCovers,
+  readLocalSpecimens,
+  writeLocalSpecimenCovers,
+  writeLocalSpecimens,
+} from "@/lib/local-specimens";
 import { warmCachedImage } from "@/lib/image-cache";
 
 type SetStateAction<T> = T | ((prev: T) => T);
@@ -163,9 +168,13 @@ export function useDashboardData() {
 
   const persistSpecimens = useCallback(
     (value: Specimen[]) => {
+      if (mode === "local") {
+        writeLocalSpecimens(value ?? []);
+        return;
+      }
       writeCache(CACHE_KEYS.specimens, value ?? []);
     },
-    []
+    [mode]
   );
   const [specimens, setSpecimens] = usePersistedState<Specimen[]>([], persistSpecimens);
 
@@ -403,8 +412,7 @@ export function useDashboardData() {
         const data = (await res.json()) as Specimen[];
         setSpecimens(Array.isArray(data) ? data : []);
       } else {
-        // Local mode - specimens not supported
-        setSpecimens([]);
+        setSpecimens(readLocalSpecimens());
       }
     } catch (error) {
       console.error(error);
@@ -528,8 +536,8 @@ export function useDashboardData() {
                 body: JSON.stringify(payload)
               });
             } else if (item.entity === "specimens") {
-              res = await fetch("/api/specimens", {
-                method: "POST",
+              res = await fetch(`/api/specimens/${item.resourceId}`, {
+                method: "PATCH",
                 headers: { "content-type": "application/json" },
                 credentials: "include",
                 body: JSON.stringify(payload)
@@ -611,6 +619,7 @@ export function useDashboardData() {
             refreshEntries(),
             refreshHealth(),
             refreshBreeding(),
+            refreshSpecimens(),
             refreshSpecimenCovers(),
             refreshStacks(),
             refreshCultures()
@@ -622,7 +631,7 @@ export function useDashboardData() {
     } finally {
       flushInProgressRef.current = false;
     }
-  }, [isSync, refreshEntries, refreshHealth, refreshBreeding, refreshSpecimenCovers, refreshStacks, refreshCultures]);
+  }, [isSync, refreshEntries, refreshHealth, refreshBreeding, refreshSpecimens, refreshSpecimenCovers, refreshStacks, refreshCultures]);
 
   const updateSpecimenCover = useCallback(
     async (specimenKey: string, imageUrl: string | null) => {
@@ -738,6 +747,8 @@ export function useDashboardData() {
     setBreedingEntries,
     refreshBreeding,
     specimenCovers,
+    setSpecimenCovers,
+    refreshSpecimenCovers,
     updateSpecimenCover,
     stacks,
     setStacks,

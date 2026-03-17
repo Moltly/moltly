@@ -5,8 +5,12 @@ const BreedingEntrySchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
     femaleSpecimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
+    manualFemaleSpecimen: { type: Boolean, default: false },
+    detachedFemaleSpecimen: { type: Boolean, default: false },
     femaleSpecimen: { type: String, trim: true },
     maleSpecimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
+    manualMaleSpecimen: { type: Boolean, default: false },
+    detachedMaleSpecimen: { type: Boolean, default: false },
     maleSpecimen: { type: String, trim: true },
     species: { type: String, trim: true },
     pairingDate: { type: Date, required: true },
@@ -37,4 +41,3 @@ const BreedingEntryModel =
   models.BreedingEntry || model("BreedingEntry", BreedingEntrySchema);
 
 export default BreedingEntryModel;
-

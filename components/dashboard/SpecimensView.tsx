@@ -8,6 +8,8 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import CachedImage from "@/components/ui/CachedImage";
 import { MoltEntry, SpecimenDashboard, SizeUnit, Specimen } from "@/types/molt";
+import type { HealthEntry } from "@/types/health";
+import type { BreedingEntry } from "@/types/breeding";
 import { formatDate, getReminderStatus, cn, cmToInches } from "@/lib/utils";
 import SpecimenQrModal from "@/components/dashboard/SpecimenQrModal";
 import { ActionButton, useActionButtons } from "@/hooks/useActionButtons";
@@ -18,8 +20,8 @@ interface SpecimensViewProps {
   entries: MoltEntry[];
   specimens?: Specimen[];
   covers?: Record<string, string>;
-  healthEntries?: Array<{ specimenId?: string; specimen?: string; species?: string }>;
-  breedingEntries?: Array<{ femaleSpecimenId?: string; femaleSpecimen?: string; maleSpecimenId?: string; maleSpecimen?: string }>;
+  healthEntries?: HealthEntry[];
+  breedingEntries?: BreedingEntry[];
   onQuickAction?: (specimenId: string | undefined, specimen: string, species: string | undefined, action: string) => void;
   onEdit?: (entry: MoltEntry) => void;
   onArchive?: (specimenId: string, archived: boolean, reason?: string) => Promise<void>;
@@ -28,6 +30,51 @@ interface SpecimensViewProps {
   readOnly?: boolean;
   ownerId?: string;
   sizeUnit: SizeUnit;
+}
+
+type LinkedBreedingEntry = {
+  entry: BreedingEntry;
+  role: "Female" | "Male";
+  partner?: string;
+};
+
+type SpecimenCardDashboard = SpecimenDashboard & {
+  _healthCount: number;
+  _breedingCount: number;
+  _latestHealthEntry: HealthEntry | null;
+  _recentHealthEntries: HealthEntry[];
+  _recentBreedingEntries: LinkedBreedingEntry[];
+  _duplicateNameCount: number;
+  _duplicateNameIndex: number;
+  _sex?: Specimen["sex"];
+  _notes?: string;
+  _createdAt?: string;
+};
+
+function getHealthConditionVariant(condition?: HealthEntry["condition"]): "success" | "warning" | "danger" | "neutral" {
+  switch (condition) {
+    case "Stable":
+      return "success";
+    case "Observation":
+      return "warning";
+    case "Critical":
+      return "danger";
+    default:
+      return "neutral";
+  }
+}
+
+function getBreedingStatusVariant(status?: BreedingEntry["status"]): "success" | "warning" | "danger" | "neutral" {
+  switch (status) {
+    case "Successful":
+      return "success";
+    case "Observation":
+      return "warning";
+    case "Failed":
+      return "danger";
+    default:
+      return "neutral";
+  }
 }
 
 export default function SpecimensView({ entries, specimens = [], covers, healthEntries = [], breedingEntries = [], onQuickAction, onEdit, onArchive, onUpdateCover, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
@@ -80,85 +127,81 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
   };
 
   const specimenDashboards = useMemo(() => {
-    // Build a map of specimen data by ID for quick lookups
     const specimenDataById = new Map<string, Specimen>();
-    const specimenDataByName = new Map<string, Specimen>();
+    const specimenIdsByName = new Map<string, string[]>();
+    const specimenIdsByNameSpecies = new Map<string, string[]>();
+    const duplicateNameCountById = new Map<string, number>();
+    const duplicateNameIndexById = new Map<string, number>();
+
     for (const spec of specimens) {
       specimenDataById.set(spec.id, spec);
-      specimenDataByName.set(spec.name, spec);
+      const byName = specimenIdsByName.get(spec.name) ?? [];
+      byName.push(spec.id);
+      specimenIdsByName.set(spec.name, byName);
+
+      const speciesKey = `${spec.name}::${spec.species ?? ""}`;
+      const byNameSpecies = specimenIdsByNameSpecies.get(speciesKey) ?? [];
+      byNameSpecies.push(spec.id);
+      specimenIdsByNameSpecies.set(speciesKey, byNameSpecies);
     }
 
-    const resolveExplicitCover = (key: string, specimenName: string, specimenId?: string) => {
-      const specimenCover = specimenId
-        ? specimenDataById.get(specimenId)?.imageUrl
-        : specimenDataByName.get(specimenName)?.imageUrl;
-
-      return specimenCover ?? covers?.[specimenName] ?? covers?.[key];
-    };
-
-    // Pre-compute per-specimen health and breeding counts
-    const healthCounts = new Map<string, number>();
-    const breedingCounts = new Map<string, number>();
-    for (const h of healthEntries) {
-      // Prefer specimenId, fall back to name
-      const key = h.specimenId ?? (h.specimen ?? "").trim();
-      const species = (h.species ?? "").trim();
-      if (key) healthCounts.set(key, (healthCounts.get(key) ?? 0) + 1);
-      // If no specimen but species exists, tally by species (best-effort match)
-      if (!key && species) healthCounts.set(species, (healthCounts.get(species) ?? 0) + 1);
-    }
-    for (const b of breedingEntries) {
-      const f = b.femaleSpecimenId ?? (b.femaleSpecimen ?? "").trim();
-      const m = b.maleSpecimenId ?? (b.maleSpecimen ?? "").trim();
-      if (f) breedingCounts.set(f, (breedingCounts.get(f) ?? 0) + 1);
-      if (m) breedingCounts.set(m, (breedingCounts.get(m) ?? 0) + 1);
-    }
-    const dashboardMap = new Map<string, SpecimenDashboard>();
-
-    // First, create dashboards for all known specimens (using their unique IDs)
-    // This ensures specimens with the same name but different species stay separate
-    for (const spec of specimens) {
-      dashboardMap.set(spec.id, {
-        key: spec.id,
-        specimenId: spec.id,
-        specimen: spec.name,
-        species: spec.species,
-        imageUrl: resolveExplicitCover(spec.id, spec.name, spec.id),
-        totalMolts: 0,
-        totalFeedings: 0,
-        stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
-        lastMoltDate: null,
-        firstMoltDate: null,
-        averageIntervalDays: null,
-        lastIntervalDays: null,
-        yearMolts: 0,
-        attachmentsCount: 0,
-        reminder: null,
-        recentEntries: [],
-        latestEntry: null,
-        archived: spec.archived ?? false,
-        archivedAt: spec.archivedAt,
-        archivedReason: spec.archivedReason,
+    for (const [name, ids] of specimenIdsByName.entries()) {
+      const ordered = [...ids].sort((a, b) => {
+        const aDate = specimenDataById.get(a)?.createdAt ?? "";
+        const bDate = specimenDataById.get(b)?.createdAt ?? "";
+        return aDate.localeCompare(bDate);
+      });
+      ordered.forEach((id, index) => {
+        duplicateNameCountById.set(id, ordered.length);
+        duplicateNameIndexById.set(id, index + 1);
       });
     }
 
-    // Then process entries, adding data to existing specimen dashboards or creating new ones for legacy entries
-    entries.forEach((entry) => {
-      // Use specimenId if available, otherwise fall back to specimen name for legacy entries
-      const key = entry.specimenId ?? entry.specimen ?? "Unnamed";
-      const specimenName = entry.specimenId && specimenDataById.has(entry.specimenId)
-        ? specimenDataById.get(entry.specimenId)!.name
-        : entry.specimen ?? "Unnamed";
+    const resolveExplicitCover = (key: string, specimenName: string, specimenId?: string) => {
+      const specimenCover = specimenId ? specimenDataById.get(specimenId)?.imageUrl : undefined;
+      return specimenCover ?? covers?.[specimenName] ?? covers?.[key];
+    };
 
+    const resolveDashboardKey = (specimenId?: string, specimenName?: string, species?: string) => {
+      if (specimenId) {
+        return specimenDataById.has(specimenId) ? specimenId : `missing:${specimenId}`;
+      }
+
+      const trimmedName = (specimenName ?? "").trim();
+      if (!trimmedName) return undefined;
+
+      const exactIds = specimenIdsByNameSpecies.get(`${trimmedName}::${species ?? ""}`) ?? [];
+      if (exactIds.length === 1) return exactIds[0];
+
+      const sameNameIds = specimenIdsByName.get(trimmedName) ?? [];
+      if (sameNameIds.length === 1) return sameNameIds[0];
+      if (sameNameIds.length === 0) return trimmedName;
+      return undefined;
+    };
+
+    const buildLegacyDashboardKey = (prefix: string, specimenName?: string, species?: string) => {
+      const trimmedName = specimenName?.trim() || "Unnamed";
+      return `${prefix}:${trimmedName}::${species ?? ""}`;
+    };
+
+    const dashboardMap = new Map<string, SpecimenCardDashboard>();
+    const previewSpecimen = readOnly && specimens.length === 1 ? specimens[0] : undefined;
+    const normalizedPreviewIdentity = initialFocusSpecimen?.trim().toLowerCase();
+
+    const ensureDashboard = (
+      key: string,
+      specimenName: string,
+      species?: string,
+      linkedSpecimen?: Specimen,
+      specimenId?: string
+    ) => {
       if (!dashboardMap.has(key)) {
-        // Legacy entry without a specimen ID - create a dashboard based on name
-        const specimenData = entry.specimenId ? specimenDataById.get(entry.specimenId) : undefined;
         dashboardMap.set(key, {
           key,
-          specimenId: entry.specimenId,
-          specimen: specimenName,
-          species: specimenData?.species ?? entry.species,
-          imageUrl: resolveExplicitCover(key, specimenName, entry.specimenId),
+          specimenId: linkedSpecimen?.id ?? specimenId,
+          specimen: linkedSpecimen?.name ?? specimenName,
+          species: linkedSpecimen?.species ?? species,
+          imageUrl: resolveExplicitCover(key, linkedSpecimen?.name ?? specimenName, linkedSpecimen?.id ?? specimenId),
           totalMolts: 0,
           totalFeedings: 0,
           stageCounts: { "Pre-molt": 0, Molt: 0, "Post-molt": 0 },
@@ -171,13 +214,35 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
           reminder: null,
           recentEntries: [],
           latestEntry: null,
-          archived: specimenData?.archived ?? false,
-          archivedAt: specimenData?.archivedAt,
-          archivedReason: specimenData?.archivedReason,
+          archived: linkedSpecimen?.archived ?? false,
+          archivedAt: linkedSpecimen?.archivedAt,
+          archivedReason: linkedSpecimen?.archivedReason,
+          _healthCount: 0,
+          _breedingCount: 0,
+          _latestHealthEntry: null,
+          _recentHealthEntries: [],
+          _recentBreedingEntries: [],
+          _duplicateNameCount: linkedSpecimen ? duplicateNameCountById.get(linkedSpecimen.id) ?? 1 : 1,
+          _duplicateNameIndex: linkedSpecimen ? duplicateNameIndexById.get(linkedSpecimen.id) ?? 1 : 1,
+          _sex: linkedSpecimen?.sex,
+          _notes: linkedSpecimen?.notes,
+          _createdAt: linkedSpecimen?.createdAt,
         });
       }
 
-      const dashboard = dashboardMap.get(key)!;
+      return dashboardMap.get(key)!;
+    };
+
+    for (const spec of specimens) {
+      ensureDashboard(spec.id, spec.name, spec.species, spec, spec.id);
+    }
+
+    for (const entry of entries) {
+      const key = resolveDashboardKey(entry.specimenId, entry.specimen, entry.species) ?? entry.specimen ?? "Unnamed";
+      const linkedSpecimen = entry.specimenId ? specimenDataById.get(entry.specimenId) : undefined;
+      const specimenName = linkedSpecimen?.name ?? entry.specimen ?? "Unnamed";
+
+      const dashboard = ensureDashboard(key, specimenName, entry.species, linkedSpecimen, entry.specimenId);
 
       if (entry.entryType === "molt") {
         dashboard.totalMolts++;
@@ -210,10 +275,7 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
 
       if (entry.reminderDate) {
         const status = getReminderStatus(entry.reminderDate);
-        if (
-          !dashboard.reminder ||
-          new Date(entry.reminderDate) < new Date(dashboard.reminder.date!)
-        ) {
+        if (!dashboard.reminder || new Date(entry.reminderDate) < new Date(dashboard.reminder.date!)) {
           dashboard.reminder = {
             tone: status || "upcoming",
             label: formatDate(entry.reminderDate),
@@ -223,54 +285,144 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
       }
 
       dashboard.recentEntries.push(entry);
-
-      if (
-        !dashboard.latestEntry ||
-        new Date(entry.createdAt) > new Date(dashboard.latestEntry.createdAt)
-      ) {
+      if (!dashboard.latestEntry || new Date(entry.createdAt) > new Date(dashboard.latestEntry.createdAt)) {
         dashboard.latestEntry = entry;
       }
-    });
+    }
 
-    // Calculate intervals
-    dashboardMap.forEach((dashboard) => {
-      dashboard.recentEntries.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    for (const entry of healthEntries) {
+      if (!entry.specimenId && entry.manualSpecimen && !entry.detachedSpecimen) {
+        continue;
+      }
+      const linkedSpecimen = entry.specimenId ? specimenDataById.get(entry.specimenId) : undefined;
+      const specimenName = entry.specimen?.trim();
+      const resolvedKey = entry.detachedSpecimen
+        ? (entry.specimenId ? resolveDashboardKey(entry.specimenId, entry.specimen, entry.species) : undefined)
+        : resolveDashboardKey(entry.specimenId, entry.specimen, entry.species);
+      const key =
+        resolvedKey ??
+        (entry.specimenId ? `missing:${entry.specimenId}` : buildLegacyDashboardKey("health", specimenName, entry.species));
+      const dashboard = ensureDashboard(
+        key,
+        linkedSpecimen?.name ?? specimenName ?? "Unnamed",
+        entry.species,
+        linkedSpecimen,
+        entry.specimenId
       );
+      dashboard._healthCount += 1;
+      dashboard._recentHealthEntries.push(entry);
+      if (!dashboard._latestHealthEntry || new Date(entry.date) > new Date(dashboard._latestHealthEntry.date)) {
+        dashboard._latestHealthEntry = entry;
+      }
+    }
+
+    const attachBreedingEntry = (
+      resolvedKey: string | undefined,
+      specimenName: string | undefined,
+      specimenId: string | undefined,
+      role: "Female" | "Male",
+      partner: string | undefined,
+      entry: BreedingEntry
+    ) => {
+      const fallbackName = specimenName?.trim();
+      const linkedSpecimen = specimenId ? specimenDataById.get(specimenId) : undefined;
+      if (previewSpecimen) {
+        const isVisibleLinkedSpecimen = Boolean(linkedSpecimen && linkedSpecimen.id === previewSpecimen.id);
+        const matchesPreviewByName =
+          !specimenId &&
+          fallbackName?.toLowerCase() === previewSpecimen.name.toLowerCase() &&
+          (!entry.species || !previewSpecimen.species || entry.species === previewSpecimen.species);
+        if (!isVisibleLinkedSpecimen && !matchesPreviewByName) {
+          return;
+        }
+      } else if (readOnly && normalizedPreviewIdentity) {
+        const matchesPreviewIdentity =
+          (specimenId && specimenId.toLowerCase() === normalizedPreviewIdentity) ||
+          (fallbackName && fallbackName.toLowerCase() === normalizedPreviewIdentity);
+        if (!matchesPreviewIdentity) {
+          return;
+        }
+      }
+      if (!resolvedKey && !fallbackName) {
+        return;
+      }
+      const key =
+        resolvedKey ??
+        (specimenId ? `missing:${specimenId}` : buildLegacyDashboardKey(`breeding-${role.toLowerCase()}`, fallbackName, entry.species));
+      const dashboard = ensureDashboard(
+        key,
+        linkedSpecimen?.name ?? fallbackName ?? "Unnamed",
+        entry.species,
+        linkedSpecimen,
+        specimenId
+      );
+      dashboard._breedingCount += 1;
+      dashboard._recentBreedingEntries.push({ entry, role, partner });
+    };
+
+    for (const entry of breedingEntries) {
+      if (
+        (!entry.femaleSpecimenId && entry.manualFemaleSpecimen && !entry.detachedFemaleSpecimen) &&
+        (!entry.maleSpecimenId && entry.manualMaleSpecimen && !entry.detachedMaleSpecimen)
+      ) {
+        continue;
+      }
+      if (entry.femaleSpecimenId || !entry.manualFemaleSpecimen || entry.detachedFemaleSpecimen) {
+        attachBreedingEntry(
+          entry.detachedFemaleSpecimen
+            ? (entry.femaleSpecimenId ? resolveDashboardKey(entry.femaleSpecimenId, entry.femaleSpecimen, entry.species) : undefined)
+            : resolveDashboardKey(entry.femaleSpecimenId, entry.femaleSpecimen, entry.species),
+          entry.femaleSpecimen,
+          entry.femaleSpecimenId,
+          "Female",
+          entry.maleSpecimen,
+          entry
+        );
+      }
+      if (entry.maleSpecimenId || !entry.manualMaleSpecimen || entry.detachedMaleSpecimen) {
+        attachBreedingEntry(
+          entry.detachedMaleSpecimen
+            ? (entry.maleSpecimenId ? resolveDashboardKey(entry.maleSpecimenId, entry.maleSpecimen, entry.species) : undefined)
+            : resolveDashboardKey(entry.maleSpecimenId, entry.maleSpecimen, entry.species),
+          entry.maleSpecimen,
+          entry.maleSpecimenId,
+          "Male",
+          entry.femaleSpecimen,
+          entry
+        );
+      }
+    }
+
+    dashboardMap.forEach((dashboard) => {
+      dashboard.recentEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       const moltDates = dashboard.recentEntries
-        .filter((e) => e.entryType === "molt")
-        .map((e) => new Date(e.date).getTime())
+        .filter((entry) => entry.entryType === "molt")
+        .map((entry) => new Date(entry.date).getTime())
         .sort((a, b) => b - a);
 
       if (moltDates.length >= 2) {
         const intervals: number[] = [];
-        for (let i = 0; i < moltDates.length - 1; i++) {
-          intervals.push((moltDates[i] - moltDates[i + 1]) / (1000 * 60 * 60 * 24));
+        for (let index = 0; index < moltDates.length - 1; index += 1) {
+          intervals.push((moltDates[index] - moltDates[index + 1]) / (1000 * 60 * 60 * 24));
         }
 
         dashboard.lastIntervalDays = Math.round(intervals[0]);
-        dashboard.averageIntervalDays = Math.round(
-          intervals.reduce((a, b) => a + b, 0) / intervals.length
-        );
+        dashboard.averageIntervalDays = Math.round(intervals.reduce((sum, value) => sum + value, 0) / intervals.length);
       }
 
-      // Keep only 5 most recent
       dashboard.recentEntries = dashboard.recentEntries.slice(0, 5);
-
+      dashboard._recentHealthEntries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      dashboard._recentHealthEntries = dashboard._recentHealthEntries.slice(0, 3);
+      dashboard._recentBreedingEntries.sort(
+        (a, b) => new Date(b.entry.pairingDate).getTime() - new Date(a.entry.pairingDate).getTime()
+      );
+      dashboard._recentBreedingEntries = dashboard._recentBreedingEntries.slice(0, 3);
       dashboard.imageUrl = resolveExplicitCover(dashboard.key, dashboard.specimen, dashboard.specimenId);
     });
 
-    const dashboards = Array.from(dashboardMap.values()).sort((a, b) =>
-      a.specimen.localeCompare(b.specimen)
-    );
-    // Attach helper properties on the fly for rendering
-    return dashboards.map((d) => ({
-      ...d,
-      _healthCount: healthCounts.get(d.key) ?? healthCounts.get(d.species ?? "") ?? 0,
-      _breedingCount: breedingCounts.get(d.key) ?? 0,
-    })) as Array<typeof dashboards[number] & { _healthCount: number; _breedingCount: number }>;
-  }, [entries, specimens, covers, healthEntries, breedingEntries]);
+    return Array.from(dashboardMap.values()).sort((a, b) => a.specimen.localeCompare(b.specimen)) as SpecimenCardDashboard[];
+  }, [entries, specimens, covers, healthEntries, breedingEntries, readOnly, initialFocusSpecimen]);
 
   // Filter specimens by search query and archive status
   const filteredDashboards = useMemo(() => {
@@ -310,7 +462,12 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
 
   useEffect(() => {
     if (!initialFocusSpecimen || hasFocusedRef.current) return;
-    const match = specimenDashboards.find((d) => d.key === initialFocusSpecimen);
+    const normalizedInitialFocus = initialFocusSpecimen.trim().toLowerCase();
+    const match = specimenDashboards.find((d) => {
+      const keyMatches = d.key.trim().toLowerCase() === normalizedInitialFocus;
+      const nameMatches = d.specimen.trim().toLowerCase() === normalizedInitialFocus;
+      return keyMatches || nameMatches;
+    });
     if (match) {
       hasFocusedRef.current = true;
       queueMicrotask(() => {
@@ -423,19 +580,31 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
                         <h3 className="font-semibold text-lg text-[rgb(var(--text))] truncate">
                           {dashboard.specimen}
                         </h3>
+                        {dashboard._duplicateNameCount > 1 && (
+                          <Badge variant="warning" className="shrink-0">
+                            {dashboard._duplicateNameIndex} of {dashboard._duplicateNameCount}
+                          </Badge>
+                        )}
                         {isExpanded ? (
                           <ChevronUp className="w-5 h-5 text-[rgb(var(--text-soft))] shrink-0" />
                         ) : (
                           <ChevronDown className="w-5 h-5 text-[rgb(var(--text-soft))] shrink-0" />
                         )}
                       </div>
-                      {dashboard.species && (
-                        <p className="text-sm text-[rgb(var(--text-soft))] italic mb-2">
-                          <a href={`/species/${encodeURIComponent(dashboard.species)}`} className="hover:underline">
-                            {dashboard.species}
-                          </a>
-                        </p>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {dashboard.species && (
+                          <p className="text-sm text-[rgb(var(--text-soft))] italic">
+                            <a href={`/species/${encodeURIComponent(dashboard.species)}`} className="hover:underline">
+                              {dashboard.species}
+                            </a>
+                          </p>
+                        )}
+                        {dashboard._sex && dashboard._sex !== "Unknown" && (
+                          <span className="text-xs text-[rgb(var(--text-subtle))]">
+                            {dashboard._sex}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-2 items-center">
                         <Badge variant="primary">
                           {dashboard.totalMolts} {dashboard.totalMolts === 1 ? "molt" : "molts"}
@@ -525,6 +694,73 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
                       </div>
                     </div>
 
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="p-3 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))]">
+                        <p className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                          Profile
+                        </p>
+                        <div className="mt-2 space-y-2 text-sm text-[rgb(var(--text))]">
+                          {dashboard._duplicateNameCount > 1 && (
+                            <p>
+                              This is specimen {dashboard._duplicateNameIndex} of {dashboard._duplicateNameCount} named {dashboard.specimen}.
+                            </p>
+                          )}
+                          {dashboard._createdAt && (
+                            <p className="text-[rgb(var(--text-soft))]">
+                              Created {formatDate(dashboard._createdAt)}
+                            </p>
+                          )}
+                          {dashboard._notes ? (
+                            <div className="text-sm leading-relaxed text-[rgb(var(--text-soft))]">
+                              <MarkdownRenderer>{dashboard._notes}</MarkdownRenderer>
+                            </div>
+                          ) : (
+                            <p className="text-[rgb(var(--text-soft))]">
+                              Use health and breeding logs to build a fuller specimen profile here.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-[var(--radius)] bg-[rgb(var(--bg-muted))]">
+                        <div className="flex items-center gap-2">
+                          <HeartPulse className="w-4 h-4 text-[rgb(var(--warning))]" />
+                          <p className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                            Health Snapshot
+                          </p>
+                        </div>
+                        {dashboard._latestHealthEntry ? (
+                          <div className="mt-2 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={getHealthConditionVariant(dashboard._latestHealthEntry.condition)}>
+                                {dashboard._latestHealthEntry.condition}
+                              </Badge>
+                              <span className="text-xs text-[rgb(var(--text-subtle))]">
+                                {formatDate(dashboard._latestHealthEntry.date)}
+                              </span>
+                            </div>
+                            {dashboard._latestHealthEntry.healthIssues && (
+                              <p className="text-sm text-[rgb(var(--text))]">{dashboard._latestHealthEntry.healthIssues}</p>
+                            )}
+                            {dashboard._latestHealthEntry.treatment && (
+                              <p className="text-xs text-[rgb(var(--text-soft))]">
+                                Treatment: {dashboard._latestHealthEntry.treatment}
+                              </p>
+                            )}
+                            {dashboard._latestHealthEntry.followUpDate && (
+                              <p className="text-xs text-[rgb(var(--text-soft))]">
+                                Follow-up {formatDate(dashboard._latestHealthEntry.followUpDate)}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-[rgb(var(--text-soft))]">
+                            No linked health logs yet.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Stage Breakdown */}
                     <div>
                       <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">
@@ -540,6 +776,87 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
                         <Badge variant="success">
                           Post: {dashboard.stageCounts["Post-molt"]}
                         </Badge>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <HeartPulse className="w-4 h-4 text-[rgb(var(--warning))]" />
+                          <p className="text-sm font-medium text-[rgb(var(--text))]">
+                            Recent Health Notes
+                          </p>
+                        </div>
+                        {dashboard._recentHealthEntries.length > 0 ? (
+                          <div className="space-y-2">
+                            {dashboard._recentHealthEntries.map((entry) => (
+                              <div key={entry.id} className="rounded-[var(--radius)] bg-[rgb(var(--bg-muted))] p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant={getHealthConditionVariant(entry.condition)}>{entry.condition}</Badge>
+                                  <span className="text-xs text-[rgb(var(--text-subtle))]">{formatDate(entry.date)}</span>
+                                </div>
+                                {entry.healthIssues && (
+                                  <p className="mt-2 text-sm text-[rgb(var(--text))]">{entry.healthIssues}</p>
+                                )}
+                                {entry.behavior && (
+                                  <p className="mt-1 text-xs text-[rgb(var(--text-soft))]">Behavior: {entry.behavior}</p>
+                                )}
+                                {entry.notes && (
+                                  <div className="mt-2 text-xs text-[rgb(var(--text-soft))]">
+                                    <MarkdownRenderer>{entry.notes}</MarkdownRenderer>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-[rgb(var(--text-soft))]">
+                            Health tracking linked to this specimen will appear here.
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Egg className="w-4 h-4 text-[rgb(var(--text-soft))]" />
+                          <p className="text-sm font-medium text-[rgb(var(--text))]">
+                            Breeding Context
+                          </p>
+                        </div>
+                        {dashboard._recentBreedingEntries.length > 0 ? (
+                          <div className="space-y-2">
+                            {dashboard._recentBreedingEntries.map(({ entry, role, partner }) => (
+                              <div key={`${dashboard.key}-${entry.id}-${role}`} className="rounded-[var(--radius)] bg-[rgb(var(--bg-muted))] p-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Badge variant={getBreedingStatusVariant(entry.status)}>{entry.status}</Badge>
+                                  <Badge variant="neutral">{role}</Badge>
+                                  <span className="text-xs text-[rgb(var(--text-subtle))]">
+                                    {formatDate(entry.pairingDate)}
+                                  </span>
+                                </div>
+                                {partner && (
+                                  <p className="mt-2 text-sm text-[rgb(var(--text))]">
+                                    Paired with {partner}
+                                  </p>
+                                )}
+                                <div className="mt-1 flex flex-wrap gap-2 text-xs text-[rgb(var(--text-soft))]">
+                                  {entry.eggSacStatus && <span>Egg sac: {entry.eggSacStatus}</span>}
+                                  {typeof entry.slingCount === "number" && <span>Slings: {entry.slingCount}</span>}
+                                  {entry.followUpDate && <span>Follow-up {formatDate(entry.followUpDate)}</span>}
+                                </div>
+                                {(entry.pairingNotes || entry.notes) && (
+                                  <div className="mt-2 text-xs text-[rgb(var(--text-soft))]">
+                                    <MarkdownRenderer>{entry.pairingNotes || entry.notes || ""}</MarkdownRenderer>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-[rgb(var(--text-soft))]">
+                            Linked breeding pairings will appear here.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -773,7 +1090,7 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
       <SpecimenQrModal
         isOpen={showQrModal}
         onClose={() => setShowQrModal(false)}
-        specimens={specimenDashboards.map((d) => ({ specimen: d.specimen, species: d.species }))}
+        specimens={specimenDashboards.map((d) => ({ specimenId: d.specimenId, specimen: d.specimen, species: d.species }))}
         ownerId={ownerId}
       />
 

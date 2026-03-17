@@ -4,6 +4,8 @@ type HealthCondition = "Stable" | "Observation" | "Critical";
 export type HealthEntry = {
   id: string;
   specimenId?: string;
+  manualSpecimen?: boolean;
+  detachedSpecimen?: boolean;
   specimen?: string;
   species?: string;
   date: string;
@@ -23,6 +25,8 @@ export type HealthEntry = {
 };
 
 export type HealthFormState = {
+  specimenMode: "manual" | "existing" | "create";
+  specimenId: string;
   specimen: string;
   species: string;
   date: string;

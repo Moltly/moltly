@@ -17,9 +17,9 @@ interface ActivityViewProps {
   specimens?: Specimen[];
   onEdit: (entry: MoltEntry) => void;
   onDelete: (id: string) => void;
-  onSetCover?: (specimenKey: string, image: GalleryImage) => void;
+  onSetCover?: (specimenRef: string, image: GalleryImage) => void;
   covers?: Record<string, string>;
-  onUnsetCover?: (specimenKey: string) => void;
+  onUnsetCover?: (specimenRef: string) => void;
   sizeUnit: SizeUnit;
 }
 
@@ -35,7 +35,10 @@ export default function ActivityView({ entries, specimens = [], onEdit, onDelete
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
-  const [currentSpecimenKey, setCurrentSpecimenKey] = useState<string | null>(null);
+  const [currentSpecimenTarget, setCurrentSpecimenTarget] = useState<{
+    specimenId?: string;
+    specimenKey: string;
+  } | null>(null);
 
   const filteredEntries = useMemo(() => {
     let filtered = [...entries];
@@ -87,6 +90,30 @@ export default function ActivityView({ entries, specimens = [], onEdit, onDelete
     const converted = sizeUnit === "in" ? cmToInches(value) : value;
     return Number((Math.round(converted * 100) / 100).toFixed(2)).toString();
   };
+
+  const getCoverUrl = (specimenId?: string, specimenKey?: string | null) => {
+    if (specimenId && specimens) {
+      const found = specimens.find((specimen) => specimen.id === specimenId);
+      if (found) {
+        if (found.imageUrl !== undefined) {
+          return found.imageUrl || undefined;
+        }
+        return covers?.[specimenKey ?? "Unnamed"];
+      }
+    }
+
+    const key = specimenKey ?? "Unnamed";
+    let coverUrl = covers?.[key];
+    if (!coverUrl && specimens) {
+      const found = specimens.find((specimen) => specimen.name === specimenKey);
+      if (found && found.imageUrl !== undefined) {
+        coverUrl = found.imageUrl || undefined;
+      }
+    }
+    return coverUrl;
+  };
+
+  const getEntryCoverUrl = (entry: MoltEntry) => getCoverUrl(entry.specimenId, entry.specimen);
 
   if (entries.length === 0) {
     return (
@@ -226,22 +253,7 @@ export default function ActivityView({ entries, specimens = [], onEdit, onDelete
                   <div className="flex items-start justify-between gap-3">
                     {(() => {
                       const key = entry.specimen ?? "Unnamed";
-
-                      // Resolve cover image:
-                      // 1. Try pinned cover passed in via props (covers)
-                      let coverUrl = covers?.[key];
-
-                      // 2. If not pinned, see if we can find the specimen in the specimens list
-                      if (!coverUrl && specimens) {
-                        const found = entry.specimenId
-                          ? specimens.find(s => s.id === entry.specimenId)
-                          : specimens.find(s => s.name === entry.specimen);
-
-                        if (found?.imageUrl) {
-                          coverUrl = found.imageUrl;
-                        }
-                      }
-
+                      const coverUrl = getEntryCoverUrl(entry);
                       if (!coverUrl) return null;
                       return (
                         <div className="w-10 h-10 rounded overflow-hidden bg-[rgb(var(--bg-muted))] shrink-0">
@@ -378,7 +390,10 @@ export default function ActivityView({ entries, specimens = [], onEdit, onDelete
                         const imgs: GalleryImage[] = entry.attachments!.map((a) => ({ id: a.id, url: a.url, name: a.name }));
                         setGalleryImages(imgs);
                         setGalleryIndex(0);
-                        setCurrentSpecimenKey(entry.specimen ?? "Unnamed");
+                        setCurrentSpecimenTarget({
+                          specimenId: entry.specimenId,
+                          specimenKey: entry.specimen ?? "Unnamed",
+                        });
                         setGalleryOpen(true);
                       }}
                       aria-label="View attachments"
@@ -424,9 +439,9 @@ export default function ActivityView({ entries, specimens = [], onEdit, onDelete
         index={galleryIndex}
         onClose={() => setGalleryOpen(false)}
         onIndexChange={(i) => setGalleryIndex(i)}
-        onSetCover={onSetCover ? (img) => onSetCover(currentSpecimenKey ?? "Unnamed", img) : undefined}
-        currentCoverUrl={currentSpecimenKey ? covers?.[currentSpecimenKey] : undefined}
-        onUnsetCover={onUnsetCover ? () => onUnsetCover(currentSpecimenKey ?? "Unnamed") : undefined}
+        onSetCover={onSetCover ? (img) => onSetCover(currentSpecimenTarget?.specimenId ?? currentSpecimenTarget?.specimenKey ?? "Unnamed", img) : undefined}
+        currentCoverUrl={currentSpecimenTarget ? getCoverUrl(currentSpecimenTarget.specimenId, currentSpecimenTarget.specimenKey) : undefined}
+        onUnsetCover={onUnsetCover ? () => onUnsetCover(currentSpecimenTarget?.specimenId ?? currentSpecimenTarget?.specimenKey ?? "Unnamed") : undefined}
       />
     </>
   );

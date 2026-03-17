@@ -5,6 +5,7 @@ import { Types } from "mongoose";
 import { authOptions } from "../../../../lib/auth-options";
 import { connectMongoose } from "../../../../lib/mongoose";
 import MoltEntry from "../../../../models/MoltEntry";
+import Specimen from "../../../../models/Specimen";
 import getMongoClientPromise from "../../../../lib/mongodb";
 import { ObjectId } from "mongodb";
 import path from "path";
@@ -78,6 +79,28 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if ("species" in updates) {
       entry.species = typeof updates.species === "string" && updates.species.trim().length > 0 ? updates.species.trim() : undefined;
+    }
+
+    if ("specimenId" in updates) {
+      if (typeof updates.specimenId === "string" && updates.specimenId.trim().length > 0) {
+        if (!Types.ObjectId.isValid(updates.specimenId.trim())) {
+          return NextResponse.json({ error: "Selected specimen could not be found." }, { status: 400 });
+        }
+        const specimen = await Specimen.findOne({
+          _id: ensureObjectId(updates.specimenId.trim()),
+          userId: session.user.id,
+        });
+        if (!specimen) {
+          return NextResponse.json({ error: "Selected specimen could not be found." }, { status: 400 });
+        }
+        entry.specimenId = specimen._id;
+        entry.specimen = specimen.name;
+        entry.species = specimen.species ?? undefined;
+        entry.detachedSpecimen = false;
+      } else if (updates.specimenId === null) {
+        entry.specimenId = undefined;
+        entry.detachedSpecimen = false;
+      }
     }
 
     if (updates.date) {
@@ -270,7 +293,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({
       ...entry.toObject(),
       id: entry._id.toString(),
-      userId: entry.userId.toString()
+      userId: entry.userId.toString(),
+      specimenId: entry.specimenId?.toString(),
+      detachedSpecimen: entry.detachedSpecimen,
     });
   } catch (error) {
     console.error(error);

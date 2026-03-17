@@ -7,10 +7,13 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
+import type { Specimen } from "@/types/molt";
 import { formatDate, formatRelativeDate } from "@/lib/utils";
 
 interface BreedingViewProps {
   entries: BreedingEntry[];
+  specimens?: Specimen[];
+  readOnly?: boolean;
   onCreate: (form: BreedingFormState) => Promise<void>;
   onUpdate: (id: string, form: BreedingFormState) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -18,7 +21,11 @@ interface BreedingViewProps {
 }
 
 const defaultForm = (): BreedingFormState => ({
+  femaleSpecimenMode: "manual",
+  femaleSpecimenId: "",
   femaleSpecimen: "",
+  maleSpecimenMode: "manual",
+  maleSpecimenId: "",
   maleSpecimen: "",
   species: "",
   pairingDate: new Date().toISOString().slice(0, 10),
@@ -33,8 +40,18 @@ const defaultForm = (): BreedingFormState => ({
   notes: "",
 });
 
+const resolveParticipantMode = (specimenId: string | undefined, manualSpecimen: boolean | undefined) => {
+  if (specimenId) return "existing";
+  if (manualSpecimen === false) return "existing";
+  return "manual";
+};
+
 const entryToForm = (entry: BreedingEntry): BreedingFormState => ({
+  femaleSpecimenMode: resolveParticipantMode(entry.femaleSpecimenId, entry.manualFemaleSpecimen),
+  femaleSpecimenId: entry.femaleSpecimenId ?? "",
   femaleSpecimen: entry.femaleSpecimen ?? "",
+  maleSpecimenMode: resolveParticipantMode(entry.maleSpecimenId, entry.manualMaleSpecimen),
+  maleSpecimenId: entry.maleSpecimenId ?? "",
   maleSpecimen: entry.maleSpecimen ?? "",
   species: entry.species ?? "",
   pairingDate: entry.pairingDate?.slice(0, 10) ?? "",
@@ -48,6 +65,17 @@ const entryToForm = (entry: BreedingEntry): BreedingFormState => ({
   followUpDate: entry.followUpDate ? entry.followUpDate.slice(0, 10) : "",
   notes: entry.notes ?? "",
 });
+
+const formatSpecimenLabel = (specimen: Specimen, duplicateCount: number) => {
+  const details = [specimen.species, specimen.sex && specimen.sex !== "Unknown" ? specimen.sex : undefined].filter(Boolean);
+  const suffix = duplicateCount > 1 ? `Created ${formatDate(specimen.createdAt)}` : undefined;
+  return [specimen.name, details.join(" • "), suffix].filter(Boolean).join(" • ");
+};
+
+const matchesBreedingRole = (specimen: Specimen | undefined, role: "Female" | "Male") => {
+  if (!specimen?.sex || specimen.sex === "Unknown" || specimen.sex === "Unsexed") return true;
+  return specimen.sex === role;
+};
 
 const statusBadgeClass = (status: BreedingEntry["status"]): string => {
   switch (status) {
@@ -78,7 +106,7 @@ const eggBadgeClass = (status: BreedingEntry["eggSacStatus"]): string => {
   }
 };
 
-export default function BreedingView({ entries, onCreate, onUpdate, onDelete, onScheduleFollowUpRetry }: BreedingViewProps) {
+export default function BreedingView({ entries, specimens = [], readOnly = false, onCreate, onUpdate, onDelete, onScheduleFollowUpRetry }: BreedingViewProps) {
   const [form, setForm] = useState<BreedingFormState>(defaultForm);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -86,6 +114,16 @@ export default function BreedingView({ entries, onCreate, onUpdate, onDelete, on
   const [error, setError] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const specimenById = useMemo(() => new Map(specimens.map((specimen) => [specimen.id, specimen])), [specimens]);
+  const duplicateNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const specimen of specimens) {
+      counts.set(specimen.name, (counts.get(specimen.name) ?? 0) + 1);
+    }
+    return counts;
+  }, [specimens]);
+  const linkedFemale = form.femaleSpecimenId ? specimenById.get(form.femaleSpecimenId) : undefined;
+  const linkedMale = form.maleSpecimenId ? specimenById.get(form.maleSpecimenId) : undefined;
 
   const stats = useMemo(() => {
     const sorted = [...entries].sort(
@@ -137,14 +175,78 @@ export default function BreedingView({ entries, onCreate, onUpdate, onDelete, on
     };
   }, [entries]);
 
+  const handleParticipantModeChange = (
+    modeKey: "femaleSpecimenMode" | "maleSpecimenMode",
+    idKey: "femaleSpecimenId" | "maleSpecimenId",
+    value: BreedingFormState["femaleSpecimenMode"]
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      [modeKey]: value,
+      [idKey]: value === "existing" ? prev[idKey] : "",
+    }));
+    if (statusMessage) setStatusMessage(null);
+    if (error) setError(null);
+  };
+
   const handleChange = (key: keyof BreedingFormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (statusMessage) setStatusMessage(null);
     if (error) setError(null);
   };
 
+  const handleLinkedSpecimenChange = (
+    key: "femaleSpecimenId" | "maleSpecimenId",
+    nameKey: "femaleSpecimen" | "maleSpecimen",
+    role: "Female" | "Male",
+    value: string
+  ) => {
+    const otherId = key === "femaleSpecimenId" ? form.maleSpecimenId : form.femaleSpecimenId;
+    if (value && otherId && value === otherId) {
+      setError("Female and male specimens must be different.");
+      setStatusMessage(null);
+      return;
+    }
+    if (!value) {
+      setForm((prev) => ({ ...prev, [key]: "", [nameKey]: "" }));
+      if (statusMessage) setStatusMessage(null);
+      if (error) setError(null);
+      return;
+    }
+
+    const specimen = specimenById.get(value);
+    if (!specimen) return;
+    if (!matchesBreedingRole(specimen, role)) {
+      setError(`${role} participant must use a ${role.toLowerCase()} or unsexed specimen.`);
+      setStatusMessage(null);
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      [key]: specimen.id,
+      [nameKey]: specimen.name,
+      species: specimen.species || prev.species,
+    }));
+    if (statusMessage) setStatusMessage(null);
+    if (error) setError(null);
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const linkedFemale = form.femaleSpecimenId ? specimenById.get(form.femaleSpecimenId) : undefined;
+    if (linkedFemale && !matchesBreedingRole(linkedFemale, "Female")) {
+      setError("Female participant must use a female or unsexed specimen.");
+      return;
+    }
+    const linkedMale = form.maleSpecimenId ? specimenById.get(form.maleSpecimenId) : undefined;
+    if (linkedMale && !matchesBreedingRole(linkedMale, "Male")) {
+      setError("Male participant must use a male or unsexed specimen.");
+      return;
+    }
+    if (form.femaleSpecimenId && form.maleSpecimenId && form.femaleSpecimenId === form.maleSpecimenId) {
+      setError("Female and male specimens must be different.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -300,29 +402,133 @@ export default function BreedingView({ entries, onCreate, onUpdate, onDelete, on
           </div>
         </CardHeader>
         <CardContent>
+          {readOnly ? (
+            <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] p-3 text-sm text-[rgb(var(--text))]">
+              Read-only preview. Sign in as the owner to add, edit, or remove breeding logs.
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                  Female specimen
+                  Female handling
                 </label>
-                <Input
-                  placeholder="e.g., Female #1"
-                  value={form.femaleSpecimen}
-                  onChange={(e) => handleChange("femaleSpecimen")(e.target.value)}
-                />
+                <select
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={form.femaleSpecimenMode}
+                  onChange={(e) => handleParticipantModeChange("femaleSpecimenMode", "femaleSpecimenId", e.target.value as BreedingFormState["femaleSpecimenMode"])}
+                >
+                  {specimens.length > 0 && <option value="existing">Attach existing specimen</option>}
+                  <option value="create">Create new specimen record</option>
+                  <option value="manual">Keep manual only</option>
+                </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                  Male specimen
+                  Male handling
                 </label>
-                <Input
-                  placeholder="e.g., Male #3"
-                  value={form.maleSpecimen}
-                  onChange={(e) => handleChange("maleSpecimen")(e.target.value)}
-                />
+                <select
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={form.maleSpecimenMode}
+                  onChange={(e) => handleParticipantModeChange("maleSpecimenMode", "maleSpecimenId", e.target.value as BreedingFormState["maleSpecimenMode"])}
+                >
+                  {specimens.length > 0 && <option value="existing">Attach existing specimen</option>}
+                  <option value="create">Create new specimen record</option>
+                  <option value="manual">Keep manual only</option>
+                </select>
               </div>
             </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              {form.femaleSpecimenMode === "existing" && specimens.length > 0 ? (
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Link female specimen
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                    value={form.femaleSpecimenId}
+                    onChange={(e) => handleLinkedSpecimenChange("femaleSpecimenId", "femaleSpecimen", "Female", e.target.value)}
+                  >
+                    <option value="">Select specimen</option>
+                    {specimens.filter((specimen) => matchesBreedingRole(specimen, "Female")).map((specimen) => (
+                      <option key={`female-${specimen.id}`} value={specimen.id}>
+                        {formatSpecimenLabel(specimen, duplicateNameCounts.get(specimen.name) ?? 1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+              {form.maleSpecimenMode === "existing" && specimens.length > 0 ? (
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Link male specimen
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                    value={form.maleSpecimenId}
+                    onChange={(e) => handleLinkedSpecimenChange("maleSpecimenId", "maleSpecimen", "Male", e.target.value)}
+                  >
+                    <option value="">Select specimen</option>
+                    {specimens.filter((specimen) => matchesBreedingRole(specimen, "Male")).map((specimen) => (
+                      <option key={`male-${specimen.id}`} value={specimen.id}>
+                        {formatSpecimenLabel(specimen, duplicateNameCounts.get(specimen.name) ?? 1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              {form.femaleSpecimenMode === "existing" && linkedFemale ? (
+                <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">Female</p>
+                  <p className="mt-1 font-medium text-[rgb(var(--text))]">{linkedFemale.name}</p>
+                  {linkedFemale.species && <p className="text-sm italic text-[rgb(var(--text-soft))]">{linkedFemale.species}</p>}
+                  {linkedFemale.sex && linkedFemale.sex !== "Unknown" && (
+                    <p className="text-xs text-[rgb(var(--text-subtle))]">{linkedFemale.sex}</p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Female specimen
+                  </label>
+                  <Input
+                    placeholder="e.g., Female #1"
+                    value={form.femaleSpecimen}
+                    onChange={(e) => handleChange("femaleSpecimen")(e.target.value)}
+                  />
+                </div>
+              )}
+              {form.maleSpecimenMode === "existing" && linkedMale ? (
+                <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">Male</p>
+                  <p className="mt-1 font-medium text-[rgb(var(--text))]">{linkedMale.name}</p>
+                  {linkedMale.species && <p className="text-sm italic text-[rgb(var(--text-soft))]">{linkedMale.species}</p>}
+                  {linkedMale.sex && linkedMale.sex !== "Unknown" && (
+                    <p className="text-xs text-[rgb(var(--text-subtle))]">{linkedMale.sex}</p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Male specimen
+                  </label>
+                  <Input
+                    placeholder="e.g., Male #3"
+                    value={form.maleSpecimen}
+                    onChange={(e) => handleChange("maleSpecimen")(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+            {(form.femaleSpecimenMode === "create" || form.maleSpecimenMode === "create") && (
+              <p className="text-xs text-[rgb(var(--text-subtle))]">
+                Any participant set to create will become a new specimen record before this breeding log is saved, even if another specimen already has the same name.
+              </p>
+            )}
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
@@ -546,6 +752,7 @@ export default function BreedingView({ entries, onCreate, onUpdate, onDelete, on
               {error && <span className="text-sm text-[rgb(var(--danger))]">{error}</span>}
             </div>
           </form>
+          )}
         </CardContent>
       </Card>
 
@@ -705,28 +912,30 @@ export default function BreedingView({ entries, onCreate, onUpdate, onDelete, on
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(entry)}
-                      disabled={saving || deletingId === entry.id}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(entry.id)}
-                      disabled={deletingId === entry.id}
-                      className="text-[rgb(var(--danger))]"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(entry)}
+                        disabled={saving || deletingId === entry.id}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(entry.id)}
+                        disabled={deletingId === entry.id}
+                        className="text-[rgb(var(--danger))]"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="grid sm:grid-cols-4 gap-3">

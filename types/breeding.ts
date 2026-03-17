@@ -6,8 +6,12 @@ type EggSacStatus = "Not Laid" | "Laid" | "Pulled" | "Failed" | "Hatched";
 export type BreedingEntry = {
   id: string;
   femaleSpecimenId?: string;
+  manualFemaleSpecimen?: boolean;
+  detachedFemaleSpecimen?: boolean;
   femaleSpecimen?: string;
   maleSpecimenId?: string;
+  manualMaleSpecimen?: boolean;
+  detachedMaleSpecimen?: boolean;
   maleSpecimen?: string;
   species?: string;
   pairingDate: string;
@@ -26,7 +30,11 @@ export type BreedingEntry = {
 };
 
 export type BreedingFormState = {
+  femaleSpecimenMode: "manual" | "existing" | "create";
+  femaleSpecimenId: string;
   femaleSpecimen: string;
+  maleSpecimenMode: "manual" | "existing" | "create";
+  maleSpecimenId: string;
   maleSpecimen: string;
   species: string;
   pairingDate: string;

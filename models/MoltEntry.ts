@@ -5,6 +5,7 @@ const MoltEntrySchema = new Schema(
   {
     userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
     specimenId: { type: Types.ObjectId, ref: "Specimen", index: true },
+    detachedSpecimen: { type: Boolean, default: false },
     specimen: { type: String, trim: true },
     species: { type: String, trim: true },
     date: { type: Date, required: true },

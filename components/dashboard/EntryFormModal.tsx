@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { X, Upload, Trash2, Calendar, Droplets, Thermometer } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
-import { FormState, Attachment, Stage, FeedingOutcome, SizeUnit } from "@/types/molt";
-import { cToF, fToC, cmToInches, inchesToCm } from "@/lib/utils";
+import { FormState, Attachment, Stage, FeedingOutcome, SizeUnit, Specimen } from "@/types/molt";
+import { cToF, fToC, cmToInches, inchesToCm, formatDate } from "@/lib/utils";
 import { saveTempUnit } from "@/lib/temperature";
 import { saveSizeUnit } from "@/lib/size-unit";
 
@@ -15,6 +15,7 @@ interface EntryFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   formState: FormState;
+  specimens?: Specimen[];
   onFormChange: (updates: Partial<FormState>) => void;
   onSubmit: () => void;
   attachments: Attachment[];
@@ -29,6 +30,7 @@ export default function EntryFormModal({
   isOpen,
   onClose,
   formState,
+  specimens = [],
   onFormChange,
   onSubmit,
   attachments,
@@ -39,6 +41,13 @@ export default function EntryFormModal({
   currentCoverUrl,
 }: EntryFormModalProps) {
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const duplicateNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const specimen of specimens) {
+      counts.set(specimen.name, (counts.get(specimen.name) ?? 0) + 1);
+    }
+    return counts;
+  }, [specimens]);
 
   useEffect(() => {
     // Prevent body scroll when modal is open
@@ -195,6 +204,12 @@ export default function EntryFormModal({
     insertAtCursor(action);
   };
 
+  const formatSpecimenLabel = (specimen: Specimen) => {
+    const details = [specimen.species, specimen.sex && specimen.sex !== "Unknown" ? specimen.sex : undefined].filter(Boolean);
+    const suffix = (duplicateNameCounts.get(specimen.name) ?? 1) > 1 ? `Created ${formatDate(specimen.createdAt)}` : undefined;
+    return [specimen.name, details.join(" • "), suffix].filter(Boolean).join(" • ");
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -271,13 +286,53 @@ export default function EntryFormModal({
 
             {/* Specimen Name (optional) */}
             <div>
+              {specimens.length > 0 && (
+                <div className="mb-3">
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Link to existing specimen
+                  </label>
+                  <select
+                    className="select"
+                    value={formState.specimenId ?? ""}
+                    onChange={(e) => {
+                      const nextId = e.target.value;
+                      if (!nextId) {
+                        onFormChange({ specimenId: "" });
+                        return;
+                      }
+                      const selectedSpecimen = specimens.find((specimen) => specimen.id === nextId);
+                      if (!selectedSpecimen) {
+                        onFormChange({ specimenId: "" });
+                        return;
+                      }
+                      onFormChange({
+                        specimenId: selectedSpecimen.id,
+                        specimen: selectedSpecimen.name,
+                        species: selectedSpecimen.species ?? "",
+                        sex: selectedSpecimen.sex ?? "",
+                      });
+                    }}
+                  >
+                    <option value="">Manual / unlinked entry</option>
+                    {specimens.map((specimen) => (
+                      <option key={specimen.id} value={specimen.id}>
+                        {formatSpecimenLabel(specimen)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-[rgb(var(--text-subtle))]">
+                    Choose a record here to keep the entry linked correctly when specimen names repeat.
+                  </p>
+                </div>
+              )}
+
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
                 Specimen Name <span className="text-[rgb(var(--text-subtle))] font-normal">(optional)</span>
               </label>
               <Input
                 placeholder="e.g., Rosie, Spider #1"
                 value={formState.specimen}
-                onChange={(e) => onFormChange({ specimen: e.target.value })}
+                onChange={(e) => onFormChange({ specimenId: "", specimen: e.target.value })}
               />
             </div>
 
@@ -290,7 +345,7 @@ export default function EntryFormModal({
                 required={isMolt}
                 placeholder="e.g., Brachypelma hamorii"
                 value={formState.species ?? ""}
-                onChange={(next) => onFormChange({ species: next })}
+                onChange={(next) => onFormChange({ specimenId: "", species: next })}
               />
             </div>
 

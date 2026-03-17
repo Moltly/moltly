@@ -7,18 +7,23 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import SpeciesAutosuggest from "@/components/ui/SpeciesAutosuggest";
 import type { HealthEntry, HealthFormState } from "@/types/health";
+import type { Specimen } from "@/types/molt";
 import { formatDate, formatRelativeDate } from "@/lib/utils";
 import { cToF, fToC } from "@/lib/utils";
 import { getSavedTempUnit, saveTempUnit } from "@/lib/temperature";
 
 interface HealthViewProps {
   entries: HealthEntry[];
+  specimens?: Specimen[];
+  readOnly?: boolean;
   onCreate: (form: HealthFormState) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onScheduleFollowUpRetry: (entry: HealthEntry) => Promise<void>;
 }
 
 const defaultForm = (): HealthFormState => ({
+  specimenMode: "manual",
+  specimenId: "",
   specimen: "",
   species: "",
   date: new Date().toISOString().slice(0, 10),
@@ -34,6 +39,12 @@ const defaultForm = (): HealthFormState => ({
   notes: "",
 });
 
+const formatSpecimenLabel = (specimen: Specimen, duplicateCount: number) => {
+  const details = [specimen.species, specimen.sex && specimen.sex !== "Unknown" ? specimen.sex : undefined].filter(Boolean);
+  const suffix = duplicateCount > 1 ? `Created ${formatDate(specimen.createdAt)}` : undefined;
+  return [specimen.name, details.join(" • "), suffix].filter(Boolean).join(" • ");
+};
+
 function conditionBadgeClass(condition: HealthEntry["condition"]): string {
   switch (condition) {
     case "Critical":
@@ -45,13 +56,22 @@ function conditionBadgeClass(condition: HealthEntry["condition"]): string {
   }
 }
 
-export default function HealthView({ entries, onCreate, onDelete, onScheduleFollowUpRetry }: HealthViewProps) {
+export default function HealthView({ entries, specimens = [], readOnly = false, onCreate, onDelete, onScheduleFollowUpRetry }: HealthViewProps) {
   const [form, setForm] = useState<HealthFormState>(defaultForm);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reschedulingId, setReschedulingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const specimenById = useMemo(() => new Map(specimens.map((specimen) => [specimen.id, specimen])), [specimens]);
+  const duplicateNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const specimen of specimens) {
+      counts.set(specimen.name, (counts.get(specimen.name) ?? 0) + 1);
+    }
+    return counts;
+  }, [specimens]);
+  const linkedSpecimen = form.specimenId ? specimenById.get(form.specimenId) : undefined;
 
   const stats = useMemo(() => {
     const sorted = [...entries].sort(
@@ -89,8 +109,37 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
     };
   }, [entries]);
 
+  const handleSpecimenModeChange = (value: HealthFormState["specimenMode"]) => {
+    setForm((prev) => ({
+      ...prev,
+      specimenMode: value,
+      specimenId: value === "existing" ? prev.specimenId : "",
+    }));
+    if (statusMessage) setStatusMessage(null);
+    if (error) setError(null);
+  };
+
   const handleChange = (key: keyof HealthFormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (statusMessage) setStatusMessage(null);
+    if (error) setError(null);
+  };
+
+  const handleSpecimenLinkChange = (value: string) => {
+    if (!value) {
+      setForm((prev) => ({ ...prev, specimenMode: "manual", specimenId: "" }));
+      if (statusMessage) setStatusMessage(null);
+      if (error) setError(null);
+      return;
+    }
+    const specimen = specimenById.get(value);
+    if (!specimen) return;
+    setForm((prev) => ({
+      ...prev,
+      specimenId: specimen.id,
+      specimen: specimen.name,
+      species: specimen.species ?? "",
+    }));
     if (statusMessage) setStatusMessage(null);
     if (error) setError(null);
   };
@@ -152,29 +201,94 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
           </div>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                  Specimen
-                </label>
-                <Input
-                  placeholder="e.g., Rosie"
-                  value={form.specimen}
-                  onChange={(e) => handleChange("specimen")(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                  Species
-                </label>
-                <SpeciesAutosuggest
-                  placeholder="e.g., Brachypelma hamorii"
-                  value={form.species}
-                  onChange={(next) => handleChange("species")(next)}
-                />
-              </div>
+          {readOnly ? (
+            <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] p-3 text-sm text-[rgb(var(--text))]">
+              Read-only preview. Sign in as the owner to add or remove health logs.
             </div>
+          ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                Specimen handling
+              </label>
+              <select
+                className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                value={form.specimenMode}
+                onChange={(e) => handleSpecimenModeChange(e.target.value as HealthFormState["specimenMode"])}
+              >
+                {specimens.length > 0 && <option value="existing">Attach to existing specimen</option>}
+                <option value="create">Create new specimen record</option>
+                <option value="manual">Keep as manual note</option>
+              </select>
+            </div>
+
+            {form.specimenMode === "existing" && specimens.length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                  Attach to specimen
+                </label>
+                <select
+                  className="w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                  value={form.specimenId}
+                  onChange={(e) => handleSpecimenLinkChange(e.target.value)}
+                >
+                  <option value="">Manual / new specimen</option>
+                  {specimens.map((specimen) => (
+                    <option key={specimen.id} value={specimen.id}>
+                      {formatSpecimenLabel(specimen, duplicateNameCounts.get(specimen.name) ?? 1)}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-[rgb(var(--text-subtle))]">
+                  Pick an existing specimen to keep health notes attached to the right record, even if names repeat.
+                </p>
+              </div>
+            )}
+
+            {form.specimenMode === "existing" && linkedSpecimen ? (
+              <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-[rgb(var(--text))]">{linkedSpecimen.name}</p>
+                  {linkedSpecimen.species && (
+                    <span className="text-sm text-[rgb(var(--text-soft))] italic">{linkedSpecimen.species}</span>
+                  )}
+                  {linkedSpecimen.sex && linkedSpecimen.sex !== "Unknown" && (
+                    <span className="text-xs text-[rgb(var(--text-subtle))]">{linkedSpecimen.sex}</span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-[rgb(var(--text-subtle))]">
+                  This health log will be grouped into the specimen overview for this record.
+                </p>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Specimen
+                  </label>
+                  <Input
+                    placeholder="e.g., Rosie"
+                    value={form.specimen}
+                    onChange={(e) => handleChange("specimen")(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Species
+                  </label>
+                  <SpeciesAutosuggest
+                    placeholder="e.g., Brachypelma hamorii"
+                    value={form.species}
+                    onChange={(next) => handleChange("species")(next)}
+                  />
+                </div>
+              </div>
+            )}
+            {form.specimenMode === "create" && (
+              <p className="text-xs text-[rgb(var(--text-subtle))]">
+                Saving will create a new specimen record first, even if another specimen already has the same name.
+              </p>
+            )}
             <div className="grid sm:grid-cols-3 gap-4">
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-[rgb(var(--text))] mb-1.5">
@@ -338,6 +452,7 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
               {error && <span className="text-sm text-[rgb(var(--danger))]">{error}</span>}
             </div>
           </form>
+          )}
         </CardContent>
       </Card>
 
@@ -435,19 +550,21 @@ export default function HealthView({ entries, onCreate, onDelete, onScheduleFoll
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(entry.id)}
-                      disabled={deletingId === entry.id}
-                      className="text-[rgb(var(--danger))]"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </Button>
-                  </div>
+                  {!readOnly && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(entry.id)}
+                        disabled={deletingId === entry.id}
+                        className="text-[rgb(var(--danger))]"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid sm:grid-cols-4 gap-3 text-sm">

@@ -19,7 +19,7 @@ import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import CulturesView from "@/components/dashboard/CulturesView";
-import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit } from "@/types/molt";
+import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit, Specimen } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import type { ResearchStack, ResearchNote } from "@/types/research";
@@ -36,6 +36,7 @@ import { cmToInches, inchesToCm, formatDate } from "@/lib/utils";
 
 const defaultForm = (): FormState => ({
   entryType: "molt",
+  specimenId: "",
   specimen: "",
   species: "",
   sex: "",
@@ -81,7 +82,9 @@ const toCanonicalSize = (value: string, unit: SizeUnit): number | undefined => {
 };
 
 const buildBreedingPayload = (form: BreedingFormState, existingAttachments?: Attachment[]) => ({
+  femaleSpecimenId: form.femaleSpecimenId,
   femaleSpecimen: form.femaleSpecimen.trim() || undefined,
+  maleSpecimenId: form.maleSpecimenId,
   maleSpecimen: form.maleSpecimen.trim() || undefined,
   species: form.species.trim() || undefined,
   pairingDate: form.pairingDate,
@@ -102,6 +105,7 @@ const buildMoltPayloadFromEntry = (entry: MoltEntry) => {
   const isFeeding = entry.entryType === "feeding";
   return {
     entryType: entry.entryType,
+    specimenId: entry.specimenId ?? undefined,
     specimen: entry.specimen ?? undefined,
     species: entry.species ?? undefined,
     date: entry.date,
@@ -166,6 +170,8 @@ export default function MobileDashboard() {
     breedingEntries,
     setBreedingEntries,
     specimenCovers,
+    setSpecimenCovers,
+    refreshSpecimenCovers,
     updateSpecimenCover,
     stacks,
     setStacks,
@@ -214,6 +220,7 @@ export default function MobileDashboard() {
   const [wscaSyncing, setWscaSyncing] = useState(false);
   const [wscaSyncStatus, setWscaSyncStatus] = useState<string | null>(null);
   const specimenParam = searchParams?.get("specimen");
+  const specimenIdParam = searchParams?.get("specimenId");
   const speciesParam = searchParams?.get("species") || "";
   const noteParam = searchParams?.get("note") || "";
   const ownerParam = searchParams?.get("owner") || "";
@@ -221,6 +228,7 @@ export default function MobileDashboard() {
   const [shareImported, setShareImported] = useState(false);
   const [importingShare, setImportingShare] = useState(false);
   const [sharePreviewData, setSharePreviewData] = useState<{
+    specimen: Specimen | null;
     entries: MoltEntry[];
     health: HealthEntry[];
     breeding: BreedingEntry[];
@@ -229,23 +237,25 @@ export default function MobileDashboard() {
   const [sharePreviewError, setSharePreviewError] = useState<string | null>(null);
   const [sharePreviewLoading, setSharePreviewLoading] = useState(false);
   const deepLinkUrl = useMemo(() => {
-    if (!specimenParam) return null;
+    if (!specimenParam && !specimenIdParam) return null;
     const params = new URLSearchParams();
-    params.set("specimen", specimenParam);
+    if (specimenParam) params.set("specimen", specimenParam);
+    if (specimenIdParam) params.set("specimenId", specimenIdParam);
     if (speciesParam) params.set("species", speciesParam);
     if (ownerParam) params.set("owner", ownerParam);
     if (noteParam) params.set("note", noteParam);
     return `moltly://open?${params.toString()}`;
-  }, [specimenParam, speciesParam, ownerParam, noteParam]);
+  }, [specimenParam, specimenIdParam, speciesParam, ownerParam, noteParam]);
   const intentLink = useMemo(() => {
-    if (typeof window === "undefined" || !specimenParam) return null;
+    if (typeof window === "undefined" || (!specimenParam && !specimenIdParam)) return null;
     const params = new URLSearchParams();
-    params.set("specimen", specimenParam);
+    if (specimenParam) params.set("specimen", specimenParam);
+    if (specimenIdParam) params.set("specimenId", specimenIdParam);
     if (speciesParam) params.set("species", speciesParam);
     if (ownerParam) params.set("owner", ownerParam);
     if (noteParam) params.set("note", noteParam);
     return `intent://open?${params.toString()}#Intent;scheme=moltly;package=xyz.moltly.app;S.browser_fallback_url=${encodeURIComponent(window.location.href)};end;`;
-  }, [specimenParam, speciesParam, ownerParam, noteParam]);
+  }, [specimenParam, specimenIdParam, speciesParam, ownerParam, noteParam]);
   const importInputId = "moltly-import-input";
   const noteSaveTimers = useRef<Record<string, number>>({});
   const pendingNoteUpdates = useRef<Record<string, ResearchNote[]>>({});
@@ -291,31 +301,34 @@ export default function MobileDashboard() {
     }
   }, []);
 
-  const handleSetSpecimenCover = useCallback(
-    async (specimenKey: string, img: GalleryImage) => {
-      const url = img.url;
-      if (!url) return;
-      await updateSpecimenCover(specimenKey, url);
-    },
-    [updateSpecimenCover]
-  );
-
-  const handleUnsetSpecimenCover = useCallback(
-    async (specimenKey: string) => {
-      await updateSpecimenCover(specimenKey, null);
-    },
-    [updateSpecimenCover]
-  );
-
   const handleUpdateSpecimenCover = useCallback(
     async (specimenId: string, imageUrl: string | null) => {
       try {
         const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+        const specimenName = specimens.find((specimen) => specimen.id === specimenId)?.name || "Unnamed";
 
         // Optimistically update local state
-        setSpecimens((prev) =>
-          prev.map((s) => s.id === specimenId ? { ...s, imageUrl: imageUrl ?? undefined } : s)
-        );
+        setSpecimens((prev) => {
+          const nextSpecimens = prev.map((s) =>
+            s.id === specimenId ? { ...s, imageUrl: imageUrl === null ? "" : imageUrl ?? undefined } : s
+          );
+          const sameNameSpecimens = nextSpecimens.filter(
+            (specimen) => specimen.name.trim().toLowerCase() === specimenName.trim().toLowerCase()
+          );
+          if (sameNameSpecimens.length <= 1) {
+            const fallbackCoverUrl = sameNameSpecimens.find((specimen) => specimen.imageUrl)?.imageUrl;
+            setSpecimenCovers((prevCovers) => {
+              const nextCovers = { ...prevCovers };
+              if (fallbackCoverUrl) {
+                nextCovers[specimenName] = fallbackCoverUrl;
+              } else {
+                delete nextCovers[specimenName];
+              }
+              return nextCovers;
+            });
+          }
+          return nextSpecimens;
+        });
 
         if (isSync && isOnline) {
           const res = await fetch(`/api/specimens/${specimenId}`, {
@@ -332,9 +345,86 @@ export default function MobileDashboard() {
         console.error("Failed to update specimen cover:", error);
         // Revert on failure
         refreshSpecimens();
+        refreshSpecimenCovers();
       }
     },
-    [isSync, queueOfflineMutation, setSpecimens, refreshSpecimens]
+    [isSync, queueOfflineMutation, specimens, setSpecimens, setSpecimenCovers, refreshSpecimens, refreshSpecimenCovers]
+  );
+
+  const handleSetSpecimenCover = useCallback(
+    async (specimenRef: string, img: GalleryImage) => {
+      const url = img.url;
+      if (!url) return;
+      const linkedSpecimen = specimens.find((specimen) => specimen.id === specimenRef);
+      if (linkedSpecimen) {
+        await handleUpdateSpecimenCover(specimenRef, url);
+        return;
+      }
+      await updateSpecimenCover(specimenRef, url);
+    },
+    [handleUpdateSpecimenCover, specimens, updateSpecimenCover]
+  );
+
+  const handleUnsetSpecimenCover = useCallback(
+    async (specimenRef: string) => {
+      const linkedSpecimen = specimens.find((specimen) => specimen.id === specimenRef);
+      if (linkedSpecimen) {
+        await handleUpdateSpecimenCover(specimenRef, null);
+        return;
+      }
+      await updateSpecimenCover(specimenRef, null);
+    },
+    [handleUpdateSpecimenCover, specimens, updateSpecimenCover]
+  );
+
+  const upsertSpecimenState = useCallback(
+    (specimen: Specimen) => {
+      setSpecimens((prev) => {
+        const withoutCurrent = prev.filter((item) => item.id !== specimen.id);
+        return [...withoutCurrent, specimen].sort((a, b) => a.name.localeCompare(b.name));
+      });
+    },
+    [setSpecimens]
+  );
+
+  const removeLocalSpecimenRecords = useCallback(
+    (specimenIds: string[]) => {
+      if (specimenIds.length === 0) return;
+      const ids = new Set(specimenIds);
+      setSpecimens((prev) => prev.filter((specimen) => !ids.has(specimen.id)));
+    },
+    [setSpecimens]
+  );
+
+  const createSpecimenRecord = useCallback(
+    async ({ name, species, sex }: { name: string; species?: string; sex?: "Male" | "Female" | "Unknown" | "Unsexed" }) => {
+      const trimmedName = name.trim();
+      const trimmedSpecies = species?.trim() || undefined;
+
+      if (!trimmedName) {
+        throw new Error("Specimen name is required to create a new specimen record.");
+      }
+
+      if (isSync) {
+        throw new Error("Use the log save flow to create synced specimens.");
+      }
+
+      const now = new Date().toISOString();
+      const localSpecimen: Specimen = {
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: trimmedName,
+        species: trimmedSpecies,
+        sex,
+        createdAt: now,
+        updatedAt: now,
+      };
+      upsertSpecimenState(localSpecimen);
+      return localSpecimen;
+    },
+    [isSync, upsertSpecimenState]
   );
 
   // Load research stacks
@@ -349,14 +439,14 @@ export default function MobileDashboard() {
   }, []);
 
   useEffect(() => {
-    if (specimenParam) {
-      setLinkedSpecimen(specimenParam);
+    if (specimenIdParam || specimenParam) {
+      setLinkedSpecimen(specimenIdParam || specimenParam);
       setActiveView("specimens");
     } else if (viewParam === "specimens") {
       setActiveView("specimens");
     }
     setShareImported(false);
-  }, [specimenParam, viewParam, ownerParam]);
+  }, [specimenIdParam, specimenParam, viewParam, ownerParam]);
 
   const currentUserId = session?.user?.id ?? "";
   const isOwnerMatch = Boolean(ownerParam && ownerParam === currentUserId);
@@ -376,11 +466,15 @@ export default function MobileDashboard() {
       setSharePreviewError(null);
       try {
         const params = new URLSearchParams();
-        params.set("specimen", linkedSpecimen);
+        if (specimenParam) params.set("specimen", specimenParam);
+        if (specimenIdParam) params.set("specimenId", specimenIdParam);
+        if (speciesParam) params.set("species", speciesParam);
+        if (!specimenParam && !specimenIdParam) params.set("specimen", linkedSpecimen);
         params.set("owner", ownerParam);
         const res = await fetch(`/api/specimens/shared?${params.toString()}`);
         if (!res.ok) throw new Error("Failed to load shared specimen");
         const data = (await res.json()) as {
+          specimen?: Specimen | null;
           entries?: MoltEntry[];
           health?: HealthEntry[];
           breeding?: BreedingEntry[];
@@ -388,6 +482,7 @@ export default function MobileDashboard() {
         };
         if (!cancelled) {
           setSharePreviewData({
+            specimen: data.specimen ?? null,
             entries: Array.isArray(data.entries) ? data.entries : [],
             health: Array.isArray(data.health) ? data.health : [],
             breeding: Array.isArray(data.breeding) ? data.breeding : [],
@@ -407,25 +502,36 @@ export default function MobileDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [isPreviewActive, linkedSpecimen, ownerParam]);
+  }, [isPreviewActive, linkedSpecimen, ownerParam, specimenIdParam, specimenParam, speciesParam]);
 
   // Once preview is done (either owner matches or copy completed), strip share-only params to hide the banner.
   useEffect(() => {
     if (isPreviewActive) return;
     if (!linkedSpecimen) return;
     if (!ownerParam && !noteParam) return;
-    const nextUrl = `/?view=specimens&specimen=${encodeURIComponent(linkedSpecimen)}`;
+    const params = new URLSearchParams();
+    params.set("view", "specimens");
+    if (specimenParam) params.set("specimen", specimenParam);
+    if (specimenIdParam) params.set("specimenId", specimenIdParam);
+    if (!specimenParam && !specimenIdParam) params.set("specimen", linkedSpecimen);
+    const nextUrl = `/?${params.toString()}`;
     router.replace(nextUrl);
-  }, [isPreviewActive, linkedSpecimen, ownerParam, noteParam, router]);
+  }, [isPreviewActive, linkedSpecimen, ownerParam, noteParam, router, specimenIdParam, specimenParam]);
   const previewEntries = sharePreviewData?.entries ?? [];
   const previewHealthEntries = sharePreviewData?.health ?? [];
   const previewBreedingEntries = sharePreviewData?.breeding ?? [];
+  const previewSpecimens = sharePreviewData?.specimen ? [sharePreviewData.specimen] : [];
   const displayEntries = isPreviewActive ? previewEntries : entries;
   const displayHealthEntries = isPreviewActive ? previewHealthEntries : healthEntries;
   const displayBreedingEntries = isPreviewActive ? previewBreedingEntries : breedingEntries;
+  const displaySpecimens = isPreviewActive ? previewSpecimens : specimens;
   const displayCovers =
     isPreviewActive && sharePreviewData?.cover && linkedSpecimen
-      ? { ...specimenCovers, [linkedSpecimen]: sharePreviewData.cover }
+      ? {
+          ...specimenCovers,
+          [linkedSpecimen]: sharePreviewData.cover,
+          ...(sharePreviewData.specimen?.name ? { [sharePreviewData.specimen.name]: sharePreviewData.cover } : {}),
+        }
       : specimenCovers;
 
   const refreshAccountStatus = useCallback(async () => {
@@ -483,6 +589,7 @@ export default function MobileDashboard() {
       const sizeUnit = prev.sizeUnit ?? getSavedSizeUnit();
       return {
         entryType: entry.entryType,
+        specimenId: entry.specimenId ?? "",
         specimen: entry.specimen ?? "",
         species: entry.species ?? "",
         sex: "",
@@ -557,10 +664,22 @@ export default function MobileDashboard() {
       return;
     }
 
+    const trimmedSpecimen = formState.specimen.trim();
+    const trimmedSpecies = formState.species.trim();
+    const selectedSpecimen = formState.specimenId
+      ? specimens.find((specimen) => specimen.id === formState.specimenId)
+      : undefined;
+    const existing = editingId ? entries.find((entry) => entry.id === editingId) : undefined;
+    const resolvedSpecimenId = formState.specimenId || undefined;
+    const resolvedSpecimenName = selectedSpecimen ? selectedSpecimen.name : trimmedSpecimen || undefined;
+    const resolvedSpecies = selectedSpecimen ? selectedSpecimen.species ?? (trimmedSpecies || undefined) : trimmedSpecies || undefined;
+    const shouldClearSpecimenId = Boolean(editingId && existing?.specimenId && !resolvedSpecimenId);
+
     const payload = {
       entryType: formState.entryType,
-      specimen: formState.specimen.trim() || undefined,
-      species: formState.species.trim() || undefined,
+      specimenId: shouldClearSpecimenId ? null : resolvedSpecimenId,
+      specimen: resolvedSpecimenName,
+      species: resolvedSpecies,
       date: formState.date,
       stage: isMolt ? formState.stage : undefined,
       oldSize: isMolt ? toCanonicalSize(formState.oldSize, formState.sizeUnit) : undefined,
@@ -579,7 +698,6 @@ export default function MobileDashboard() {
     if (!mode) return;
 
     const nowIso = new Date().toISOString();
-    const existing = editingId ? entries.find((e) => e.id === editingId) : undefined;
     const localOnlyExisting = isLocalOnly(existing);
     const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
 
@@ -636,6 +754,7 @@ export default function MobileDashboard() {
     const saved: MoltEntry = {
       id: localId,
       entryType: payload.entryType as EntryType,
+      specimenId: payload.specimenId ?? undefined,
       specimen: payload.specimen ?? "Unnamed",
       species: payload.species,
       date: payload.date,
@@ -710,9 +829,44 @@ export default function MobileDashboard() {
   const createHealthEntry = async (form: HealthFormState) => {
     if (!mode) throw new Error("Please wait until the session is ready.");
 
+    let specimenId = form.specimenId || undefined;
+    let specimenName = form.specimen.trim() || undefined;
+    let species = form.species.trim() || undefined;
+    let createSpecimen:
+      | {
+          name: string;
+          species?: string;
+        }
+      | undefined;
+
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    if (form.specimenMode === "create") {
+      if (isSync) {
+        if (!isOnline) {
+          throw new Error("Creating a new specimen while offline in sync mode is not supported yet.");
+        }
+        createSpecimen = {
+          name: form.specimen.trim(),
+          species,
+        };
+      } else {
+        const created = await createSpecimenRecord({
+          name: form.specimen,
+          species: form.species,
+        });
+        specimenId = created.id;
+        specimenName = created.name;
+        species = created.species ?? species;
+      }
+    }
+
     const payload = {
-      specimen: form.specimen.trim() || undefined,
-      species: form.species.trim() || undefined,
+      autoLinkSpecimen: form.specimenMode !== "manual",
+      createSpecimen,
+      specimenId,
+      specimen: specimenName,
+      species,
       date: form.date,
       enclosureDimensions: form.enclosureDimensions.trim() || undefined,
       temperature: parseNumber(form.temperature),
@@ -726,8 +880,6 @@ export default function MobileDashboard() {
       notes: form.notes.trim() || undefined,
       attachments: [] as Attachment[],
     };
-
-    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
 
     if (isSync && isOnline) {
       try {
@@ -743,6 +895,11 @@ export default function MobileDashboard() {
         }
         const saved = (await res.json()) as HealthEntry;
         setHealthEntries((prev) => [saved, ...prev]);
+        if (createSpecimen) {
+          try {
+            await refreshSpecimens();
+          } catch {}
+        }
         if (saved.followUpDate) {
           try {
             await scheduleReminderNotification({
@@ -756,7 +913,10 @@ export default function MobileDashboard() {
           }
         }
         return;
-      } catch {
+      } catch (err) {
+        if (createSpecimen) {
+          throw err instanceof Error ? err : new Error("Unable to save health entry while creating a specimen.");
+        }
         // Network error; fall back to offline flow.
       }
     }
@@ -768,6 +928,8 @@ export default function MobileDashboard() {
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const base: HealthEntry = {
       id: localId,
+      specimenId: payload.specimenId,
+      manualSpecimen: payload.autoLinkSpecimen === false,
       specimen: payload.specimen,
       species: payload.species,
       date: payload.date,
@@ -854,10 +1016,94 @@ export default function MobileDashboard() {
 
   const createBreedingEntry = async (form: BreedingFormState) => {
     if (!mode) throw new Error("Please wait until the session is ready.");
+    if (form.femaleSpecimenId && form.maleSpecimenId && form.femaleSpecimenId === form.maleSpecimenId) {
+      throw new Error("Female and male specimens must be different.");
+    }
 
-    const payload = buildBreedingPayload(form);
+    const sharedSpecies = form.species.trim() || undefined;
+    let femaleSpecimenId = form.femaleSpecimenId || undefined;
+    let femaleSpecimen = form.femaleSpecimen.trim() || undefined;
+    let maleSpecimenId = form.maleSpecimenId || undefined;
+    let maleSpecimen = form.maleSpecimen.trim() || undefined;
+    let createFemaleSpecimen:
+      | {
+          name: string;
+          species?: string;
+          sex: "Female";
+        }
+      | undefined;
+    let createMaleSpecimen:
+      | {
+          name: string;
+          species?: string;
+          sex: "Male";
+        }
+      | undefined;
+    const createdLocalSpecimenIds: string[] = [];
 
     const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    try {
+      if (form.femaleSpecimenMode === "create") {
+        if (isSync) {
+          if (!isOnline) {
+            throw new Error("Creating a new specimen while offline in sync mode is not supported yet.");
+          }
+          createFemaleSpecimen = {
+            name: form.femaleSpecimen.trim(),
+            species: sharedSpecies,
+            sex: "Female",
+          };
+        } else {
+          const created = await createSpecimenRecord({
+            name: form.femaleSpecimen,
+            species: sharedSpecies,
+            sex: "Female",
+          });
+          createdLocalSpecimenIds.push(created.id);
+          femaleSpecimenId = created.id;
+          femaleSpecimen = created.name;
+        }
+      }
+
+      if (form.maleSpecimenMode === "create") {
+        if (isSync) {
+          if (!isOnline) {
+            throw new Error("Creating a new specimen while offline in sync mode is not supported yet.");
+          }
+          createMaleSpecimen = {
+            name: form.maleSpecimen.trim(),
+            species: sharedSpecies,
+            sex: "Male",
+          };
+        } else {
+          const created = await createSpecimenRecord({
+            name: form.maleSpecimen,
+            species: sharedSpecies,
+            sex: "Male",
+          });
+          createdLocalSpecimenIds.push(created.id);
+          maleSpecimenId = created.id;
+          maleSpecimen = created.name;
+        }
+      }
+    } catch (error) {
+      removeLocalSpecimenRecords(createdLocalSpecimenIds);
+      throw error;
+    }
+
+    const payload = {
+      ...buildBreedingPayload(form),
+      autoLinkFemaleSpecimen: form.femaleSpecimenMode !== "manual",
+      createFemaleSpecimen,
+      femaleSpecimenId,
+      femaleSpecimen,
+      autoLinkMaleSpecimen: form.maleSpecimenMode !== "manual",
+      createMaleSpecimen,
+      maleSpecimenId,
+      maleSpecimen,
+      species: sharedSpecies,
+    };
 
     if (isSync && isOnline) {
       try {
@@ -873,9 +1119,17 @@ export default function MobileDashboard() {
         }
         const saved = (await res.json()) as BreedingEntry;
         setBreedingEntries((prev) => [saved, ...prev]);
+        if (createFemaleSpecimen || createMaleSpecimen) {
+          try {
+            await refreshSpecimens();
+          } catch {}
+        }
         await syncBreedingReminder(undefined, saved);
         return;
-      } catch {
+      } catch (err) {
+        if (createFemaleSpecimen || createMaleSpecimen) {
+          throw err instanceof Error ? err : new Error("Unable to save breeding entry while creating specimens.");
+        }
         // Network error; fall back to offline flow.
       }
     }
@@ -887,7 +1141,11 @@ export default function MobileDashboard() {
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const base: BreedingEntry = {
       id: localId,
+      femaleSpecimenId: payload.femaleSpecimenId,
+      manualFemaleSpecimen: payload.autoLinkFemaleSpecimen === false,
       femaleSpecimen: payload.femaleSpecimen,
+      maleSpecimenId: payload.maleSpecimenId,
+      manualMaleSpecimen: payload.autoLinkMaleSpecimen === false,
       maleSpecimen: payload.maleSpecimen,
       species: payload.species,
       pairingDate: payload.pairingDate,
@@ -967,10 +1225,96 @@ export default function MobileDashboard() {
       throw new Error("Breeding entry not found.");
     }
 
-    const payload = buildBreedingPayload(form, existing.attachments);
+    if (form.femaleSpecimenId && form.maleSpecimenId && form.femaleSpecimenId === form.maleSpecimenId) {
+      throw new Error("Female and male specimens must be different.");
+    }
+
+    const sharedSpecies = form.species.trim() || undefined;
+    let femaleSpecimenId = form.femaleSpecimenId || undefined;
+    let femaleSpecimen = form.femaleSpecimen.trim() || undefined;
+    let maleSpecimenId = form.maleSpecimenId || undefined;
+    let maleSpecimen = form.maleSpecimen.trim() || undefined;
+    let createFemaleSpecimen:
+      | {
+          name: string;
+          species?: string;
+          sex: "Female";
+        }
+      | undefined;
+    let createMaleSpecimen:
+      | {
+          name: string;
+          species?: string;
+          sex: "Male";
+        }
+      | undefined;
+    const createdLocalSpecimenIds: string[] = [];
+
+    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    try {
+      if (form.femaleSpecimenMode === "create") {
+        if (isSync) {
+          if (!isOnline) {
+            throw new Error("Creating a new specimen while offline in sync mode is not supported yet.");
+          }
+          createFemaleSpecimen = {
+            name: form.femaleSpecimen.trim(),
+            species: sharedSpecies,
+            sex: "Female",
+          };
+        } else {
+          const created = await createSpecimenRecord({
+            name: form.femaleSpecimen,
+            species: sharedSpecies,
+            sex: "Female",
+          });
+          createdLocalSpecimenIds.push(created.id);
+          femaleSpecimenId = created.id;
+          femaleSpecimen = created.name;
+        }
+      }
+
+      if (form.maleSpecimenMode === "create") {
+        if (isSync) {
+          if (!isOnline) {
+            throw new Error("Creating a new specimen while offline in sync mode is not supported yet.");
+          }
+          createMaleSpecimen = {
+            name: form.maleSpecimen.trim(),
+            species: sharedSpecies,
+            sex: "Male",
+          };
+        } else {
+          const created = await createSpecimenRecord({
+            name: form.maleSpecimen,
+            species: sharedSpecies,
+            sex: "Male",
+          });
+          createdLocalSpecimenIds.push(created.id);
+          maleSpecimenId = created.id;
+          maleSpecimen = created.name;
+        }
+      }
+    } catch (error) {
+      removeLocalSpecimenRecords(createdLocalSpecimenIds);
+      throw error;
+    }
+
+    const payload = {
+      ...buildBreedingPayload(form, existing.attachments),
+      autoLinkFemaleSpecimen: form.femaleSpecimenMode !== "manual",
+      createFemaleSpecimen,
+      femaleSpecimenId,
+      femaleSpecimen,
+      autoLinkMaleSpecimen: form.maleSpecimenMode !== "manual",
+      createMaleSpecimen,
+      maleSpecimenId,
+      maleSpecimen,
+      species: sharedSpecies,
+    };
 
     const localOnly = isLocalOnly(existing);
-    const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
 
     if (isSync && !localOnly && isOnline) {
       try {
@@ -986,9 +1330,17 @@ export default function MobileDashboard() {
         }
         const saved = (await res.json()) as BreedingEntry;
         setBreedingEntries((prev) => prev.map((entry) => (entry.id === id ? saved : entry)));
+        if (createFemaleSpecimen || createMaleSpecimen) {
+          try {
+            await refreshSpecimens();
+          } catch {}
+        }
         await syncBreedingReminder(existing, saved);
         return;
       } catch (err) {
+        if (createFemaleSpecimen || createMaleSpecimen) {
+          throw err instanceof Error ? err : new Error("Unable to update breeding entry while creating specimens.");
+        }
         if (err instanceof Error && isOnline) {
           throw err;
         }
@@ -1000,6 +1352,8 @@ export default function MobileDashboard() {
     const base: BreedingEntry = {
       ...existing,
       ...payload,
+      manualFemaleSpecimen: payload.autoLinkFemaleSpecimen === false,
+      manualMaleSpecimen: payload.autoLinkMaleSpecimen === false,
       id: existing.id,
       createdAt: existing.createdAt,
       updatedAt: now,
@@ -1726,11 +2080,12 @@ export default function MobileDashboard() {
                               setImportSuccess("Import complete. Reloading data…");
                               // Reload entries and research
                               try {
-                                const [eRes, hRes, bRes, rRes] = await Promise.all([
+                                const [eRes, hRes, bRes, rRes, sRes] = await Promise.all([
                                   fetch("/api/logs", { credentials: "include" }),
                                   fetch("/api/health", { credentials: "include" }),
                                   fetch("/api/breeding", { credentials: "include" }),
                                   fetch("/api/research", { credentials: "include" }),
+                                  fetch("/api/specimens?includeArchived=true", { credentials: "include" }),
                                 ]);
                                 if (eRes.ok) setEntries(await eRes.json());
                                 if (hRes.ok) setHealthEntries(await hRes.json());
@@ -1739,6 +2094,10 @@ export default function MobileDashboard() {
                                   const r = (await rRes.json()) as ResearchStack[];
                                   setStacks(Array.isArray(r) ? r : []);
                                   if (r.length > 0) setSelectedStackId(r[0].id);
+                                }
+                                if (sRes.ok) {
+                                  const s = (await sRes.json()) as Specimen[];
+                                  setSpecimens(Array.isArray(s) ? s : []);
                                 }
                               } catch { }
                             } catch (err) {
@@ -1793,11 +2152,13 @@ export default function MobileDashboard() {
                           try {
                             // Build local export payload
                             const payload = {
-                              version: 2,
+                              version: 3,
                               exportedAt: new Date().toISOString(),
                               entries,
                               health: healthEntries,
                               breeding: breedingEntries,
+                              specimens,
+                              specimenCovers,
                               research: stacks,
                             };
                             const text = JSON.stringify(payload);
@@ -1831,15 +2192,40 @@ export default function MobileDashboard() {
                                 entries?: MoltEntry[];
                                 health?: HealthEntry[];
                                 breeding?: BreedingEntry[];
+                                specimens?: Specimen[];
+                                specimenCovers?: Record<string, string>;
                                 research?: ResearchStack[];
                               };
                               const nextEntries = Array.isArray(data.entries) ? (data.entries as MoltEntry[]) : [];
                               const nextHealth = Array.isArray(data.health) ? (data.health as HealthEntry[]) : [];
                               const nextBreeding = Array.isArray(data.breeding) ? (data.breeding as BreedingEntry[]) : [];
+                              const nextSpecimens = Array.isArray(data.specimens) ? (data.specimens as Specimen[]) : [];
                               const nextResearch = Array.isArray(data.research) ? (data.research as ResearchStack[]) : [];
+                              const importedLegacyCovers =
+                                data.specimenCovers && typeof data.specimenCovers === "object"
+                                  ? Object.entries(data.specimenCovers).reduce<Record<string, string>>((acc, [key, value]) => {
+                                      if (typeof key === "string" && typeof value === "string" && key.trim() && value.trim()) {
+                                        acc[key] = value;
+                                      }
+                                      return acc;
+                                    }, {})
+                                  : {};
+                              const specimenNameCounts = nextSpecimens.reduce<Record<string, number>>((acc, specimen) => {
+                                if (!specimen.name) return acc;
+                                acc[specimen.name] = (acc[specimen.name] ?? 0) + 1;
+                                return acc;
+                              }, {});
+                              const nextSpecimenCovers = nextSpecimens.reduce<Record<string, string>>((acc, specimen) => {
+                                if (specimen.name && specimen.imageUrl && specimenNameCounts[specimen.name] === 1) {
+                                  acc[specimen.name] = specimen.imageUrl;
+                                }
+                                return acc;
+                              }, { ...importedLegacyCovers });
                               setEntries(nextEntries as MoltEntry[]);
                               setHealthEntries(nextHealth as HealthEntry[]);
                               setBreedingEntries(nextBreeding as BreedingEntry[]);
+                              setSpecimens(nextSpecimens);
+                              setSpecimenCovers(nextSpecimenCovers);
                               setStacks(nextResearch);
                               if (nextResearch.length > 0) setSelectedStackId(nextResearch[0].id);
                               setImportSuccess("Import complete.");
@@ -1959,7 +2345,7 @@ export default function MobileDashboard() {
       <div className="max-w-screen-lg mx-auto px-4 py-4 pb-28">
         {isPreviewActive && (
           <div className="mb-4 p-3 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--bg-muted))] text-sm text-[rgb(var(--text))]">
-            Viewing shared specimen “{linkedSpecimen}” in read-only mode. Sign in to copy it into your account; original ownership stays with the sender.
+            Viewing shared specimen “{sharePreviewData?.specimen?.name || specimenParam || linkedSpecimen}” in read-only mode. Sign in to copy it into your account; original ownership stays with the sender.
             {sharePreviewLoading && (
               <div className="mt-2 text-xs text-[rgb(var(--text-subtle))]">Loading specimen history…</div>
             )}
@@ -1994,30 +2380,32 @@ export default function MobileDashboard() {
                         const res = await fetch("/api/specimens/copy", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ specimen: linkedSpecimen, ownerId: ownerParam }),
+                          body: JSON.stringify({
+                            specimen: specimenParam || linkedSpecimen,
+                            specimenId: specimenIdParam || undefined,
+                            species: speciesParam || undefined,
+                            ownerId: ownerParam,
+                          }),
                         });
                         if (!res.ok) {
                           const text = await res.text();
                           throw new Error(text || "Copy failed");
                         }
                         // Reload data to reflect the copied entries and cover
-                        const [logsRes, healthRes, breedingRes, coverRes] = await Promise.all([
+                        const [logsRes, healthRes, breedingRes, specimensRes] = await Promise.all([
                           fetch("/api/logs", { credentials: "include" }),
                           fetch("/api/health", { credentials: "include" }),
                           fetch("/api/breeding", { credentials: "include" }),
-                          fetch("/api/specimens", { credentials: "include" }),
+                          fetch("/api/specimens?includeArchived=true", { credentials: "include" }),
                         ]);
                         if (logsRes.ok) setEntries(await logsRes.json());
                         if (healthRes.ok) setHealthEntries(await healthRes.json());
                         if (breedingRes.ok) setBreedingEntries(await breedingRes.json());
-                        if (coverRes?.ok) {
-                          const data = (await coverRes.json()) as Array<{ key: string; imageUrl: string }>;
-                          for (const item of data) {
-                            if (item?.key && item?.imageUrl) {
-                              await updateSpecimenCover(item.key, item.imageUrl);
-                            }
-                          }
+                        if (specimensRes.ok) {
+                          const data = (await specimensRes.json()) as Specimen[];
+                          setSpecimens(Array.isArray(data) ? data : []);
                         }
+                        await refreshSpecimenCovers();
                       } else {
                         // Fallback for guest/local or missing owner: create a single note entry
                         const today = new Date().toISOString().slice(0, 10);
@@ -2026,10 +2414,11 @@ export default function MobileDashboard() {
                             ? `Copied from shared label${ownerParam ? ` (owner ${ownerParam})` : ""}. ${noteParam}`
                             : `Copied from shared label${ownerParam ? ` (owner ${ownerParam})` : ""}.`;
                         const now = new Date().toISOString();
+                        const sharedSpecimenName = sharePreviewData?.specimen?.name || specimenParam || linkedSpecimen;
                         const created: MoltEntry = {
                           id: `local-import-${Date.now()}`,
                           entryType: "note",
-                          specimen: linkedSpecimen,
+                          specimen: sharedSpecimenName,
                           species: speciesParam || undefined,
                           date: today,
                           notes,
@@ -2061,13 +2450,13 @@ export default function MobileDashboard() {
         )}
         {/* Keep views mounted to avoid reloading images on tab swap */}
         <div style={{ display: activeView === "overview" ? undefined : "none" }}>
-          <OverviewView entries={displayEntries} specimens={specimens} onViewChange={setActiveView} covers={displayCovers} />
+          <OverviewView entries={displayEntries} specimens={displaySpecimens} onViewChange={setActiveView} covers={displayCovers} />
         </div>
 
         <div style={{ display: activeView === "activity" ? undefined : "none" }}>
           <ActivityView
             entries={displayEntries}
-            specimens={specimens}
+            specimens={displaySpecimens}
             onEdit={onEdit}
             onDelete={onDelete}
             onSetCover={handleSetSpecimenCover}
@@ -2080,13 +2469,13 @@ export default function MobileDashboard() {
         <div style={{ display: activeView === "specimens" ? undefined : "none" }}>
           <SpecimensView
             entries={displayEntries}
-            specimens={specimens}
+            specimens={displaySpecimens}
             covers={displayCovers}
             healthEntries={displayHealthEntries}
             breedingEntries={displayBreedingEntries}
             readOnly={isPreviewActive}
             initialFocusSpecimen={linkedSpecimen ?? undefined}
-            ownerId={session?.user?.id || undefined}
+            ownerId={isPreviewActive ? ownerParam || undefined : session?.user?.id || undefined}
             sizeUnit={formState.sizeUnit}
             onUpdateCover={isPreviewActive ? undefined : handleUpdateSpecimenCover}
             onEdit={isPreviewActive ? undefined : onEdit}
@@ -2122,6 +2511,7 @@ export default function MobileDashboard() {
                   setAttachments([]);
                   setFormState({
                     ...defaultForm(),
+                    specimenId: specimenId || "",
                     entryType: "water",
                     specimen,
                     species: species || "",
@@ -2137,6 +2527,8 @@ export default function MobileDashboard() {
         <div style={{ display: activeView === "health" ? undefined : "none" }}>
           <HealthView
             entries={displayHealthEntries}
+            specimens={displaySpecimens}
+            readOnly={isPreviewActive}
             onCreate={createHealthEntry}
             onDelete={async (id) => {
               if (!confirm("Delete this health entry?")) return;
@@ -2161,6 +2553,8 @@ export default function MobileDashboard() {
         <div style={{ display: activeView === "breeding" ? undefined : "none" }}>
           <BreedingView
             entries={displayBreedingEntries}
+            specimens={displaySpecimens}
+            readOnly={isPreviewActive}
             onCreate={createBreedingEntry}
             onUpdate={updateBreedingEntry}
             onDelete={async (id) => {
@@ -2287,13 +2681,23 @@ export default function MobileDashboard() {
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
         formState={formState}
+        specimens={specimens}
         onFormChange={(u) => setFormState((p) => ({ ...p, ...u }))}
         onSubmit={onSubmit}
         attachments={attachments}
         onAttachmentsChange={setAttachments}
-        onSetCover={(att) => handleSetSpecimenCover(formState.specimen || "Unnamed", { id: att.id, url: att.url, name: att.name })}
-        onUnsetCover={() => handleUnsetSpecimenCover(formState.specimen || "Unnamed")}
-        currentCoverUrl={specimenCovers[formState.specimen || "Unnamed"]}
+        onSetCover={(att) => handleSetSpecimenCover(formState.specimenId || formState.specimen || "Unnamed", { id: att.id, url: att.url, name: att.name })}
+        onUnsetCover={() => handleUnsetSpecimenCover(formState.specimenId || formState.specimen || "Unnamed")}
+        currentCoverUrl={
+          formState.specimenId
+            ? (() => {
+                const selectedSpecimen = specimens.find((specimen) => specimen.id === formState.specimenId);
+                if (!selectedSpecimen) return specimenCovers[formState.specimen || "Unnamed"];
+                if (selectedSpecimen.imageUrl !== undefined) return selectedSpecimen.imageUrl || undefined;
+                return specimenCovers[selectedSpecimen.name];
+              })()
+            : specimenCovers[formState.specimen || "Unnamed"]
+        }
         isEditing={Boolean(editingId)}
       />
 

@@ -9,8 +9,16 @@ import {
 
 const temperatureUnitEnum = z.enum(["C", "F"]);
 const conditionEnum = z.enum(["Stable", "Observation", "Critical"]);
+const specimenSexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
+const createSpecimenSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  species: optionalTrimmedString(160),
+  sex: specimenSexEnum.optional(),
+});
 
 export const HealthEntryBaseSchema = z.object({
+  autoLinkSpecimen: z.boolean().optional(),
+  createSpecimen: createSpecimenSchema.optional(),
   specimenId: optionalTrimmedString(32),
   specimen: optionalTrimmedString(160),
   species: optionalTrimmedString(160),
@@ -29,6 +37,8 @@ export const HealthEntryBaseSchema = z.object({
 });
 
 export const HealthEntryCreateSchema = HealthEntryBaseSchema.transform((data) => ({
+  autoLinkSpecimen: data.autoLinkSpecimen ?? true,
+  createSpecimen: data.createSpecimen,
   specimenId: data.specimenId,
   specimen: data.specimen,
   species: data.species,

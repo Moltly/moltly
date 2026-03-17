@@ -6,6 +6,17 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
   {
+    version: "2.1.0",
+    date: "2026-03-16",
+    highlights: [
+      "Add specimen-aware import and export for specimen records, covers, and linked IDs.",
+      "Allow health and breeding entries to link to existing specimens or create new specimen records.",
+      "Improve duplicate specimen handling across specimen cards, sharing links, and QR labels.",
+      "Improve specimen copy so covers, attachments, and linked assets carry over more reliably.",
+      "Expand specimen views with linked health and breeding activity plus better cover syncing."
+    ]
+  },
+  {
     version: "2.0.6",
     date: "2026-01-05",
     highlights: [
