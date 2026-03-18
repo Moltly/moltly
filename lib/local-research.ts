@@ -44,7 +44,9 @@ function parseStacks(raw: string | null): ResearchStack[] {
           content: note.content,
           tags: note.tags,
           createdAt: note.createdAt,
-          updatedAt: note.updatedAt
+          updatedAt: note.updatedAt,
+          ...(note.attachments ? { attachments: note.attachments } : {}),
+          ...(note.coverIndex != null ? { coverIndex: note.coverIndex } : {}),
         })),
         createdAt: stack.createdAt,
         updatedAt: stack.updatedAt

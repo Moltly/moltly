@@ -1,3 +1,5 @@
+import type { Attachment } from "./molt";
+
 export type ResearchNote = {
   id: string;
   title: string;
@@ -14,6 +16,9 @@ export type ResearchNote = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // Attachments & cover
+  attachments?: Attachment[];
+  coverIndex?: number;
   // E2E encryption fields
   isEncrypted?: boolean;
   encryptionSalt?: string;

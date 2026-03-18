@@ -15,6 +15,14 @@ export type StackPayload = {
   isEncryptedStack?: unknown;
 };
 
+type SanitizedAttachment = {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  addedAt: string;
+};
+
 type SanitizedResearchNote = {
   id: string;
   title: string;
@@ -31,6 +39,9 @@ type SanitizedResearchNote = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // Attachments & cover
+  attachments?: SanitizedAttachment[];
+  coverIndex?: number;
   // E2E encryption fields
   isEncrypted?: boolean;
   encryptionSalt?: string;
@@ -72,6 +83,9 @@ type NormalizedResearchNote = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // Attachments & cover
+  attachments?: SanitizedAttachment[];
+  coverIndex?: number;
   // E2E encryption fields
   isEncrypted?: boolean;
   encryptionSalt?: string;
@@ -202,6 +216,29 @@ function sanitizeNote(note: unknown): SanitizedResearchNote | null {
     ...(sourceChannelId ? { sourceChannelId } : {}),
     ...(sourceGuildId ? { sourceGuildId } : {}),
     ...(authorId ? { authorId } : {}),
+    // Attachments & cover
+    ...(Array.isArray(record.attachments) && record.attachments.length > 0
+      ? {
+          attachments: record.attachments
+            .filter((a): a is Record<string, unknown> => Boolean(a) && typeof a === "object")
+            .filter(
+              (a) =>
+                typeof a.id === "string" &&
+                typeof a.name === "string" &&
+                typeof a.url === "string" &&
+                typeof a.type === "string" &&
+                typeof a.addedAt === "string"
+            )
+            .map((a) => ({
+              id: String(a.id),
+              name: String(a.name),
+              url: String(a.url),
+              type: String(a.type),
+              addedAt: String(a.addedAt),
+            })),
+        }
+      : {}),
+    ...(typeof record.coverIndex === "number" && Number.isFinite(record.coverIndex) ? { coverIndex: record.coverIndex } : {}),
     // E2E encryption fields
     ...(record.isEncrypted === true ? { isEncrypted: true } : {}),
     ...(typeof record.encryptionSalt === "string" && record.encryptionSalt.length > 0 ? { encryptionSalt: record.encryptionSalt } : {}),
@@ -413,6 +450,27 @@ export function normalizeStack(document: unknown): NormalizedResearchStack | nul
         if (sourceChannelId) normalizedNote.sourceChannelId = sourceChannelId;
         if (sourceGuildId) normalizedNote.sourceGuildId = sourceGuildId;
         if (authorId) normalizedNote.authorId = authorId;
+
+        // Attachments & cover
+        if (Array.isArray(noteRecord.attachments) && noteRecord.attachments.length > 0) {
+          normalizedNote.attachments = noteRecord.attachments
+            .filter((a): a is Record<string, unknown> => Boolean(a) && typeof a === "object")
+            .filter(
+              (a) =>
+                typeof a.id === "string" &&
+                typeof a.url === "string"
+            )
+            .map((a) => ({
+              id: String(a.id),
+              name: typeof a.name === "string" ? a.name : "",
+              url: String(a.url),
+              type: typeof a.type === "string" ? a.type : "image/jpeg",
+              addedAt: typeof a.addedAt === "string" ? a.addedAt : new Date().toISOString(),
+            }));
+        }
+        if (typeof noteRecord.coverIndex === "number" && Number.isFinite(noteRecord.coverIndex)) {
+          normalizedNote.coverIndex = noteRecord.coverIndex;
+        }
 
         // E2E encryption fields
         if (noteRecord.isEncrypted === true) normalizedNote.isEncrypted = true;

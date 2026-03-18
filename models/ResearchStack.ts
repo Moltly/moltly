@@ -1,5 +1,13 @@
 import { Schema, model, models, Types } from "mongoose";
 
+type AttachmentDocument = {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  addedAt: string;
+};
+
 type ResearchNoteDocument = {
   id: string;
   title: string;
@@ -16,6 +24,9 @@ type ResearchNoteDocument = {
   sourceChannelId?: string;
   sourceGuildId?: string;
   authorId?: string;
+  // Attachments & cover
+  attachments?: AttachmentDocument[];
+  coverIndex?: number;
   // E2E encryption fields
   isEncrypted?: boolean;
   encryptionSalt?: string;
@@ -48,6 +59,18 @@ const ResearchNoteSchema = new Schema<ResearchNoteDocument>(
     sourceChannelId: { type: String, trim: true },
     sourceGuildId: { type: String, trim: true },
     authorId: { type: String, trim: true },
+    // Attachments & cover
+    attachments: {
+      type: [{
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        url: { type: String, required: true },
+        type: { type: String, required: true },
+        addedAt: { type: String, required: true },
+      }],
+      default: undefined
+    },
+    coverIndex: { type: Number },
     // E2E encryption fields
     isEncrypted: { type: Boolean, default: false },
     encryptionSalt: { type: String, trim: true },

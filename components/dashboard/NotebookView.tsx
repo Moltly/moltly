@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   BookOpen,
   Plus,
@@ -13,6 +13,14 @@ import {
   Copy,
   Lock,
   LockOpen,
+  List,
+  LayoutGrid,
+  Columns3,
+  Grid3x3,
+  StickyNote,
+  ImagePlus,
+  Star,
+  X,
 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
@@ -28,6 +36,9 @@ import {
   getCachedPasswordHash,
 } from "@/lib/note-crypto";
 import MarkdownRenderer from "@/components/ui/MarkdownRenderer";
+import CachedImage from "@/components/ui/CachedImage";
+import ImageGallery, { type GalleryImage } from "@/components/ui/ImageGallery";
+import type { Attachment } from "@/types/molt";
 
 interface NotebookViewProps {
   stacks: ResearchStack[];
@@ -42,6 +53,24 @@ interface NotebookViewProps {
   onDuplicateNote: (stackId: string, noteId: string) => void;
 }
 
+type NoteViewMode = "list" | "cards" | "board" | "masonry" | "sticky";
+
+const STICKY_COLORS = [
+  { bg: "rgb(254 240 138)", text: "rgb(113 63 18)", border: "rgb(250 204 21)" },   // yellow
+  { bg: "rgb(167 243 208)", text: "rgb(6 78 59)", border: "rgb(52 211 153)" },     // green
+  { bg: "rgb(191 219 254)", text: "rgb(30 58 138)", border: "rgb(96 165 250)" },   // blue
+  { bg: "rgb(253 164 175)", text: "rgb(136 19 55)", border: "rgb(251 113 133)" },  // pink
+  { bg: "rgb(233 213 255)", text: "rgb(88 28 135)", border: "rgb(192 132 252)" },  // purple
+  { bg: "rgb(254 215 170)", text: "rgb(124 45 18)", border: "rgb(251 146 60)" },   // orange
+  { bg: "rgb(153 246 228)", text: "rgb(17 94 89)", border: "rgb(45 212 191)" },    // teal
+  { bg: "rgb(254 205 211)", text: "rgb(159 18 57)", border: "rgb(244 63 94)" },    // rose
+];
+
+const STICKY_ROTATIONS = [
+  "-rotate-1", "rotate-1", "-rotate-2", "rotate-2", "rotate-0",
+  "-rotate-1", "rotate-1", "-rotate-2",
+];
+
 export default function NotebookView({
   stacks,
   selectedStackId,
@@ -55,6 +84,7 @@ export default function NotebookView({
   onDuplicateNote,
 }: NotebookViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [noteViewMode, setNoteViewMode] = useState<NoteViewMode>("list");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [isCreating, setIsCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -716,15 +746,41 @@ export default function NotebookView({
                   )}
                 </Card>
 
-                {/* Notes search */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
-                  <Input
-                    placeholder="Search notes..."
-                    value={noteQuery}
-                    onChange={(e) => setNoteQuery(e.target.value)}
-                    className="pl-10"
-                  />
+                {/* Notes search + view toggle */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[rgb(var(--text-subtle))]" />
+                    <Input
+                      placeholder="Search notes..."
+                      value={noteQuery}
+                      onChange={(e) => setNoteQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <div className="flex items-center bg-[rgb(var(--bg-muted))] rounded-[var(--radius)] p-0.5 gap-0.5 shrink-0">
+                    {([
+                      { mode: "list" as NoteViewMode, icon: List, label: "List" },
+                      { mode: "cards" as NoteViewMode, icon: LayoutGrid, label: "Cards" },
+                      { mode: "board" as NoteViewMode, icon: Columns3, label: "Board" },
+                      { mode: "masonry" as NoteViewMode, icon: Grid3x3, label: "Masonry" },
+                      { mode: "sticky" as NoteViewMode, icon: StickyNote, label: "Sticky" },
+                    ]).map(({ mode, icon: Icon, label }) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setNoteViewMode(mode)}
+                        className={cn(
+                          "p-1.5 rounded-[calc(var(--radius)-2px)] transition-all",
+                          noteViewMode === mode
+                            ? "bg-[rgb(var(--surface))] text-[rgb(var(--primary))] shadow-[var(--shadow-sm)]"
+                            : "text-[rgb(var(--text-subtle))] hover:text-[rgb(var(--text-soft))]"
+                        )}
+                        title={label}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Notes */}
@@ -736,209 +792,423 @@ export default function NotebookView({
                     </Button>
                   </Card>
                 ) : (
-                  <div className="space-y-2">
-                    {filteredNotes.map((note) => {
-                      const isEditing = editingNoteId === note.id;
-                      const displayContent = getNoteDisplayContent(note);
-                      return (
-                        <Card key={note.id} className="p-3">
-                          {!isEditing ? (
-                            <button
-                              type="button"
-                              onClick={() => handleNoteClick(note)}
-                              className="w-full text-left"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    {note.isEncrypted && (
-                                      <Lock className="w-4 h-4 text-[rgb(var(--warning))] shrink-0" />
-                                    )}
-                                    <h4 className="font-medium truncate">{displayContent.title || "Untitled note"}</h4>
+                  <>
+                    {/* ── List View ── */}
+                    {noteViewMode === "list" && (
+                      <div className="space-y-2">
+                        {filteredNotes.map((note) => {
+                          const isEditing = editingNoteId === note.id;
+                          const displayContent = getNoteDisplayContent(note);
+                          return (
+                            <Card key={note.id} className="p-3">
+                              {!isEditing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleNoteClick(note)}
+                                  className="w-full text-left"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    {(() => {
+                                      const coverUrl = note.attachments?.[note.coverIndex ?? 0]?.url;
+                                      return coverUrl ? (
+                                        <div className="w-12 h-12 rounded-[var(--radius-sm)] overflow-hidden shrink-0">
+                                          <CachedImage src={coverUrl} alt="" className="w-full h-full object-cover" />
+                                        </div>
+                                      ) : null;
+                                    })()}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        {note.isEncrypted && (
+                                          <Lock className="w-4 h-4 text-[rgb(var(--warning))] shrink-0" />
+                                        )}
+                                        <h4 className="font-medium truncate">{displayContent.title || "Untitled note"}</h4>
+                                      </div>
+                                      {note.individualLabel && (
+                                        <p className="text-xs text-[rgb(var(--text-subtle))] mt-0.5 truncate">
+                                          {note.individualLabel}
+                                        </p>
+                                      )}
+                                      {displayContent.content && (
+                                        <div className="text-sm text-[rgb(var(--text-soft))] line-clamp-2 mt-1">
+                                          <MarkdownRenderer>{displayContent.content}</MarkdownRenderer>
+                                        </div>
+                                      )}
+                                      {note.tags.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {note.tags.map((tag, idx) => (
+                                            <Badge key={idx} variant="primary">
+                                              {tag}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="hidden md:flex gap-2 shrink-0">
+                                      <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => handleNoteClick(note)}>
+                                        <Edit2 className="w-3 h-3" /> Edit
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onDuplicateNote(selectedStack.id, note.id)}
+                                        className="gap-1.5"
+                                      >
+                                        <Copy className="w-3 h-3" />
+                                        Duplicate
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => onDeleteNote(selectedStack.id, note.id)}
+                                        className="gap-1.5 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                        Delete
+                                      </Button>
+                                    </div>
                                   </div>
-                                  {note.individualLabel && (
-                                    <p className="text-xs text-[rgb(var(--text-subtle))] mt-0.5 truncate">
-                                      {note.individualLabel}
-                                    </p>
-                                  )}
-                                  {displayContent.content && (
-                                    <div className="text-sm text-[rgb(var(--text-soft))] line-clamp-2 mt-1">
-                                      <MarkdownRenderer>{displayContent.content}</MarkdownRenderer>
-                                    </div>
-                                  )}
-                                  {note.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                      {note.tags.map((tag, idx) => (
-                                        <Badge key={idx} variant="primary">
-                                          {tag}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="hidden md:flex gap-2 shrink-0">
-                                  <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => handleNoteClick(note)}>
-                                    <Edit2 className="w-3 h-3" /> Edit
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onDuplicateNote(selectedStack.id, note.id)}
-                                    className="gap-1.5"
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                    Duplicate
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => onDeleteNote(selectedStack.id, note.id)}
-                                    className="gap-1.5 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                    Delete
-                                  </Button>
-                                </div>
-                              </div>
-                              {/* Mobile note actions below to avoid squeezing the title */}
-                              <div className="flex gap-2 mt-2 md:hidden">
-                                <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditingNoteId(note.id)}>
-                                  <Edit2 className="w-3 h-3" /> Edit
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onDuplicateNote(selectedStack.id, note.id)}
-                                  className="gap-1.5"
+                                  <div className="flex gap-2 mt-2 md:hidden">
+                                    <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditingNoteId(note.id)}>
+                                      <Edit2 className="w-3 h-3" /> Edit
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => onDuplicateNote(selectedStack.id, note.id)}
+                                      className="gap-1.5"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                      Duplicate
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => onDeleteNote(selectedStack.id, note.id)}
+                                      className="gap-1.5 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      Delete
+                                    </Button>
+                                  </div>
+                                </button>
+                              ) : (
+                                <NoteEditor
+                                  note={note}
+                                  stackId={selectedStack.id}
+                                  decryptedNotesCache={decryptedNotesCache}
+                                  setDecryptedNotesCache={setDecryptedNotesCache}
+                                  sessionPassword={sessionPassword}
+                                  onUpdateNote={onUpdateNote}
+                                  onDuplicateNote={onDuplicateNote}
+                                  onDeleteNote={onDeleteNote}
+                                  setEditingNoteId={setEditingNoteId}
+                                  setShowPasswordModal={setShowPasswordModal}
+                                  handleToggleEncryption={handleToggleEncryption}
+                                />
+                              )}
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* ── Cards / Poster View ── */}
+                    {noteViewMode === "cards" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {filteredNotes.map((note) => {
+                          const isEditing = editingNoteId === note.id;
+                          const displayContent = getNoteDisplayContent(note);
+                          return (
+                            <Card key={note.id} className={cn("overflow-hidden flex flex-col", isEditing ? "p-4" : "hover:shadow-[var(--shadow-md)] transition-shadow cursor-pointer")}>
+                              {!isEditing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleNoteClick(note)}
+                                  className="w-full text-left flex flex-col flex-1"
                                 >
-                                  <Copy className="w-3 h-3" />
-                                  Duplicate
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onDeleteNote(selectedStack.id, note.id)}
-                                  className="gap-1.5 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  Delete
-                                </Button>
+                                  {(() => {
+                                    const coverUrl = note.attachments?.[note.coverIndex ?? 0]?.url;
+                                    return coverUrl ? (
+                                      <div className="w-full aspect-[16/10] overflow-hidden">
+                                        <CachedImage src={coverUrl} alt="" className="w-full h-full object-cover" />
+                                      </div>
+                                    ) : null;
+                                  })()}
+                                  <div className="p-4 flex flex-col flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      {note.isEncrypted && (
+                                        <Lock className="w-4 h-4 text-[rgb(var(--warning))] shrink-0" />
+                                      )}
+                                      <h4 className="font-semibold text-[rgb(var(--text))] line-clamp-2">{displayContent.title || "Untitled note"}</h4>
+                                    </div>
+                                    {note.individualLabel && (
+                                      <p className="text-xs text-[rgb(var(--text-subtle))] mb-1 truncate">
+                                        {note.individualLabel}
+                                      </p>
+                                    )}
+                                    {displayContent.content && (
+                                      <div className="text-sm text-[rgb(var(--text-soft))] line-clamp-5 flex-1 mb-3">
+                                        <MarkdownRenderer>{displayContent.content}</MarkdownRenderer>
+                                      </div>
+                                    )}
+                                    {(note.tags.length > 0 || (note.attachments && note.attachments.length > 1)) && (
+                                      <div className="flex flex-wrap items-center gap-1 mt-auto pt-2 border-t border-[rgb(var(--border))]">
+                                        {note.tags.map((tag, idx) => (
+                                          <Badge key={idx} variant="primary">{tag}</Badge>
+                                        ))}
+                                        {note.attachments && note.attachments.length > 1 && (
+                                          <span className="text-xs text-[rgb(var(--text-subtle))] ml-auto">{note.attachments.length} photos</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              ) : (
+                                <NoteEditor
+                                  note={note}
+                                  stackId={selectedStack.id}
+                                  decryptedNotesCache={decryptedNotesCache}
+                                  setDecryptedNotesCache={setDecryptedNotesCache}
+                                  sessionPassword={sessionPassword}
+                                  onUpdateNote={onUpdateNote}
+                                  onDuplicateNote={onDuplicateNote}
+                                  onDeleteNote={onDeleteNote}
+                                  setEditingNoteId={setEditingNoteId}
+                                  setShowPasswordModal={setShowPasswordModal}
+                                  handleToggleEncryption={handleToggleEncryption}
+                                />
+                              )}
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* ── Board View (columns by first tag) ── */}
+                    {noteViewMode === "board" && (() => {
+                      const columns: Record<string, typeof filteredNotes> = {};
+                      filteredNotes.forEach((note) => {
+                        const col = note.tags?.[0] || "Untagged";
+                        if (!columns[col]) columns[col] = [];
+                        columns[col].push(note);
+                      });
+                      const columnKeys = Object.keys(columns).sort((a, b) =>
+                        a === "Untagged" ? 1 : b === "Untagged" ? -1 : a.localeCompare(b)
+                      );
+                      return (
+                        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+                          {columnKeys.map((col) => (
+                            <div
+                              key={col}
+                              className="flex-shrink-0 w-64 bg-[rgb(var(--bg-muted))] rounded-[var(--radius-md)] p-3 space-y-2"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant={col === "Untagged" ? "neutral" : "primary"}>{col}</Badge>
+                                <span className="text-xs text-[rgb(var(--text-subtle))]">{columns[col].length}</span>
                               </div>
-                            </button>
-                          ) : (
-                            <div className="space-y-2">
-                              {/* Use decrypted content from cache for encrypted notes */}
-                              <Input
-                                value={note.isEncrypted && decryptedNotesCache[note.id] ? decryptedNotesCache[note.id].title : note.title}
-                                onChange={(e) => {
-                                  if (note.isEncrypted && decryptedNotesCache[note.id]) {
-                                    setDecryptedNotesCache(prev => ({ ...prev, [note.id]: { ...prev[note.id], title: e.target.value } }));
-                                  } else {
-                                    onUpdateNote(selectedStack.id, note.id, { title: e.target.value });
-                                  }
-                                }}
-                                className="font-medium"
-                              />
-                              <Input
-                                value={note.individualLabel || ""}
-                                onChange={(e) =>
-                                  onUpdateNote(selectedStack.id, note.id, { individualLabel: e.target.value || undefined })
-                                }
-                                placeholder="Individual label (optional)"
-                                className="text-sm"
-                              />
-                              <textarea
-                                value={note.isEncrypted && decryptedNotesCache[note.id] ? decryptedNotesCache[note.id].content : note.content}
-                                onChange={(e) => {
-                                  if (note.isEncrypted && decryptedNotesCache[note.id]) {
-                                    setDecryptedNotesCache(prev => ({ ...prev, [note.id]: { ...prev[note.id], content: e.target.value } }));
-                                  } else {
-                                    onUpdateNote(selectedStack.id, note.id, { content: e.target.value });
-                                  }
-                                }}
-                                placeholder="Note content..."
-                                className="textarea"
-                                rows={4}
-                              />
-                              {note.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {note.tags.map((tag, idx) => (
-                                    <Badge key={idx} variant="primary">
-                                      {tag}
-                                    </Badge>
-                                  ))}
+                              {columns[col].map((note) => {
+                                const isEditing = editingNoteId === note.id;
+                                const displayContent = getNoteDisplayContent(note);
+                                return (
+                                  <Card key={note.id} className="p-2.5">
+                                    {!isEditing ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleNoteClick(note)}
+                                        className="w-full text-left"
+                                      >
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                          {note.isEncrypted && <Lock className="w-3 h-3 text-[rgb(var(--warning))] shrink-0" />}
+                                          <h4 className="text-sm font-medium truncate">{displayContent.title || "Untitled note"}</h4>
+                                        </div>
+                                        {displayContent.content && (
+                                          <div className="text-xs text-[rgb(var(--text-soft))] line-clamp-3">
+                                            <MarkdownRenderer>{displayContent.content}</MarkdownRenderer>
+                                          </div>
+                                        )}
+                                        {note.tags.length > 1 && (
+                                          <div className="flex flex-wrap gap-1 mt-1.5">
+                                            {note.tags.slice(1).map((tag, idx) => (
+                                              <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--bg-muted))] text-[rgb(var(--text-subtle))]">{tag}</span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </button>
+                                    ) : (
+                                      <NoteEditor
+                                        note={note}
+                                        stackId={selectedStack.id}
+                                        decryptedNotesCache={decryptedNotesCache}
+                                        setDecryptedNotesCache={setDecryptedNotesCache}
+                                        sessionPassword={sessionPassword}
+                                        onUpdateNote={onUpdateNote}
+                                        onDuplicateNote={onDuplicateNote}
+                                        onDeleteNote={onDeleteNote}
+                                        setEditingNoteId={setEditingNoteId}
+                                        setShowPasswordModal={setShowPasswordModal}
+                                        handleToggleEncryption={handleToggleEncryption}
+                                      />
+                                    )}
+                                  </Card>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* ── Masonry / Moodboard View ── */}
+                    {noteViewMode === "masonry" && (
+                      <div className="columns-1 sm:columns-2 lg:columns-3 gap-3 space-y-3">
+                        {filteredNotes.map((note) => {
+                          const isEditing = editingNoteId === note.id;
+                          const displayContent = getNoteDisplayContent(note);
+                          return (
+                            <Card key={note.id} className="break-inside-avoid overflow-hidden hover:shadow-[var(--shadow-md)] transition-shadow">
+                              {!isEditing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleNoteClick(note)}
+                                  className="w-full text-left"
+                                >
+                                  {(() => {
+                                    const coverUrl = note.attachments?.[note.coverIndex ?? 0]?.url;
+                                    return coverUrl ? (
+                                      <CachedImage src={coverUrl} alt="" className="w-full object-cover" />
+                                    ) : null;
+                                  })()}
+                                  <div className="p-3">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      {note.isEncrypted && <Lock className="w-4 h-4 text-[rgb(var(--warning))] shrink-0" />}
+                                      <h4 className="font-semibold text-[rgb(var(--text))] line-clamp-2">{displayContent.title || "Untitled note"}</h4>
+                                    </div>
+                                    {note.individualLabel && (
+                                      <p className="text-xs text-[rgb(var(--text-subtle))] mb-1 truncate">{note.individualLabel}</p>
+                                    )}
+                                    {displayContent.content && (
+                                      <div className="text-sm text-[rgb(var(--text-soft))] mb-2">
+                                        <MarkdownRenderer>{displayContent.content}</MarkdownRenderer>
+                                      </div>
+                                    )}
+                                    {note.tags.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 pt-2 border-t border-[rgb(var(--border))]">
+                                        {note.tags.map((tag, idx) => (
+                                          <Badge key={idx} variant="primary">{tag}</Badge>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              ) : (
+                                <div className="p-3">
+                                  <NoteEditor
+                                    note={note}
+                                    stackId={selectedStack.id}
+                                    decryptedNotesCache={decryptedNotesCache}
+                                    setDecryptedNotesCache={setDecryptedNotesCache}
+                                    sessionPassword={sessionPassword}
+                                    onUpdateNote={onUpdateNote}
+                                    onDuplicateNote={onDuplicateNote}
+                                    onDeleteNote={onDeleteNote}
+                                    setEditingNoteId={setEditingNoteId}
+                                    setShowPasswordModal={setShowPasswordModal}
+                                    handleToggleEncryption={handleToggleEncryption}
+                                  />
                                 </div>
                               )}
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                <Button variant="primary" size="sm" onClick={async () => {
-                                  // If note is encrypted, save the decrypted content back
-                                  if (note.isEncrypted && sessionPassword && decryptedNotesCache[note.id]) {
-                                    const cached = decryptedNotesCache[note.id];
-                                    const { encryptedTitle, encryptedContent, salt, iv } = await encryptNote(
-                                      cached.title,
-                                      cached.content,
-                                      sessionPassword
-                                    );
-                                    onUpdateNote(selectedStack.id, note.id, {
-                                      title: encryptedTitle,
-                                      content: encryptedContent,
-                                      encryptionSalt: salt,
-                                      encryptionIV: iv,
-                                    });
-                                  }
-                                  setEditingNoteId(null);
-                                }}>
-                                  Done
-                                </Button>
-                                {/* Encryption toggle */}
-                                {sessionPassword ? (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleToggleEncryption(note, !note.isEncrypted)}
-                                    className="gap-1.5"
-                                  >
-                                    {note.isEncrypted ? (
-                                      <><LockOpen className="w-3 h-3" /> Decrypt</>
-                                    ) : (
-                                      <><Lock className="w-3 h-3" /> Encrypt</>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* ── Sticky Notes View ── */}
+                    {noteViewMode === "sticky" && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {filteredNotes.map((note, i) => {
+                          const isEditing = editingNoteId === note.id;
+                          const displayContent = getNoteDisplayContent(note);
+                          const color = STICKY_COLORS[i % STICKY_COLORS.length];
+                          const rotation = STICKY_ROTATIONS[i % STICKY_ROTATIONS.length];
+                          return (
+                            <div
+                              key={note.id}
+                              className={cn(
+                                "rounded-sm shadow-[var(--shadow-md)] transition-all hover:shadow-[var(--shadow-lg)] hover:scale-[1.02]",
+                                !isEditing && rotation
+                              )}
+                              style={{
+                                backgroundColor: color.bg,
+                                color: color.text,
+                                borderBottom: `3px solid ${color.border}`,
+                              }}
+                            >
+                              {!isEditing ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleNoteClick(note)}
+                                  className="w-full text-left min-h-[120px] flex flex-col"
+                                >
+                                  {(() => {
+                                    const coverUrl = note.attachments?.[note.coverIndex ?? 0]?.url;
+                                    return coverUrl ? (
+                                      <div className="w-full aspect-square overflow-hidden rounded-t-sm">
+                                        <CachedImage src={coverUrl} alt="" className="w-full h-full object-cover" />
+                                      </div>
+                                    ) : null;
+                                  })()}
+                                  <div className="p-3 flex flex-col flex-1">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      {note.isEncrypted && <Lock className="w-3.5 h-3.5 opacity-60 shrink-0" />}
+                                      <h4 className="font-bold text-sm line-clamp-2 leading-tight">{displayContent.title || "Untitled"}</h4>
+                                    </div>
+                                    {displayContent.content && (
+                                      <p className="text-xs opacity-75 line-clamp-6 flex-1 leading-relaxed mt-1">
+                                        {displayContent.content.replace(/[#*_~`>\-\[\]()]/g, "").slice(0, 200)}
+                                      </p>
                                     )}
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setShowPasswordModal(true)}
-                                    className="gap-1.5"
-                                  >
-                                    <Lock className="w-3 h-3" /> Enable Encryption
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onDuplicateNote(selectedStack.id, note.id)}
-                                  className="gap-1.5"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                  Duplicate
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onDeleteNote(selectedStack.id, note.id)}
-                                  className="gap-1.5 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  Delete
-                                </Button>
-                              </div>
+                                    {note.tags.length > 0 && (
+                                      <div className="flex flex-wrap gap-1 mt-auto pt-2">
+                                        {note.tags.slice(0, 2).map((tag, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                                            style={{ backgroundColor: `${color.border}40` }}
+                                          >
+                                            {tag}
+                                          </span>
+                                        ))}
+                                        {note.tags.length > 2 && (
+                                          <span className="text-[10px] opacity-60">+{note.tags.length - 2}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              ) : (
+                                <div className="p-3">
+                                  <NoteEditor
+                                    note={note}
+                                    stackId={selectedStack.id}
+                                    decryptedNotesCache={decryptedNotesCache}
+                                    setDecryptedNotesCache={setDecryptedNotesCache}
+                                    sessionPassword={sessionPassword}
+                                    onUpdateNote={onUpdateNote}
+                                    onDuplicateNote={onDuplicateNote}
+                                    onDeleteNote={onDeleteNote}
+                                    setEditingNoteId={setEditingNoteId}
+                                    setShowPasswordModal={setShowPasswordModal}
+                                    handleToggleEncryption={handleToggleEncryption}
+                                  />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </Card>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -1103,5 +1373,270 @@ export default function NotebookView({
         </div>
       )}
     </div >
+  );
+}
+
+/* ── Shared inline editor extracted to avoid duplication across view modes ── */
+function NoteEditor({
+  note,
+  stackId,
+  decryptedNotesCache,
+  setDecryptedNotesCache,
+  sessionPassword,
+  onUpdateNote,
+  onDuplicateNote,
+  onDeleteNote,
+  setEditingNoteId,
+  setShowPasswordModal,
+  handleToggleEncryption,
+}: {
+  note: ResearchNote;
+  stackId: string;
+  decryptedNotesCache: Record<string, { title: string; content: string }>;
+  setDecryptedNotesCache: React.Dispatch<React.SetStateAction<Record<string, { title: string; content: string }>>>;
+  sessionPassword: string | null;
+  onUpdateNote: (stackId: string, noteId: string, updates: Partial<ResearchNote>) => void;
+  onDuplicateNote: (stackId: string, noteId: string) => void;
+  onDeleteNote: (stackId: string, noteId: string) => void;
+  setEditingNoteId: (id: string | null) => void;
+  setShowPasswordModal: (show: boolean) => void;
+  handleToggleEncryption: (note: ResearchNote, encrypt: boolean) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+
+  const attachments = note.attachments || [];
+  const coverIdx = note.coverIndex ?? 0;
+
+  async function handlePhotoUpload(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      for (const file of Array.from(files)) form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form, credentials: "include" });
+      if (!res.ok) throw new Error("Upload failed");
+      const payload = (await res.json()) as { attachments: Attachment[] };
+      if (Array.isArray(payload.attachments)) {
+        onUpdateNote(stackId, note.id, {
+          attachments: [...attachments, ...payload.attachments],
+        });
+      }
+    } catch (err) {
+      console.error("Photo upload failed:", err);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function handleRemoveAttachment(idx: number) {
+    const updated = attachments.filter((_, i) => i !== idx);
+    const updates: Partial<ResearchNote> = { attachments: updated };
+    if (coverIdx >= updated.length) updates.coverIndex = 0;
+    else if (idx < coverIdx) updates.coverIndex = coverIdx - 1;
+    onUpdateNote(stackId, note.id, updates);
+  }
+
+  function handleSetCover(idx: number) {
+    onUpdateNote(stackId, note.id, { coverIndex: idx });
+  }
+
+  const galleryImages: GalleryImage[] = attachments.map((a) => ({
+    id: a.id,
+    url: a.url,
+    name: a.name,
+  }));
+
+  return (
+    <div className="space-y-2">
+      <Input
+        value={note.isEncrypted && decryptedNotesCache[note.id] ? decryptedNotesCache[note.id].title : note.title}
+        onChange={(e) => {
+          if (note.isEncrypted && decryptedNotesCache[note.id]) {
+            setDecryptedNotesCache(prev => ({ ...prev, [note.id]: { ...prev[note.id], title: e.target.value } }));
+          } else {
+            onUpdateNote(stackId, note.id, { title: e.target.value });
+          }
+        }}
+        className="font-medium"
+      />
+      <Input
+        value={note.individualLabel || ""}
+        onChange={(e) =>
+          onUpdateNote(stackId, note.id, { individualLabel: e.target.value || undefined })
+        }
+        placeholder="Individual label (optional)"
+        className="text-sm"
+      />
+      <textarea
+        value={note.isEncrypted && decryptedNotesCache[note.id] ? decryptedNotesCache[note.id].content : note.content}
+        onChange={(e) => {
+          if (note.isEncrypted && decryptedNotesCache[note.id]) {
+            setDecryptedNotesCache(prev => ({ ...prev, [note.id]: { ...prev[note.id], content: e.target.value } }));
+          } else {
+            onUpdateNote(stackId, note.id, { content: e.target.value });
+          }
+        }}
+        placeholder="Note content..."
+        className="textarea"
+        rows={4}
+      />
+
+      {/* Photo attachments grid */}
+      {attachments.length > 0 && (
+        <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
+          {attachments.map((att, idx) => (
+            <div
+              key={att.id}
+              className={cn(
+                "relative group aspect-square rounded-[var(--radius-sm)] overflow-hidden border-2 cursor-pointer",
+                idx === coverIdx
+                  ? "border-[rgb(var(--primary))]"
+                  : "border-transparent hover:border-[rgb(var(--border-strong))]"
+              )}
+              onClick={() => { setGalleryIndex(idx); setGalleryOpen(true); }}
+            >
+              <CachedImage
+                src={att.url}
+                alt={att.name}
+                className="w-full h-full object-cover"
+              />
+              {idx === coverIdx && (
+                <div className="absolute top-0.5 left-0.5 p-0.5 rounded-full bg-[rgb(var(--primary))] text-white">
+                  <Star className="w-2.5 h-2.5 fill-current" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleSetCover(idx); }}
+                  className="p-1 rounded-full bg-white/80 text-[rgb(var(--primary))] hover:bg-white"
+                  title="Set as cover"
+                >
+                  <Star className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleRemoveAttachment(idx); }}
+                  className="p-1 rounded-full bg-white/80 text-[rgb(var(--danger))] hover:bg-white"
+                  title="Remove"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {note.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {note.tags.map((tag, idx) => (
+            <Badge key={idx} variant="primary">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2 pt-1">
+        <Button variant="primary" size="sm" onClick={async () => {
+          if (note.isEncrypted && sessionPassword && decryptedNotesCache[note.id]) {
+            const cached = decryptedNotesCache[note.id];
+            const { encryptedTitle, encryptedContent, salt, iv } = await encryptNote(
+              cached.title,
+              cached.content,
+              sessionPassword
+            );
+            onUpdateNote(stackId, note.id, {
+              title: encryptedTitle,
+              content: encryptedContent,
+              encryptionSalt: salt,
+              encryptionIV: iv,
+            });
+          }
+          setEditingNoteId(null);
+        }}>
+          Done
+        </Button>
+        {/* Photo upload */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="gap-1.5"
+        >
+          <ImagePlus className="w-3 h-3" />
+          {uploading ? "Uploading..." : "Photos"}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => handlePhotoUpload(e.target.files)}
+        />
+        {sessionPassword ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleToggleEncryption(note, !note.isEncrypted)}
+            className="gap-1.5"
+          >
+            {note.isEncrypted ? (
+              <><LockOpen className="w-3 h-3" /> Decrypt</>
+            ) : (
+              <><Lock className="w-3 h-3" /> Encrypt</>
+            )}
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowPasswordModal(true)}
+            className="gap-1.5"
+          >
+            <Lock className="w-3 h-3" /> Enable Encryption
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onDuplicateNote(stackId, note.id)}
+          className="gap-1.5"
+        >
+          <Copy className="w-3 h-3" />
+          Duplicate
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onDeleteNote(stackId, note.id)}
+          className="gap-1.5 text-[rgb(var(--danger))] hover:bg-[rgb(var(--danger-soft))]"
+        >
+          <Trash2 className="w-3 h-3" />
+          Delete
+        </Button>
+      </div>
+
+      {/* Fullscreen gallery */}
+      <ImageGallery
+        open={galleryOpen}
+        images={galleryImages}
+        index={galleryIndex}
+        onClose={() => setGalleryOpen(false)}
+        onIndexChange={setGalleryIndex}
+        onSetCover={(img) => {
+          const idx = attachments.findIndex((a) => a.id === img.id);
+          if (idx >= 0) handleSetCover(idx);
+        }}
+        currentCoverUrl={attachments[coverIdx]?.url}
+        onUnsetCover={() => onUpdateNote(stackId, note.id, { coverIndex: 0 })}
+      />
+    </div>
   );
 }
