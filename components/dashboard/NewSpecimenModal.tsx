@@ -14,6 +14,7 @@ interface NewSpecimenModalProps {
 }
 
 export default function NewSpecimenModal({ isOpen, onClose, onSave }: NewSpecimenModalProps) {
+  const formId = "new-specimen-form";
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<SpecimenSex | "">("");
@@ -75,12 +76,12 @@ export default function NewSpecimenModal({ isOpen, onClose, onSave }: NewSpecime
       <div className="relative w-full sm:max-w-md bg-[rgb(var(--surface))] rounded-t-2xl sm:rounded-2xl border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] max-h-[85dvh] flex flex-col animate-slide-up sm:animate-fade-in">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[rgb(var(--border))]">
           <h2 className="text-lg font-semibold text-[rgb(var(--text))]">New Specimen</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-[rgb(var(--bg-muted))]">
+          <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-[rgb(var(--bg-muted))]">
             <X className="w-5 h-5 text-[rgb(var(--text-soft))]" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto flex-1">
+        <form id={formId} onSubmit={handleSubmit} className="p-4 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="p-3 rounded-[var(--radius)] bg-[rgb(var(--danger-soft))] text-[rgb(var(--danger))] text-sm">
               {error}
@@ -97,6 +98,7 @@ export default function NewSpecimenModal({ isOpen, onClose, onSave }: NewSpecime
               placeholder="e.g. Rosie"
               maxLength={160}
               autoFocus
+              enterKeyHint="done"
             />
           </div>
 
@@ -136,15 +138,18 @@ export default function NewSpecimenModal({ isOpen, onClose, onSave }: NewSpecime
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+        </form>
+
+        <div className="border-t border-[rgb(var(--border))] p-4 bg-[rgb(var(--surface))]">
+          <div className="flex gap-3">
             <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" className="flex-1" disabled={saving || !name.trim()}>
+            <Button form={formId} type="submit" variant="primary" className="flex-1" disabled={saving || !name.trim()}>
               {saving ? "Creating..." : "Create Specimen"}
             </Button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

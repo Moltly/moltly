@@ -19,7 +19,6 @@ import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import CulturesView from "@/components/dashboard/CulturesView";
-import NewSpecimenModal from "@/components/dashboard/NewSpecimenModal";
 import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit, Specimen } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
@@ -194,7 +193,6 @@ export default function MobileDashboard() {
 
   const [activeView, setActiveView] = useState<ViewKey>("overview");
   const [formOpen, setFormOpen] = useState(false);
-  const [newSpecimenOpen, setNewSpecimenOpen] = useState(false);
   const [formState, setFormState] = useState<FormState>(defaultForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -679,6 +677,29 @@ export default function MobileDashboard() {
   const onSubmit = async () => {
     const isMolt = formState.entryType === "molt";
     const isFeeding = formState.entryType === "feeding";
+    const isSpecimenCreate = formState.entryType === "specimen";
+    if (isSpecimenCreate) {
+      const trimmedName = formState.specimen.trim();
+      if (!trimmedName) {
+        alert("Specimen name is required.");
+        return;
+      }
+      try {
+        await createSpecimenRecord({
+          name: trimmedName,
+          species: formState.species.trim() || undefined,
+          sex: formState.sex || undefined,
+          notes: formState.notes.trim() || undefined,
+        });
+        setFormOpen(false);
+        setEditingId(null);
+        setFormState(defaultForm());
+        setAttachments([]);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Unable to create specimen.");
+      }
+      return;
+    }
     if (isMolt && !formState.species.trim()) {
       alert("Species is required for molt entries.");
       return;
@@ -2509,7 +2530,6 @@ export default function MobileDashboard() {
             initialFocusSpecimen={linkedSpecimen ?? undefined}
             ownerId={isPreviewActive ? ownerParam || undefined : session?.user?.id || undefined}
             sizeUnit={formState.sizeUnit}
-            onAddSpecimen={isPreviewActive ? undefined : () => setNewSpecimenOpen(true)}
             onUpdateCover={isPreviewActive ? undefined : handleUpdateSpecimenCover}
             onEdit={isPreviewActive ? undefined : onEdit}
             onArchive={
@@ -2732,14 +2752,6 @@ export default function MobileDashboard() {
             : specimenCovers[formState.specimen || "Unnamed"]
         }
         isEditing={Boolean(editingId)}
-      />
-
-      <NewSpecimenModal
-        isOpen={newSpecimenOpen}
-        onClose={() => setNewSpecimenOpen(false)}
-        onSave={async (data) => {
-          await createSpecimenRecord(data);
-        }}
       />
 
       <BottomNav activeView={activeView} onViewChange={setActiveView} />

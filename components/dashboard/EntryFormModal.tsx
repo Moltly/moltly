@@ -155,8 +155,8 @@ export default function EntryFormModal({
 
   const isMolt = formState.entryType === "molt";
   const isFeeding = formState.entryType === "feeding";
-  const isWater = formState.entryType === "water";
-  const isCustom = !isMolt && !isFeeding && !isWater;
+  const isSpecimenCreate = formState.entryType === "specimen";
+  const isCustom = !isMolt && !isFeeding && !isSpecimenCreate;
   const parsedTemp = formState.temperature ? Number.parseFloat(formState.temperature) : NaN;
   const convertedTemp = Number.isFinite(parsedTemp)
     ? formState.temperatureUnit === "F"
@@ -223,7 +223,7 @@ export default function EntryFormModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface))]">
           <h2 className="text-xl font-bold text-[rgb(var(--text))]">
-            {isEditing ? "Edit Entry" : "New Entry"}
+            {isEditing ? "Edit Entry" : isSpecimenCreate ? "New Specimen" : "New Entry"}
           </h2>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-5 h-5" />
@@ -257,11 +257,12 @@ export default function EntryFormModal({
                 </Button>
                 <Button
                   type="button"
-                  variant={isWater ? "primary" : "secondary"}
-                  onClick={() => onFormChange({ entryType: "water" })}
+                  variant={isSpecimenCreate ? "primary" : "secondary"}
+                  onClick={() => onFormChange({ entryType: "specimen", specimenId: "" })}
                   className="flex-1"
+                  disabled={isEditing}
                 >
-                  Water Change
+                  New Specimen
                 </Button>
                 <Button
                   type="button"
@@ -286,7 +287,7 @@ export default function EntryFormModal({
 
             {/* Specimen Name (optional) */}
             <div>
-              {specimens.length > 0 && (
+              {!isSpecimenCreate && specimens.length > 0 && (
                 <div className="mb-3">
                   <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
                     Link to existing specimen
@@ -327,7 +328,7 @@ export default function EntryFormModal({
               )}
 
               <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                Specimen Name <span className="text-[rgb(var(--text-subtle))] font-normal">(optional)</span>
+                Specimen Name {isSpecimenCreate ? "*" : <span className="text-[rgb(var(--text-subtle))] font-normal">(optional)</span>}
               </label>
               <Input
                 placeholder="e.g., Rosie, Spider #1"
@@ -367,213 +368,217 @@ export default function EntryFormModal({
               </select>
             </div>
 
-            {/* Date */}
-            <div>
-              <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Date
-              </label>
-              <Input
-                type="date"
-                value={formState.date}
-                onChange={(e) => onFormChange({ date: e.target.value })}
-              />
-            </div>
-
-            {/* Molt-specific fields */}
-            {isMolt && (
+            {!isSpecimenCreate && (
               <>
+                {/* Date */}
                 <div>
-                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                    Molt Stage
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Date
                   </label>
-                  <select
-                    value={formState.stage}
-                    onChange={(e) => onFormChange({ stage: e.target.value as Stage })}
-                    className="select"
-                  >
-                    <option value="Pre-molt">Pre-molt</option>
-                    <option value="Molt">Molt</option>
-                    <option value="Post-molt">Post-molt</option>
-                  </select>
+                  <Input
+                    type="date"
+                    value={formState.date}
+                    onChange={(e) => onFormChange({ date: e.target.value })}
+                  />
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-[rgb(var(--text))]">
-                      Size
-                    </label>
-                    <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
-                      <button
-                        type="button"
-                        className={`px-2 py-0.5 text-xs ${formState.sizeUnit === "cm" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
-                        onClick={() => handleSizeUnitChange("cm")}
-                        aria-label="Use centimeters"
+                {/* Molt-specific fields */}
+                {isMolt && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                        Molt Stage
+                      </label>
+                      <select
+                        value={formState.stage}
+                        onChange={(e) => onFormChange({ stage: e.target.value as Stage })}
+                        className="select"
                       >
-                        cm
-                      </button>
-                      <button
-                        type="button"
-                        className={`px-2 py-0.5 text-xs ${formState.sizeUnit === "in" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
-                        onClick={() => handleSizeUnitChange("in")}
-                        aria-label="Use inches"
-                      >
-                        in
-                      </button>
+                        <option value="Pre-molt">Pre-molt</option>
+                        <option value="Molt">Molt</option>
+                        <option value="Post-molt">Post-molt</option>
+                      </select>
                     </div>
-                  </div>
 
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-[rgb(var(--text))]">
+                          Size
+                        </label>
+                        <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
+                          <button
+                            type="button"
+                            className={`px-2 py-0.5 text-xs ${formState.sizeUnit === "cm" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                            onClick={() => handleSizeUnitChange("cm")}
+                            aria-label="Use centimeters"
+                          >
+                            cm
+                          </button>
+                          <button
+                            type="button"
+                            className={`px-2 py-0.5 text-xs ${formState.sizeUnit === "in" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                            onClick={() => handleSizeUnitChange("in")}
+                            aria-label="Use inches"
+                          >
+                            in
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                            Old Size ({formState.sizeUnit})
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="0.0"
+                            value={formState.oldSize}
+                            onChange={(e) => onFormChange({ oldSize: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                            New Size ({formState.sizeUnit})
+                          </label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            placeholder="0.0"
+                            value={formState.newSize}
+                            onChange={(e) => onFormChange({ newSize: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Feeding-specific fields */}
+                {isFeeding && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                        Prey Offered
+                      </label>
+                      <Input
+                        placeholder="e.g., Cricket, Roach"
+                        value={formState.feedingPrey}
+                        onChange={(e) => onFormChange({ feedingPrey: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                        Outcome
+                      </label>
+                      <select
+                        value={formState.feedingOutcome}
+                        onChange={(e) =>
+                          onFormChange({ feedingOutcome: e.target.value as FeedingOutcome })
+                        }
+                        className="select"
+                      >
+                        <option value="">Select outcome</option>
+                        <option value="Offered">Offered</option>
+                        <option value="Ate">Ate</option>
+                        <option value="Refused">Refused</option>
+                        <option value="Not Observed">Not Observed</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                        Quantity/Size
+                      </label>
+                      <Input
+                        placeholder="e.g., 1 adult, 2 medium"
+                        value={formState.feedingAmount}
+                        onChange={(e) => onFormChange({ feedingAmount: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Environmental conditions */}
+                <div className="pt-2 border-t border-[rgb(var(--border))]">
+                  <h3 className="text-sm font-medium text-[rgb(var(--text))] mb-3">
+                    Environmental Conditions
+                  </h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                        Old Size ({formState.sizeUnit})
+                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block flex items-center gap-1.5">
+                        <Droplets className="w-4 h-4" />
+                        Humidity (%)
                       </label>
                       <Input
                         type="number"
-                        step="0.1"
+                        step="1"
                         min="0"
-                        placeholder="0.0"
-                        value={formState.oldSize}
-                        onChange={(e) => onFormChange({ oldSize: e.target.value })}
+                        max="100"
+                        placeholder="0"
+                        value={formState.humidity}
+                        onChange={(e) => onFormChange({ humidity: e.target.value })}
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                        New Size ({formState.sizeUnit})
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-sm font-medium text-[rgb(var(--text))] flex items-center gap-1.5">
+                          <Thermometer className="w-4 h-4" />
+                          Temp ({formState.temperatureUnit === "F" ? "°F" : "°C"})
+                        </label>
+                        <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
+                          <button
+                            type="button"
+                            className={`px-2 py-0.5 text-xs ${formState.temperatureUnit === "C" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                            onClick={() => {
+                              if (formState.temperatureUnit !== "C") {
+                                const next = formState.temperature ? (Math.round(fToC(Number(formState.temperature)) * 10) / 10).toString() : formState.temperature;
+                                onFormChange({ temperatureUnit: "C", temperature: next });
+                                saveTempUnit("C");
+                              }
+                            }}
+                            aria-label="Use Celsius"
+                          >
+                            °C
+                          </button>
+                          <button
+                            type="button"
+                            className={`px-2 py-0.5 text-xs ${formState.temperatureUnit === "F" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
+                            onClick={() => {
+                              if (formState.temperatureUnit !== "F") {
+                                const next = formState.temperature ? (Math.round(cToF(Number(formState.temperature)) * 10) / 10).toString() : formState.temperature;
+                                onFormChange({ temperatureUnit: "F", temperature: next });
+                                saveTempUnit("F");
+                              }
+                            }}
+                            aria-label="Use Fahrenheit"
+                          >
+                            °F
+                          </button>
+                        </div>
+                        {convertedTemp !== null && (
+                          <div className="text-[10px] text-[rgb(var(--text-subtle))] mt-1">
+                            ≈ {Math.round(convertedTemp * 10) / 10}°{formState.temperatureUnit === "F" ? "C" : "F"}
+                          </div>
+                        )}
+                      </div>
                       <Input
                         type="number"
                         step="0.1"
-                        min="0"
-                        placeholder="0.0"
-                        value={formState.newSize}
-                        onChange={(e) => onFormChange({ newSize: e.target.value })}
+                        placeholder={formState.temperatureUnit === "F" ? "°F" : "°C"}
+                        value={formState.temperature}
+                        onChange={(e) => onFormChange({ temperature: e.target.value })}
                       />
                     </div>
                   </div>
                 </div>
               </>
             )}
-
-            {/* Feeding-specific fields */}
-            {isFeeding && (
-              <>
-                <div>
-                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                    Prey Offered
-                  </label>
-                  <Input
-                    placeholder="e.g., Cricket, Roach"
-                    value={formState.feedingPrey}
-                    onChange={(e) => onFormChange({ feedingPrey: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                    Outcome
-                  </label>
-                  <select
-                    value={formState.feedingOutcome}
-                    onChange={(e) =>
-                      onFormChange({ feedingOutcome: e.target.value as FeedingOutcome })
-                    }
-                    className="select"
-                  >
-                    <option value="">Select outcome</option>
-                    <option value="Offered">Offered</option>
-                    <option value="Ate">Ate</option>
-                    <option value="Refused">Refused</option>
-                    <option value="Not Observed">Not Observed</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                    Quantity/Size
-                  </label>
-                  <Input
-                    placeholder="e.g., 1 adult, 2 medium"
-                    value={formState.feedingAmount}
-                    onChange={(e) => onFormChange({ feedingAmount: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* Environmental conditions */}
-            <div className="pt-2 border-t border-[rgb(var(--border))]">
-              <h3 className="text-sm font-medium text-[rgb(var(--text))] mb-3">
-                Environmental Conditions
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block flex items-center gap-1.5">
-                    <Droplets className="w-4 h-4" />
-                    Humidity (%)
-                  </label>
-                  <Input
-                    type="number"
-                    step="1"
-                    min="0"
-                    max="100"
-                    placeholder="0"
-                    value={formState.humidity}
-                    onChange={(e) => onFormChange({ humidity: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-medium text-[rgb(var(--text))] flex items-center gap-1.5">
-                      <Thermometer className="w-4 h-4" />
-                      Temp ({formState.temperatureUnit === "F" ? "°F" : "°C"})
-                    </label>
-                    <div className="inline-flex rounded-[var(--radius)] border border-[rgb(var(--border))] overflow-hidden">
-                      <button
-                        type="button"
-                        className={`px-2 py-0.5 text-xs ${formState.temperatureUnit === "C" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
-                        onClick={() => {
-                          if (formState.temperatureUnit !== "C") {
-                            const next = formState.temperature ? (Math.round(fToC(Number(formState.temperature)) * 10) / 10).toString() : formState.temperature;
-                            onFormChange({ temperatureUnit: "C", temperature: next });
-                            saveTempUnit("C");
-                          }
-                        }}
-                        aria-label="Use Celsius"
-                      >
-                        °C
-                      </button>
-                      <button
-                        type="button"
-                        className={`px-2 py-0.5 text-xs ${formState.temperatureUnit === "F" ? "bg-[rgb(var(--primary-soft))] text-[rgb(var(--primary-strong))]" : "text-[rgb(var(--text-soft))]"}`}
-                        onClick={() => {
-                          if (formState.temperatureUnit !== "F") {
-                            const next = formState.temperature ? (Math.round(cToF(Number(formState.temperature)) * 10) / 10).toString() : formState.temperature;
-                            onFormChange({ temperatureUnit: "F", temperature: next });
-                            saveTempUnit("F");
-                          }
-                        }}
-                        aria-label="Use Fahrenheit"
-                      >
-                        °F
-                      </button>
-                    </div>
-                    {convertedTemp !== null && (
-                      <div className="text-[10px] text-[rgb(var(--text-subtle))] mt-1">
-                        ≈ {Math.round(convertedTemp * 10) / 10}°{formState.temperatureUnit === "F" ? "C" : "F"}
-                      </div>
-                    )}
-                  </div>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    placeholder={formState.temperatureUnit === "F" ? "°F" : "°C"}
-                    value={formState.temperature}
-                    onChange={(e) => onFormChange({ temperature: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
 
             {/* Notes */}
             <div>
@@ -649,102 +654,106 @@ export default function EntryFormModal({
               </div>
             </div>
 
-            {/* Reminder Date */}
-            <div>
-              <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
-                Set Reminder
-              </label>
-              <Input
-                type="date"
-                value={formState.reminderDate}
-                onChange={(e) => onFormChange({ reminderDate: e.target.value })}
-              />
-            </div>
-
-            {/* Photo Attachments */}
-            <div className="pt-2 border-t border-[rgb(var(--border))]">
-              <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
-                Photo Attachments
-              </label>
-              <div className="space-y-3">
-                <label className="block">
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
+            {!isSpecimenCreate && (
+              <>
+                {/* Reminder Date */}
+                <div>
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-1.5 block">
+                    Set Reminder
+                  </label>
+                  <Input
+                    type="date"
+                    value={formState.reminderDate}
+                    onChange={(e) => onFormChange({ reminderDate: e.target.value })}
                   />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="w-full gap-2"
-                    disabled={uploadingFiles}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      (e.currentTarget.previousElementSibling as HTMLInputElement)?.click();
-                    }}
-                  >
-                    <Upload className="w-4 h-4" />
-                    {uploadingFiles ? "Uploading..." : "Upload Photos"}
-                  </Button>
-                </label>
+                </div>
 
-                {attachments.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {attachments.map((attachment) => {
-                      const isCover = !!currentCoverUrl && currentCoverUrl === attachment.url;
-                      return (
-                        <div
-                          key={attachment.id}
-                          className="relative group aspect-square rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))]"
-                        >
-                          <Image
-                            src={attachment.url}
-                            alt={attachment.name}
-                            fill
-                            className="object-cover"
-                            sizes="96px"
-                            loading="lazy"
-                          />
-                          <div className="absolute inset-x-1 top-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveAttachment(attachment.id)}
-                              className="p-1 rounded bg-[rgb(var(--danger))] text-white"
-                              title="Remove"
-                              aria-label="Remove attachment"
+                {/* Photo Attachments */}
+                <div className="pt-2 border-t border-[rgb(var(--border))]">
+                  <label className="text-sm font-medium text-[rgb(var(--text))] mb-2 block">
+                    Photo Attachments
+                  </label>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full gap-2"
+                        disabled={uploadingFiles}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          (e.currentTarget.previousElementSibling as HTMLInputElement)?.click();
+                        }}
+                      >
+                        <Upload className="w-4 h-4" />
+                        {uploadingFiles ? "Uploading..." : "Upload Photos"}
+                      </Button>
+                    </label>
+
+                    {attachments.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {attachments.map((attachment) => {
+                          const isCover = !!currentCoverUrl && currentCoverUrl === attachment.url;
+                          return (
+                            <div
+                              key={attachment.id}
+                              className="relative group aspect-square rounded-[var(--radius)] overflow-hidden bg-[rgb(var(--bg-muted))]"
                             >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                            {onSetCover && !isCover && (
-                              <button
-                                type="button"
-                                onClick={() => onSetCover(attachment)}
-                                className="px-1.5 py-0.5 rounded bg-[rgb(var(--surface))] text-[rgb(var(--text))] text-[10px] border border-[rgb(var(--border))]"
-                                title="Set as cover"
-                              >
-                                Set cover
-                              </button>
-                            )}
-                            {onUnsetCover && isCover && (
-                              <button
-                                type="button"
-                                onClick={() => onUnsetCover()}
-                                className="px-1.5 py-0.5 rounded bg-[rgb(var(--surface))] text-[rgb(var(--text))] text-[10px] border border-[rgb(var(--border))]"
-                                title="Unset cover"
-                              >
-                                Unset cover
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                              <Image
+                                src={attachment.url}
+                                alt={attachment.name}
+                                fill
+                                className="object-cover"
+                                sizes="96px"
+                                loading="lazy"
+                              />
+                              <div className="absolute inset-x-1 top-1 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveAttachment(attachment.id)}
+                                  className="p-1 rounded bg-[rgb(var(--danger))] text-white"
+                                  title="Remove"
+                                  aria-label="Remove attachment"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                                {onSetCover && !isCover && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onSetCover(attachment)}
+                                    className="px-1.5 py-0.5 rounded bg-[rgb(var(--surface))] text-[rgb(var(--text))] text-[10px] border border-[rgb(var(--border))]"
+                                    title="Set as cover"
+                                  >
+                                    Set cover
+                                  </button>
+                                )}
+                                {onUnsetCover && isCover && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onUnsetCover()}
+                                    className="px-1.5 py-0.5 rounded bg-[rgb(var(--surface))] text-[rgb(var(--text))] text-[10px] border border-[rgb(var(--border))]"
+                                    title="Unset cover"
+                                  >
+                                    Unset cover
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         </form>
 
@@ -754,7 +763,7 @@ export default function EntryFormModal({
             Cancel
           </Button>
           <Button type="button" variant="primary" onClick={onSubmit} className="flex-1">
-            {isEditing ? "Save Changes" : "Create Entry"}
+            {isEditing ? "Save Changes" : isSpecimenCreate ? "Create Specimen" : "Create Entry"}
           </Button>
         </div>
       </div>
