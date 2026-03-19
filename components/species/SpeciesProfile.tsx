@@ -11,6 +11,7 @@ import ImageGallery, { type GalleryImage } from "@/components/ui/ImageGallery";
 
 type Entry = { id: string; entryType: string; stage?: "Pre-molt" | "Molt" | "Post-molt"; date: string; attachments?: Array<{ id: string; url: string; name?: string }> };
 type Stack = { id: string; name: string; species?: string; description?: string; notes: Array<{ id: string }>; updatedAt: string };
+type SpecimenRecord = { id: string; name: string; species?: string; imageUrl?: string };
 type SpeciesInfo = {
   species: {
     fullName: string;
@@ -39,6 +40,7 @@ export default function SpeciesProfile({ name }: { name: string }) {
   const [info, setInfo] = useState<SpeciesInfo | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [stacks, setStacks] = useState<Stack[]>([]);
+  const [specimens, setSpecimens] = useState<SpecimenRecord[]>([]);
   const [tab, setTab] = useState<"history" | "research">("history");
   const [moreGenus, setMoreGenus] = useState<Array<{ fullName: string }>>([]);
   const [moreFamily, setMoreFamily] = useState<Array<{ fullName: string }>>([]);
@@ -98,7 +100,8 @@ export default function SpeciesProfile({ name }: { name: string }) {
       fetch(`/api/species/info?name=${encodeURIComponent(name)}`, { credentials: "include" }).then((r) => r.json().then((j) => ({ ok: r.ok, j })).catch(() => ({ ok: false, j: { error: "Failed" } }))),
       fetch(`/api/logs?species=${encodeURIComponent(name)}`, { credentials: "include" }).then((r) => (r.ok ? r.json() : [])).catch(() => []),
       fetch(`/api/research?species=${encodeURIComponent(name)}`, { credentials: "include" }).then((r) => (r.ok ? r.json() : [])).catch(() => []),
-    ]).then(([infoRes, entriesRes, stacksRes]: any) => {
+      fetch("/api/specimens?includeArchived=true", { credentials: "include" }).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]).then(([infoRes, entriesRes, stacksRes, specimensRes]: any) => {
       if (canceled) return;
       if (!infoRes.ok) {
         setError(infoRes.j?.error || "Unable to load species.");
@@ -115,6 +118,11 @@ export default function SpeciesProfile({ name }: { name: string }) {
       }
       setEntries(Array.isArray(entriesRes) ? entriesRes : []);
       setStacks(Array.isArray(stacksRes) ? stacksRes : []);
+      setSpecimens(
+        Array.isArray(specimensRes)
+          ? specimensRes.filter((specimen: SpecimenRecord) => specimen?.species?.trim().toLowerCase() === name.trim().toLowerCase())
+          : []
+      );
       setLoading(false);
     });
     return () => {
@@ -138,6 +146,33 @@ export default function SpeciesProfile({ name }: { name: string }) {
   const species = info?.species;
   const wscTaxon = info?.wscTaxon;
   const wscSearchUrl = getWscSearchUrl(species || null);
+  const photoImages = useMemo(() => {
+    const byUrl = new Map<string, GalleryImage>();
+
+    specimens.forEach((specimen) => {
+      const url = specimen.imageUrl?.trim();
+      if (!url) return;
+      byUrl.set(url, {
+        id: `specimen-cover-${specimen.id}`,
+        url,
+        name: specimen.name ? `${specimen.name} cover` : "Specimen cover",
+      });
+    });
+
+    entries.forEach((entry) => {
+      (entry.attachments || []).forEach((attachment) => {
+        const url = attachment.url?.trim();
+        if (!url || byUrl.has(url)) return;
+        byUrl.set(url, {
+          id: attachment.id,
+          url,
+          name: attachment.name,
+        });
+      });
+    });
+
+    return Array.from(byUrl.values());
+  }, [entries, specimens]);
   
 
   return (
@@ -309,18 +344,17 @@ export default function SpeciesProfile({ name }: { name: string }) {
             </div>
           </Card>
 
-          {entries.some((e: any) => Array.isArray(e.attachments) && e.attachments.length > 0) && (
+          {photoImages.length > 0 && (
             <Card className="p-3">
               <div className="text-sm font-semibold mb-2">Photos</div>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                {entries.flatMap((e: any) => (e.attachments || []).map((a: any, idx: number) => ({ att: a, key: `${e.id}-${a.id}-${idx}` }))).slice(0, 20).map(({ att, key }, i) => (
-                  <button key={key} type="button" className="w-full aspect-square rounded overflow-hidden bg-[rgb(var(--bg-muted))] hover:opacity-90" onClick={() => {
-                    const imgs: GalleryImage[] = entries.flatMap((en: any) => (en.attachments || []).map((a: any) => ({ id: a.id, url: a.url, name: a.name })));
-                    setGalleryImages(imgs);
+                {photoImages.slice(0, 20).map((image, i) => (
+                  <button key={image.id} type="button" className="w-full aspect-square rounded overflow-hidden bg-[rgb(var(--bg-muted))] hover:opacity-90" onClick={() => {
+                    setGalleryImages(photoImages);
                     setGalleryIndex(i);
                     setGalleryOpen(true);
                   }}>
-                    <CachedImage src={att.url} alt={att.name || "Attachment"} className="w-full h-full object-cover" />
+                    <CachedImage src={image.url} alt={image.name || "Attachment"} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
