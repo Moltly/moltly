@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   X,
+  Megaphone,
 } from "lucide-react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,11 @@ const navItems = [
     key: "specimens" as ViewKey,
     label: "Specimens",
     icon: Users,
+  },
+  {
+    key: "pairings" as ViewKey,
+    label: "Pairings",
+    icon: Megaphone,
   },
   {
     key: "health" as ViewKey,

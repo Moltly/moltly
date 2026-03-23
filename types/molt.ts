@@ -4,6 +4,18 @@ export type Stage = "Pre-molt" | "Molt" | "Post-molt";
 export type FeedingOutcome = "Offered" | "Ate" | "Refused" | "Not Observed";
 export type SizeUnit = "cm" | "in";
 export type SpecimenSex = "Male" | "Female" | "Unknown" | "Unsexed";
+export type PairingContactMethod = "email" | "discord" | "instagram" | "facebook" | "telegram" | "other";
+export type PairingStatus =
+  | "none"
+  | "seeking_male"
+  | "seeking_female"
+  | "open_to_offers";
+
+export type PairingContactPreference = {
+  method?: PairingContactMethod;
+  value?: string;
+  notes?: string;
+};
 
 export type Attachment = {
   id: string;
@@ -20,6 +32,8 @@ export type Specimen = {
   sex?: SpecimenSex;
   imageUrl?: string;
   notes?: string;
+  pairingStatus?: PairingStatus;
+  pairingNotes?: string;
   attachments?: Attachment[];
   archived?: boolean;
   archivedAt?: string;
@@ -98,7 +112,17 @@ export type SpecimenDashboard = {
   archivedReason?: string;
 };
 
-export type ViewKey = "overview" | "activity" | "specimens" | "reminders" | "notebook" | "health" | "breeding" | "analytics" | "cultures";
+export type ViewKey =
+  | "overview"
+  | "activity"
+  | "specimens"
+  | "pairings"
+  | "reminders"
+  | "notebook"
+  | "health"
+  | "breeding"
+  | "analytics"
+  | "cultures";
 export type DataMode = "sync" | "local" | null;
 
 export type Filters = {

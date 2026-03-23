@@ -1,6 +1,8 @@
 import { Schema, model, models, Types } from "mongoose";
 import { AttachmentSchema } from "./shared";
 
+const pairingStatuses = ["none", "seeking_male", "seeking_female", "has_male", "has_female", "open_to_offers"] as const;
+
 const SpecimenSchema = new Schema(
     {
         userId: { type: Types.ObjectId, ref: "User", required: true, index: true },
@@ -9,6 +11,9 @@ const SpecimenSchema = new Schema(
         sex: { type: String, enum: ["Male", "Female", "Unknown", "Unsexed"] },
         imageUrl: { type: String },
         notes: { type: String },
+        pairingStatus: { type: String, enum: pairingStatuses, default: "none", index: true },
+        availableForPairing: { type: Boolean, default: false, index: true },
+        pairingNotes: { type: String, trim: true, maxlength: 500 },
         attachments: [AttachmentSchema],
         archived: { type: Boolean, default: false, index: true },
         archivedAt: { type: Date },

@@ -1,5 +1,7 @@
 import { Schema, model, models } from "mongoose";
 
+const pairingContactMethods = ["email", "discord", "instagram", "facebook", "telegram", "other"] as const;
+
 const UserSchema = new Schema(
   {
     name: { type: String, trim: true },
@@ -49,6 +51,16 @@ const UserSchema = new Schema(
             lastUsedAt: { type: Date }
           }
         ]
+      },
+      pairingContact: {
+        method: {
+          type: String,
+          enum: pairingContactMethods,
+          lowercase: true,
+          trim: true,
+        },
+        value: { type: String, trim: true, maxlength: 160 },
+        notes: { type: String, trim: true, maxlength: 300 },
       }
     }
   },

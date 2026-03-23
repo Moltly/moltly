@@ -111,6 +111,21 @@ const excludeExplicitManualBreedingClause = (role: "female" | "male") =>
 const excludeDetachedBreedingClause = (role: "female" | "male") =>
   role === "female" ? { detachedFemaleSpecimen: { $ne: true } } : { detachedMaleSpecimen: { $ne: true } };
 
+const normalizePairingStatus = (specimen: {
+  pairingStatus?: string | null;
+  availableForPairing?: boolean | null;
+  sex?: string | null;
+}) => {
+  const allowed = new Set(["none", "seeking_male", "seeking_female", "has_male", "has_female", "open_to_offers"]);
+  if (specimen.pairingStatus && allowed.has(specimen.pairingStatus)) {
+    if (specimen.pairingStatus === "has_male") return "seeking_female";
+    if (specimen.pairingStatus === "has_female") return "seeking_male";
+    return specimen.pairingStatus;
+  }
+  if (specimen.availableForPairing) return specimen.sex === "Female" ? "seeking_male" : "seeking_female";
+  return "none";
+};
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const specimen = (searchParams.get("specimen") || "").trim();
@@ -130,13 +145,15 @@ export async function GET(request: Request) {
     }
     await connectMongoose();
     let sharedSpecimen:
-      | {
+        | {
           id: string;
           name: string;
           species?: string;
           sex?: string;
           imageUrl?: string;
           notes?: string;
+          pairingStatus?: string;
+          pairingNotes?: string;
           createdAt?: string;
           updatedAt?: string;
         }
@@ -157,6 +174,8 @@ export async function GET(request: Request) {
             sex: sourceSpecimen.sex as string | undefined,
             imageUrl: sourceSpecimen.imageUrl as string | undefined,
             notes: sourceSpecimen.notes as string | undefined,
+            pairingStatus: normalizePairingStatus(sourceSpecimen),
+            pairingNotes: sourceSpecimen.pairingNotes as string | undefined,
             createdAt: sourceSpecimen.createdAt instanceof Date ? sourceSpecimen.createdAt.toISOString() : undefined,
             updatedAt: sourceSpecimen.updatedAt instanceof Date ? sourceSpecimen.updatedAt.toISOString() : undefined,
           };
@@ -185,6 +204,8 @@ export async function GET(request: Request) {
           sex: matchedSpecimen.sex as string | undefined,
           imageUrl: matchedSpecimen.imageUrl as string | undefined,
           notes: matchedSpecimen.notes as string | undefined,
+          pairingStatus: normalizePairingStatus(matchedSpecimen),
+          pairingNotes: matchedSpecimen.pairingNotes as string | undefined,
           createdAt: matchedSpecimen.createdAt instanceof Date ? matchedSpecimen.createdAt.toISOString() : undefined,
           updatedAt: matchedSpecimen.updatedAt instanceof Date ? matchedSpecimen.updatedAt.toISOString() : undefined,
         };

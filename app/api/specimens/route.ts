@@ -11,13 +11,36 @@ import { z } from "zod";
 import { runSpecimenMigration } from "@/lib/specimen-migration";
 
 const sexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
+const pairingStatusEnum = z.enum(["none", "seeking_male", "seeking_female", "has_male", "has_female", "open_to_offers"]);
+
+const normalizePairingStatusInput = (status?: string | null) => {
+  if (status === "has_male") return "seeking_female";
+  if (status === "has_female") return "seeking_male";
+  return status ?? "none";
+};
+
+const normalizePairingStatus = (specimen: {
+  pairingStatus?: string | null;
+  availableForPairing?: boolean | null;
+  sex?: string | null;
+}) => {
+  if (specimen.pairingStatus && pairingStatusEnum.safeParse(specimen.pairingStatus).success) {
+    return normalizePairingStatusInput(specimen.pairingStatus);
+  }
+  if (specimen.availableForPairing) {
+    return specimen.sex === "Female" ? "seeking_male" : "seeking_female";
+  }
+  return "none";
+};
 
 const SpecimenCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   species: z.string().trim().max(160).optional(),
   sex: sexEnum.optional(),
   imageUrl: z.string().optional(),
-  notes: z.string().max(2000).optional()
+  notes: z.string().max(2000).optional(),
+  pairingStatus: pairingStatusEnum.optional(),
+  pairingNotes: z.string().trim().max(500).optional(),
 });
 
 export async function GET(request: Request) {
@@ -55,6 +78,8 @@ export async function GET(request: Request) {
     sex: s.sex,
     imageUrl: s.imageUrl ?? legacyCovers[s.name] ?? undefined,
     notes: s.notes,
+    pairingStatus: normalizePairingStatus(s),
+    pairingNotes: s.pairingNotes,
     archived: s.archived ?? false,
     archivedAt: s.archivedAt?.toISOString(),
     archivedReason: s.archivedReason,
@@ -108,7 +133,9 @@ export async function POST(request: Request) {
       species: parsed.data.species,
       sex: parsed.data.sex,
       imageUrl: parsed.data.imageUrl,
-      notes: parsed.data.notes
+      notes: parsed.data.notes,
+      pairingStatus: normalizePairingStatusInput(parsed.data.pairingStatus),
+      pairingNotes: parsed.data.pairingNotes,
     });
 
     return NextResponse.json(
@@ -119,6 +146,8 @@ export async function POST(request: Request) {
         sex: specimen.sex,
         imageUrl: specimen.imageUrl,
         notes: specimen.notes,
+        pairingStatus: normalizePairingStatus(specimen),
+        pairingNotes: specimen.pairingNotes,
         createdAt: specimen.createdAt?.toISOString(),
         updatedAt: specimen.updatedAt?.toISOString()
       },

@@ -340,6 +340,14 @@ export async function GET(request: Request) {
         sex: obj.sex ?? undefined,
         imageUrl,
         notes: obj.notes ?? undefined,
+        pairingStatus:
+          obj.pairingStatus === "has_male"
+            ? "seeking_female"
+            : obj.pairingStatus === "has_female"
+              ? "seeking_male"
+              : obj.pairingStatus ??
+                (obj.availableForPairing ? (obj.sex === "Female" ? "seeking_male" : "seeking_female") : "none"),
+        pairingNotes: obj.pairingNotes ?? undefined,
         attachments,
         archived: obj.archived ?? false,
         archivedAt: obj.archivedAt ? new Date(obj.archivedAt).toISOString() : undefined,
@@ -364,6 +372,8 @@ export async function GET(request: Request) {
         sex: undefined,
         imageUrl: await normalizeImageForExport(String(doc.imageUrl), embed, `legacy-cover-${String(doc._id)}`),
         notes: undefined,
+        pairingStatus: "none",
+        pairingNotes: undefined,
         attachments: [],
         archived: false,
         archivedAt: undefined,

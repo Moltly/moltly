@@ -16,6 +16,27 @@ import { Types } from "mongoose";
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const sexEnum = z.enum(["Male", "Female", "Unknown", "Unsexed"]);
+const pairingStatusEnum = z.enum(["none", "seeking_male", "seeking_female", "has_male", "has_female", "open_to_offers"]);
+
+const normalizePairingStatusInput = (status?: string | null) => {
+    if (status === "has_male") return "seeking_female";
+    if (status === "has_female") return "seeking_male";
+    return status ?? "none";
+};
+
+const normalizePairingStatus = (specimen: {
+    pairingStatus?: string | null;
+    availableForPairing?: boolean | null;
+    sex?: string | null;
+}) => {
+    if (specimen.pairingStatus && pairingStatusEnum.safeParse(specimen.pairingStatus).success) {
+        return normalizePairingStatusInput(specimen.pairingStatus);
+    }
+    if (specimen.availableForPairing) {
+        return specimen.sex === "Female" ? "seeking_male" : "seeking_female";
+    }
+    return "none";
+};
 
 const SpecimenUpdateSchema = z.object({
     name: z.string().trim().min(1).max(160).optional(),
@@ -23,6 +44,8 @@ const SpecimenUpdateSchema = z.object({
     sex: sexEnum.optional().nullable(),
     imageUrl: z.string().optional().nullable(),
     notes: z.string().max(2000).optional().nullable(),
+    pairingStatus: pairingStatusEnum.optional(),
+    pairingNotes: z.string().trim().max(500).optional().nullable(),
     archived: z.boolean().optional(),
     archivedReason: z.string().trim().max(200).optional().nullable()
 });
@@ -56,6 +79,8 @@ export async function GET(
         sex: specimen.sex,
         imageUrl: specimen.imageUrl,
         notes: specimen.notes,
+        pairingStatus: normalizePairingStatus(specimen),
+        pairingNotes: specimen.pairingNotes,
         archived: specimen.archived ?? false,
         archivedAt: specimen.archivedAt?.toISOString(),
         archivedReason: specimen.archivedReason,
@@ -122,11 +147,14 @@ export async function PATCH(
                 parsed.data.imageUrl === null && targetNameDuplicateCount > 0 ? "" : parsed.data.imageUrl;
         }
         if (parsed.data.notes !== undefined) updates.notes = parsed.data.notes;
+        if (parsed.data.pairingStatus !== undefined) updates.pairingStatus = normalizePairingStatusInput(parsed.data.pairingStatus);
+        if (parsed.data.pairingNotes !== undefined) updates.pairingNotes = parsed.data.pairingNotes;
 
         // Handle archive state changes
         if (parsed.data.archived === true) {
             updates.archived = true;
             updates.archivedAt = new Date();
+            updates.pairingStatus = "none";
             if (parsed.data.archivedReason !== undefined) {
                 updates.archivedReason = parsed.data.archivedReason;
             }
@@ -165,6 +193,8 @@ export async function PATCH(
             sex: specimen.sex,
             imageUrl: specimen.imageUrl,
             notes: specimen.notes,
+            pairingStatus: normalizePairingStatus(specimen),
+            pairingNotes: specimen.pairingNotes,
             archived: specimen.archived ?? false,
             archivedAt: specimen.archivedAt?.toISOString(),
             archivedReason: specimen.archivedReason,

@@ -14,6 +14,35 @@ Android APK: https://github.com/moltly/moltly/releases/latest
 - Drop in photos when you log an entry.
 - Keep a lightweight research notebook for species or individuals; tag, filter, and duplicate notes.
 
+## Public Pairings API
+
+Pairing ads can be consumed as a public read-only JSON feed:
+
+```text
+GET /api/public/pairings
+GET /api/public/pairings/:id
+```
+
+The collection response includes:
+
+- `data`: current live pairing advertisements
+- `meta.count`: number of visible ads
+- `meta.total`: total number of matches before pagination
+- `meta.generatedAt`: ISO timestamp for feed generation
+
+Supported query parameters on `GET /api/public/pairings`:
+
+- `species=Grammostola pulchra`
+- `status=seeking_male|seeking_female|open_to_offers`
+- `sex=Male|Female|Unknown|Unsexed`
+- `ownerId=<moltly-user-id>`
+- `search=<text>`
+- `limit=<1-100>`
+- `offset=<0+>`
+- `page=<1+>` when `offset` is not supplied
+
+Each listing includes the specimen details, owner display details, public contact info, cover image URL, attachment image URLs, and a share URL back into Moltly. These endpoints are read-only and return permissive CORS headers so third-party sites can fetch them directly.
+
 ## Self Host
 
 ### Environment

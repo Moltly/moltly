@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg, QrCode, Search, Edit2, X, Archive, ArchiveRestore, Upload, ImagePlus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, TrendingUp, Activity, Calendar, Bell, Droplets, HeartPulse, Egg, QrCode, Search, Edit2, X, Archive, ArchiveRestore, Upload, ImagePlus, Trash2, Megaphone } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import CachedImage from "@/components/ui/CachedImage";
-import { MoltEntry, SpecimenDashboard, SizeUnit, Specimen } from "@/types/molt";
+import { MoltEntry, SpecimenDashboard, SizeUnit, Specimen, PairingStatus } from "@/types/molt";
 import type { HealthEntry } from "@/types/health";
 import type { BreedingEntry } from "@/types/breeding";
 import { formatDate, getReminderStatus, cn, cmToInches } from "@/lib/utils";
@@ -26,6 +26,8 @@ interface SpecimensViewProps {
   onEdit?: (entry: MoltEntry) => void;
   onArchive?: (specimenId: string, archived: boolean, reason?: string) => Promise<void>;
   onUpdateCover?: (specimenId: string, imageUrl: string | null) => Promise<void>;
+  onUpdateSex?: (specimenId: string, sex: Specimen["sex"]) => Promise<void>;
+  onUpdatePairing?: (specimenId: string, data: { pairingStatus: PairingStatus; pairingNotes?: string }) => Promise<void>;
   initialFocusSpecimen?: string;
   readOnly?: boolean;
   ownerId?: string;
@@ -49,6 +51,15 @@ type SpecimenCardDashboard = SpecimenDashboard & {
   _sex?: Specimen["sex"];
   _notes?: string;
   _createdAt?: string;
+  _pairingStatus?: PairingStatus;
+  _pairingNotes?: string;
+};
+
+const pairingStatusLabels: Record<PairingStatus, string> = {
+  none: "Not advertised",
+  seeking_male: "Seeking male",
+  seeking_female: "Seeking female",
+  open_to_offers: "Open to offers",
 };
 
 function getHealthConditionVariant(condition?: HealthEntry["condition"]): "success" | "warning" | "danger" | "neutral" {
@@ -77,12 +88,16 @@ function getBreedingStatusVariant(status?: BreedingEntry["status"]): "success" |
   }
 }
 
-export default function SpecimensView({ entries, specimens = [], covers, healthEntries = [], breedingEntries = [], onQuickAction, onEdit, onArchive, onUpdateCover, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
+export default function SpecimensView({ entries, specimens = [], covers, healthEntries = [], breedingEntries = [], onQuickAction, onEdit, onArchive, onUpdateCover, onUpdateSex, onUpdatePairing, initialFocusSpecimen, readOnly, ownerId, sizeUnit }: SpecimensViewProps) {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [showQrModal, setShowQrModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [sexDrafts, setSexDrafts] = useState<Record<string, Specimen["sex"] | "">>({});
+  const [sexSavingId, setSexSavingId] = useState<string | null>(null);
+  const [pairingDrafts, setPairingDrafts] = useState<Record<string, { pairingStatus: PairingStatus; pairingNotes: string }>>({});
+  const [pairingSavingId, setPairingSavingId] = useState<string | null>(null);
 
   const { sortedButtons, buttons, addCustomButton, removeButton, toggleButton, trackUsage } = useActionButtons();
   const [editorOpen, setEditorOpen] = useState(false);
@@ -227,6 +242,8 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
           _sex: linkedSpecimen?.sex,
           _notes: linkedSpecimen?.notes,
           _createdAt: linkedSpecimen?.createdAt,
+          _pairingStatus: linkedSpecimen?.pairingStatus ?? "none",
+          _pairingNotes: linkedSpecimen?.pairingNotes,
         });
       }
 
@@ -635,6 +652,11 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
                             {dashboard.archivedReason && ` (${dashboard.archivedReason})`}
                           </Badge>
                         )}
+                        {dashboard._pairingStatus && dashboard._pairingStatus !== "none" && !dashboard.archived && (
+                          <Badge variant="success">
+                            <Megaphone className="w-3 h-3" /> {pairingStatusLabels[dashboard._pairingStatus]}
+                          </Badge>
+                        )}
                         {onQuickAction && (
                           <Button
                             type="button"
@@ -710,6 +732,61 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
                               Created {formatDate(dashboard._createdAt)}
                             </p>
                           )}
+                          {onUpdateSex && dashboard.specimenId && !readOnly ? (
+                            <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] p-3 space-y-2">
+                              <label className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                                Sex
+                              </label>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                  value={sexDrafts[dashboard.specimenId] ?? dashboard._sex ?? ""}
+                                  onChange={(e) =>
+                                    setSexDrafts((prev) => ({
+                                      ...prev,
+                                      [dashboard.specimenId!]: (e.target.value || undefined) as Specimen["sex"] | "",
+                                    }))
+                                  }
+                                  disabled={sexSavingId === dashboard.specimenId}
+                                  className="min-w-[160px] px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                                >
+                                  <option value="">Not specified</option>
+                                  <option value="Male">Male</option>
+                                  <option value="Female">Female</option>
+                                  <option value="Unknown">Unknown</option>
+                                  <option value="Unsexed">Unsexed</option>
+                                </select>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={
+                                    sexSavingId === dashboard.specimenId ||
+                                    (sexDrafts[dashboard.specimenId] ?? dashboard._sex ?? "") === (dashboard._sex ?? "")
+                                  }
+                                  onClick={async () => {
+                                    if (!dashboard.specimenId) return;
+                                    const nextSex = (sexDrafts[dashboard.specimenId] ?? dashboard._sex ?? "") || undefined;
+                                    setSexSavingId(dashboard.specimenId);
+                                    try {
+                                      await onUpdateSex(dashboard.specimenId, nextSex);
+                                      setPairingDrafts((prev) => {
+                                        const next = { ...prev };
+                                        delete next[dashboard.specimenId!];
+                                        return next;
+                                      });
+                                    } finally {
+                                      setSexSavingId(null);
+                                    }
+                                  }}
+                                >
+                                  {sexSavingId === dashboard.specimenId ? "Saving..." : "Save sex"}
+                                </Button>
+                              </div>
+                              <p className="text-xs text-[rgb(var(--text-soft))]">
+                                Setting sex to Male unlocks pairing ads. Changing away from Male will remove any live pairing ad for this specimen.
+                              </p>
+                            </div>
+                          ) : null}
                           {dashboard._notes ? (
                             <div className="text-sm leading-relaxed text-[rgb(var(--text-soft))]">
                               <MarkdownRenderer>{dashboard._notes}</MarkdownRenderer>
@@ -961,6 +1038,111 @@ export default function SpecimensView({ entries, specimens = [], covers, healthE
                         ))}
                       </div>
                     </div>
+
+                    {/* Cover Image Management */}
+                    {onUpdatePairing && dashboard.specimenId && !readOnly && (
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--text))] mb-2">
+                          Pairing Ad
+                        </p>
+                        {(() => {
+                          const pairingDraft = pairingDrafts[dashboard.specimenId!] ?? {
+                            pairingStatus: dashboard._pairingStatus ?? "none",
+                            pairingNotes: dashboard._pairingNotes ?? "",
+                          };
+                          const pairingDirty =
+                            pairingDraft.pairingStatus !== (dashboard._pairingStatus ?? "none") ||
+                            pairingDraft.pairingNotes.trim() !== (dashboard._pairingNotes ?? "").trim();
+
+                          return (
+                            <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3 space-y-3">
+                              <div>
+                                <label className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                                  Ad type
+                                </label>
+                                <select
+                                  value={pairingDraft.pairingStatus}
+                                  disabled={pairingSavingId === dashboard.specimenId}
+                                  onChange={(e) =>
+                                    setPairingDrafts((prev) => ({
+                                      ...prev,
+                                      [dashboard.specimenId!]: {
+                                        pairingStatus: e.target.value as PairingStatus,
+                                        pairingNotes: prev[dashboard.specimenId!]?.pairingNotes ?? dashboard._pairingNotes ?? "",
+                                      },
+                                    }))
+                                  }
+                                  className="mt-1 w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                                >
+                                  <option value="none">Not advertised</option>
+                                  <option value="seeking_male">Seeking male</option>
+                                  <option value="seeking_female">Seeking female</option>
+                                  <option value="open_to_offers">Open to offers</option>
+                                </select>
+                                <p className="mt-1 text-xs text-[rgb(var(--text-soft))]">
+                                  Use this to show what this specimen is looking for. The specimen’s own sex already shows what you have.
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                                  Pairing notes
+                                </label>
+                                <textarea
+                                  value={pairingDraft.pairingNotes}
+                                  onChange={(e) =>
+                                    setPairingDrafts((prev) => ({
+                                      ...prev,
+                                      [dashboard.specimenId!]: {
+                                        pairingStatus: prev[dashboard.specimenId!]?.pairingStatus ?? (dashboard._pairingStatus ?? "none"),
+                                        pairingNotes: e.target.value,
+                                      },
+                                    }))
+                                  }
+                                  placeholder="Molt date, temperament, locality, or other useful pairing details."
+                                  rows={3}
+                                  disabled={pairingSavingId === dashboard.specimenId}
+                                  className="mt-1 w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))] resize-y"
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs text-[rgb(var(--text-soft))]">
+                                  {pairingDraft.pairingStatus !== "none" ? "This ad will be visible in Pairings once saved." : "Saving will remove it from the public feed."}
+                                </p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={!pairingDirty || pairingSavingId === dashboard.specimenId}
+                                  onClick={async () => {
+                                    if (!dashboard.specimenId) return;
+                                    setPairingSavingId(dashboard.specimenId);
+                                    try {
+                                      await onUpdatePairing(dashboard.specimenId, {
+                                        pairingStatus: pairingDraft.pairingStatus,
+                                        pairingNotes: pairingDraft.pairingNotes.trim() || undefined,
+                                      });
+                                      setPairingDrafts((prev) => ({
+                                        ...prev,
+                                        [dashboard.specimenId!]: {
+                                          pairingStatus: pairingDraft.pairingStatus,
+                                          pairingNotes: pairingDraft.pairingNotes,
+                                        },
+                                      }));
+                                    } finally {
+                                      setPairingSavingId(null);
+                                    }
+                                  }}
+                                >
+                                  {pairingSavingId === dashboard.specimenId ? "Saving..." : "Save Pairing Ad"}
+                                </Button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
 
                     {/* Cover Image Management */}
                     {onUpdateCover && dashboard.specimenId && !readOnly && (

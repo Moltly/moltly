@@ -19,7 +19,8 @@ import HealthView from "@/components/dashboard/HealthView";
 import BreedingView from "@/components/dashboard/BreedingView";
 import AnalyticsView from "@/components/dashboard/AnalyticsView";
 import CulturesView from "@/components/dashboard/CulturesView";
-import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit, Specimen } from "@/types/molt";
+import PairingsView from "@/components/dashboard/PairingsView";
+import type { MoltEntry, ViewKey, Stage, EntryType, FormState, Attachment, SizeUnit, Specimen, PairingContactMethod, PairingContactPreference, PairingStatus } from "@/types/molt";
 import type { HealthEntry, HealthFormState } from "@/types/health";
 import type { BreedingEntry, BreedingFormState } from "@/types/breeding";
 import type { ResearchStack, ResearchNote } from "@/types/research";
@@ -54,6 +55,19 @@ const defaultForm = (): FormState => ({
   feedingOutcome: "",
   feedingAmount: "",
 });
+
+const VIEW_KEYS: ViewKey[] = [
+  "overview",
+  "activity",
+  "specimens",
+  "pairings",
+  "health",
+  "breeding",
+  "analytics",
+  "reminders",
+  "notebook",
+  "cultures",
+];
 
 const parseNumber = (value: string): number | undefined => {
   if (!value) return undefined;
@@ -219,6 +233,12 @@ export default function MobileDashboard() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [wscaSyncing, setWscaSyncing] = useState(false);
   const [wscaSyncStatus, setWscaSyncStatus] = useState<string | null>(null);
+  const [pairingContactMethod, setPairingContactMethod] = useState<PairingContactMethod | "">("");
+  const [pairingContactValue, setPairingContactValue] = useState("");
+  const [pairingContactNotes, setPairingContactNotes] = useState("");
+  const [pairingContactSaving, setPairingContactSaving] = useState(false);
+  const [pairingContactStatus, setPairingContactStatus] = useState<string | null>(null);
+  const [pairingsRefreshToken, setPairingsRefreshToken] = useState(0);
   const specimenParam = searchParams?.get("specimen");
   const specimenIdParam = searchParams?.get("specimenId");
   const speciesParam = searchParams?.get("species") || "";
@@ -397,10 +417,25 @@ export default function MobileDashboard() {
   );
 
   const createSpecimenRecord = useCallback(
-    async ({ name, species, sex, notes }: { name: string; species?: string; sex?: "Male" | "Female" | "Unknown" | "Unsexed"; notes?: string }) => {
+    async ({
+      name,
+      species,
+      sex,
+      notes,
+      pairingStatus,
+      pairingNotes,
+    }: {
+      name: string;
+      species?: string;
+      sex?: "Male" | "Female" | "Unknown" | "Unsexed";
+      notes?: string;
+      pairingStatus?: PairingStatus;
+      pairingNotes?: string;
+    }) => {
       const trimmedName = name.trim();
       const trimmedSpecies = species?.trim() || undefined;
       const trimmedNotes = notes?.trim() || undefined;
+      const trimmedPairingNotes = pairingNotes?.trim() || undefined;
 
       if (!trimmedName) {
         throw new Error("Specimen name is required to create a new specimen record.");
@@ -414,7 +449,14 @@ export default function MobileDashboard() {
         const res = await fetch("/api/specimens", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: trimmedName, species: trimmedSpecies, sex, notes: trimmedNotes }),
+          body: JSON.stringify({
+            name: trimmedName,
+            species: trimmedSpecies,
+            sex,
+            notes: trimmedNotes,
+            pairingStatus,
+            pairingNotes: trimmedPairingNotes,
+          }),
           credentials: "include",
         });
         if (!res.ok) {
@@ -436,6 +478,8 @@ export default function MobileDashboard() {
         species: trimmedSpecies,
         sex,
         notes: trimmedNotes,
+        pairingStatus: pairingStatus ?? "none",
+        pairingNotes: trimmedPairingNotes,
         createdAt: now,
         updatedAt: now,
       };
@@ -443,6 +487,55 @@ export default function MobileDashboard() {
       return localSpecimen;
     },
     [isSync, upsertSpecimenState]
+  );
+
+  const updateSpecimenRecord = useCallback(
+    async (
+      specimenId: string,
+      changes: Partial<Pick<Specimen, "pairingStatus" | "pairingNotes" | "sex" | "notes" | "name" | "species">>
+    ) => {
+      const previous = specimens.find((specimen) => specimen.id === specimenId);
+      if (!previous) {
+        throw new Error("Specimen not found.");
+      }
+
+      const optimistic: Specimen = {
+        ...previous,
+        ...changes,
+        updatedAt: new Date().toISOString(),
+      };
+
+      upsertSpecimenState(optimistic);
+
+      if (!isSync) {
+        return optimistic;
+      }
+
+      const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
+      if (!isOnline) {
+        queueOfflineMutation("specimens", "update", specimenId, changes);
+        return optimistic;
+      }
+
+      try {
+        const res = await fetch(`/api/specimens/${specimenId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(changes),
+          credentials: "include",
+        });
+        const body = (await res.json().catch(() => ({}))) as Specimen & { error?: string };
+        if (!res.ok) {
+          throw new Error(body.error || "Failed to update specimen.");
+        }
+        upsertSpecimenState(body);
+        return body;
+      } catch (error) {
+        upsertSpecimenState(previous);
+        throw error;
+      }
+    },
+    [isSync, specimens, upsertSpecimenState, queueOfflineMutation]
   );
 
   // Load research stacks
@@ -460,16 +553,42 @@ export default function MobileDashboard() {
     if (specimenIdParam || specimenParam) {
       setLinkedSpecimen(specimenIdParam || specimenParam);
       setActiveView("specimens");
-    } else if (viewParam === "specimens") {
-      setActiveView("specimens");
+    } else if (viewParam && VIEW_KEYS.includes(viewParam as ViewKey)) {
+      setActiveView(viewParam as ViewKey);
     }
     setShareImported(false);
   }, [specimenIdParam, specimenParam, viewParam, ownerParam]);
 
   const currentUserId = session?.user?.id ?? "";
-  const isOwnerMatch = Boolean(ownerParam && ownerParam === currentUserId);
-  const isSharePreview = Boolean(linkedSpecimen) && !isOwnerMatch;
+  const hasShareOwner = Boolean(ownerParam);
+  const isOwnerMatch = Boolean(hasShareOwner && ownerParam === currentUserId);
+  const isSharePreview = Boolean(linkedSpecimen && hasShareOwner) && !isOwnerMatch;
   const isPreviewActive = isSharePreview && !shareImported;
+
+  const handleViewChange = useCallback(
+    (nextView: ViewKey) => {
+      setActiveView(nextView);
+
+      const params = new URLSearchParams();
+      if (nextView !== "overview") {
+        params.set("view", nextView);
+      }
+
+      const shouldKeepShareParams = nextView === "specimens" && isPreviewActive && linkedSpecimen && ownerParam;
+      if (shouldKeepShareParams) {
+        if (specimenParam) params.set("specimen", specimenParam);
+        if (specimenIdParam) params.set("specimenId", specimenIdParam);
+        if (!specimenParam && !specimenIdParam) params.set("specimen", linkedSpecimen);
+        if (speciesParam) params.set("species", speciesParam);
+        params.set("owner", ownerParam);
+        if (noteParam) params.set("note", noteParam);
+      }
+
+      const nextUrl = params.toString() ? `/?${params.toString()}` : "/";
+      router.replace(nextUrl);
+    },
+    [isPreviewActive, linkedSpecimen, noteParam, ownerParam, router, specimenIdParam, specimenParam, speciesParam]
+  );
 
   useEffect(() => {
     if (!isPreviewActive || !linkedSpecimen || !ownerParam) {
@@ -569,15 +688,41 @@ export default function MobileDashboard() {
     }
   }, [isSync]);
 
+  const refreshPairingPreferences = useCallback(async () => {
+    if (!isSync) {
+      setPairingContactMethod("");
+      setPairingContactValue("");
+      setPairingContactNotes("");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/account/preferences", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load preferences");
+      const data = (await res.json()) as { pairingContact?: PairingContactPreference };
+      const pairingContact = data?.pairingContact;
+      setPairingContactMethod((pairingContact?.method as PairingContactMethod | undefined) ?? "");
+      setPairingContactValue(pairingContact?.value ?? "");
+      setPairingContactNotes(pairingContact?.notes ?? "");
+    } catch (err) {
+      console.error(err);
+      setPairingContactMethod("");
+      setPairingContactValue("");
+      setPairingContactNotes("");
+    }
+  }, [isSync]);
+
   useEffect(() => {
     if (!showInfo && !showChangePassword) return;
     void refreshAccountStatus();
-  }, [showInfo, showChangePassword, refreshAccountStatus]);
+    void refreshPairingPreferences();
+  }, [showInfo, showChangePassword, refreshAccountStatus, refreshPairingPreferences]);
 
   useEffect(() => {
     if (!isSync) return;
     void refreshAccountStatus();
-  }, [isSync, refreshAccountStatus]);
+    void refreshPairingPreferences();
+  }, [isSync, refreshAccountStatus, refreshPairingPreferences]);
 
   // Scroll-to-top button visibility
   useEffect(() => {
@@ -605,12 +750,13 @@ export default function MobileDashboard() {
     setEditingId(entry.id);
     setFormState((prev) => {
       const sizeUnit = prev.sizeUnit ?? getSavedSizeUnit();
+      const linkedSpecimen = entry.specimenId ? specimens.find((specimen) => specimen.id === entry.specimenId) : undefined;
       return {
         entryType: entry.entryType,
         specimenId: entry.specimenId ?? "",
         specimen: entry.specimen ?? "",
         species: entry.species ?? "",
-        sex: "",
+        sex: linkedSpecimen?.sex ?? "",
         date: entry.date.slice(0, 10),
         stage: entry.stage ?? "Molt",
         oldSize: toDisplaySize(entry.oldSize, sizeUnit),
@@ -715,6 +861,16 @@ export default function MobileDashboard() {
     const resolvedSpecimenName = selectedSpecimen ? selectedSpecimen.name : trimmedSpecimen || undefined;
     const resolvedSpecies = selectedSpecimen ? selectedSpecimen.species ?? (trimmedSpecies || undefined) : trimmedSpecies || undefined;
     const shouldClearSpecimenId = Boolean(editingId && existing?.specimenId && !resolvedSpecimenId);
+    const shouldPersistLinkedSpecimenSex =
+      Boolean(resolvedSpecimenId) &&
+      Boolean(formState.sex) &&
+      formState.sex !== selectedSpecimen?.sex;
+
+    const persistLinkedSpecimenSex = async () => {
+      if (!resolvedSpecimenId || !formState.sex || formState.sex === selectedSpecimen?.sex) return;
+      await updateSpecimenRecord(resolvedSpecimenId, { sex: formState.sex });
+      setPairingsRefreshToken((prev) => prev + 1);
+    };
 
     const payload = {
       entryType: formState.entryType,
@@ -779,6 +935,13 @@ export default function MobileDashboard() {
           }
         } catch (err) {
           console.warn("Local notification scheduling failed", err);
+        }
+        if (shouldPersistLinkedSpecimenSex) {
+          try {
+            await persistLinkedSpecimenSex();
+          } catch (error) {
+            alert(error instanceof Error ? error.message : "Entry saved, but specimen sex could not be updated.");
+          }
         }
         setFormOpen(false);
         setEditingId(null);
@@ -858,6 +1021,14 @@ export default function MobileDashboard() {
         queueOfflineCreate("entries", baseExisting.id, payload);
       } else if (!localOnlyExisting && editingId) {
         queueOfflineMutation("entries", "update", editingId, payload);
+      }
+    }
+
+    if (shouldPersistLinkedSpecimenSex) {
+      try {
+        await persistLinkedSpecimenSex();
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Entry saved, but specimen sex could not be updated.");
       }
     }
 
@@ -1995,6 +2166,140 @@ export default function MobileDashboard() {
                 {isSync ? (
                   <div className="flex flex-col gap-2">
                     <div className="text-sm text-[rgb(var(--text-soft))]">You’re signed in. Manage your account below.</div>
+                    <div className="rounded-[var(--radius)] border border-[rgb(var(--border))] p-3 space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-[rgb(var(--text))]">Preferred pairing contact</p>
+                        <p className="text-xs text-[rgb(var(--text-soft))]">
+                          This is shown on your public pairing ads.
+                        </p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
+                        <div>
+                          <label className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                            Method
+                          </label>
+                          <select
+                            value={pairingContactMethod}
+                            onChange={(e) => setPairingContactMethod(e.target.value as PairingContactMethod | "")}
+                            className="mt-1 w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                          >
+                            <option value="">Not set</option>
+                            <option value="email">Email</option>
+                            <option value="discord">Discord</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="telegram">Telegram</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                            Value
+                          </label>
+                          <input
+                            value={pairingContactValue}
+                            onChange={(e) => setPairingContactValue(e.target.value)}
+                            placeholder="you@example.com or discord_handle"
+                            maxLength={160}
+                            className="mt-1 w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))]"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium uppercase tracking-wide text-[rgb(var(--text-subtle))]">
+                          Contact notes
+                        </label>
+                        <textarea
+                          value={pairingContactNotes}
+                          onChange={(e) => setPairingContactNotes(e.target.value)}
+                          placeholder="Optional timing, timezone, or response expectations."
+                          rows={2}
+                          maxLength={300}
+                          className="mt-1 w-full px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] bg-[rgb(var(--surface))] text-[rgb(var(--text))] resize-y"
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setPairingContactSaving(true);
+                            setPairingContactStatus(null);
+                            try {
+                              const payload =
+                                pairingContactMethod || pairingContactValue.trim() || pairingContactNotes.trim()
+                                  ? {
+                                      method: pairingContactMethod,
+                                      value: pairingContactValue.trim(),
+                                      notes: pairingContactNotes.trim() || undefined,
+                                    }
+                                  : null;
+                              const res = await fetch("/api/account/preferences", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                credentials: "include",
+                                body: JSON.stringify({ pairingContact: payload }),
+                              });
+                              const data = (await res.json().catch(() => ({}))) as {
+                                error?: string;
+                                pairingContact?: PairingContactPreference;
+                              };
+                              if (!res.ok) {
+                                throw new Error(data.error || "Failed to save pairing contact.");
+                              }
+                              const saved = data.pairingContact;
+                              setPairingContactMethod((saved?.method as PairingContactMethod | undefined) ?? "");
+                              setPairingContactValue(saved?.value ?? "");
+                              setPairingContactNotes(saved?.notes ?? "");
+                              setPairingContactStatus("Saved pairing contact.");
+                              setPairingsRefreshToken((prev) => prev + 1);
+                            } catch (error) {
+                              setPairingContactStatus(error instanceof Error ? error.message : "Failed to save pairing contact.");
+                            } finally {
+                              setPairingContactSaving(false);
+                            }
+                          }}
+                          disabled={pairingContactSaving}
+                          className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text))] hover:bg-[rgb(var(--bg-muted))]"
+                        >
+                          {pairingContactSaving ? "Saving…" : "Save pairing contact"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setPairingContactSaving(true);
+                            setPairingContactStatus(null);
+                            try {
+                              const res = await fetch("/api/account/preferences", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                credentials: "include",
+                                body: JSON.stringify({ pairingContact: null }),
+                              });
+                              const data = (await res.json().catch(() => ({}))) as { error?: string };
+                              if (!res.ok) {
+                                throw new Error(data.error || "Failed to clear pairing contact.");
+                              }
+                              setPairingContactMethod("");
+                              setPairingContactValue("");
+                              setPairingContactNotes("");
+                              setPairingContactStatus("Cleared pairing contact.");
+                              setPairingsRefreshToken((prev) => prev + 1);
+                            } catch (error) {
+                              setPairingContactStatus(error instanceof Error ? error.message : "Failed to clear pairing contact.");
+                            } finally {
+                              setPairingContactSaving(false);
+                            }
+                          }}
+                          disabled={pairingContactSaving || (!pairingContactMethod && !pairingContactValue && !pairingContactNotes)}
+                          className="px-3 py-2 rounded-[var(--radius)] border border-[rgb(var(--border))] text-[rgb(var(--text-soft))] hover:bg-[rgb(var(--bg-muted))]"
+                        >
+                          Clear
+                        </button>
+                        {pairingContactStatus ? (
+                          <span className="text-xs text-[rgb(var(--text-soft))]">{pairingContactStatus}</span>
+                        ) : null}
+                      </div>
+                    </div>
                     {hasPasswordAccount === false ? (
                       <div className="text-xs text-[rgb(var(--text-subtle))]">
                         Add a username + password so you can sign in without Discord, Google, or Apple.
@@ -2390,7 +2695,7 @@ export default function MobileDashboard() {
       )}
       <Header
         mode={isSync ? "sync" : "local"}
-        onNewEntry={isSharePreview ? undefined : openNewEntry}
+        onNewEntry={isPreviewActive ? undefined : openNewEntry}
         onSignOut={isSync ? () => void signOut({ callbackUrl: "/login" }) : undefined}
         onOpenInfo={() => setShowInfo(true)}
       />
@@ -2503,7 +2808,7 @@ export default function MobileDashboard() {
         )}
         {/* Keep views mounted to avoid reloading images on tab swap */}
         <div style={{ display: activeView === "overview" ? undefined : "none" }}>
-          <OverviewView entries={displayEntries} specimens={displaySpecimens} onViewChange={setActiveView} covers={displayCovers} />
+          <OverviewView entries={displayEntries} specimens={displaySpecimens} onViewChange={handleViewChange} covers={displayCovers} />
         </div>
 
         <div style={{ display: activeView === "activity" ? undefined : "none" }}>
@@ -2531,6 +2836,30 @@ export default function MobileDashboard() {
             ownerId={isPreviewActive ? ownerParam || undefined : session?.user?.id || undefined}
             sizeUnit={formState.sizeUnit}
             onUpdateCover={isPreviewActive ? undefined : handleUpdateSpecimenCover}
+            onUpdateSex={
+              isPreviewActive
+                ? undefined
+                : async (specimenId, sex) => {
+                    try {
+                      await updateSpecimenRecord(specimenId, { sex });
+                      setPairingsRefreshToken((prev) => prev + 1);
+                    } catch (error) {
+                      alert(error instanceof Error ? error.message : "Failed to update specimen sex.");
+                    }
+                  }
+            }
+            onUpdatePairing={
+              isPreviewActive
+                ? undefined
+                : async (specimenId, data) => {
+                    try {
+                      await updateSpecimenRecord(specimenId, data);
+                      setPairingsRefreshToken((prev) => prev + 1);
+                    } catch (error) {
+                      alert(error instanceof Error ? error.message : "Failed to update pairing ad.");
+                    }
+                  }
+            }
             onEdit={isPreviewActive ? undefined : onEdit}
             onArchive={
               isPreviewActive || !isSync
@@ -2574,6 +2903,16 @@ export default function MobileDashboard() {
                   setFormOpen(true);
                 }
             }
+          />
+        </div>
+
+        <div style={{ display: activeView === "pairings" ? undefined : "none" }}>
+          <PairingsView
+            specimens={specimens}
+            isSync={isSync}
+            currentUserId={session?.user?.id}
+            refreshToken={pairingsRefreshToken}
+            pairingContactConfigured={Boolean(pairingContactMethod && pairingContactValue.trim())}
           />
         </div>
 
@@ -2754,7 +3093,7 @@ export default function MobileDashboard() {
         isEditing={Boolean(editingId)}
       />
 
-      <BottomNav activeView={activeView} onViewChange={setActiveView} />
+      <BottomNav activeView={activeView} onViewChange={handleViewChange} />
 
       {/* Scroll to top */}
       {showScrollTop && (

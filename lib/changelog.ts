@@ -6,6 +6,18 @@ export type ChangelogEntry = {
 
 const entries: ChangelogEntry[] = [
     {
+        version: "2.1.4",
+        date: "2026-03-22",
+        highlights: [
+            "Add Pairings tab with public specimen pairing ads and filters.",
+            "Add preferred pairing contact info in account settings.",
+            "Allow specimen sex to be updated from specimen cards and linked molt edits.",
+            "Add public specimen sharing from pairing ads.",
+            "Refactor pairing ads to support seeking/has male or female plus open to offers.",
+            "Fix shared specimen URLs so they no longer trap normal web app navigation.",
+        ],
+    },
+    {
         version: "2.1.3",
         date: "2026-03-19",
         highlights: [

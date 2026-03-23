@@ -117,6 +117,9 @@ const ImportSpecimenSchema = z.object({
   sex: z.enum(["Male", "Female", "Unknown", "Unsexed"]).optional(),
   imageUrl: optionalTrimmedString(4000),
   notes: optionalTrimmedString(4000),
+  pairingStatus: z.enum(["none", "seeking_male", "seeking_female", "has_male", "has_female", "open_to_offers"]).optional(),
+  availableForPairing: z.boolean().optional(),
+  pairingNotes: optionalTrimmedString(4000),
   archived: z.boolean().optional(),
   archivedAt: optionalDateString,
   archivedReason: optionalTrimmedString(4000),
@@ -130,6 +133,13 @@ const ImportSpecimenSchema = z.object({
   sex: data.sex,
   imageUrl: data.imageUrl,
   notes: data.notes,
+  pairingStatus:
+    data.pairingStatus === "has_male"
+      ? "seeking_female"
+      : data.pairingStatus === "has_female"
+        ? "seeking_male"
+        : data.pairingStatus ?? (data.availableForPairing ? "seeking_female" : "none"),
+  pairingNotes: data.pairingNotes,
   archived: data.archived ?? false,
   archivedAt: data.archivedAt,
   archivedReason: data.archivedReason,
