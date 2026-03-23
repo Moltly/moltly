@@ -1,6 +1,6 @@
 # Moltly Public Pairings API
 
-Base URL: `https://moltly.com`
+Base URL: `https://moltly.xyz`
 
 This API exposes Moltly pairing advertisements as a public, read-only JSON feed for third-party websites, apps, and integrations.
 
@@ -19,13 +19,13 @@ Only live public pairing ads are included. Listings without a configured public 
 
 ### List Pairing Ads
 
-`GET https://moltly.com/api/public/pairings`
+`GET https://moltly.xyz/api/public/pairings`
 
 Returns the public collection feed of pairing advertisements.
 
 ### Get Pairing Ad by ID
 
-`GET https://moltly.com/api/public/pairings/{id}`
+`GET https://moltly.xyz/api/public/pairings/{id}`
 
 Returns one public pairing advertisement by `specimenId`.
 
@@ -56,8 +56,8 @@ Pagination applies only to `GET /api/public/pairings`.
 Example:
 
 ```text
-GET https://moltly.com/api/public/pairings?limit=25&page=2
-GET https://moltly.com/api/public/pairings?limit=25&offset=25
+GET https://moltly.xyz/api/public/pairings?limit=25&page=2
+GET https://moltly.xyz/api/public/pairings?limit=25&offset=25
 ```
 
 ## Collection Response
@@ -65,7 +65,7 @@ GET https://moltly.com/api/public/pairings?limit=25&offset=25
 ### Example Request
 
 ```bash
-curl "https://moltly.com/api/public/pairings?status=seeking_female&species=Grammostola%20pulchra&limit=10"
+curl "https://moltly.xyz/api/public/pairings?status=seeking_female&species=Grammostola%20pulchra&limit=10"
 ```
 
 ### Example Response
@@ -79,7 +79,7 @@ curl "https://moltly.com/api/public/pairings?status=seeking_female&species=Gramm
       "specimenName": "Nyx",
       "species": "Grammostola pulchra",
       "sex": "Male",
-      "imageUrl": "https://moltly.com/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fcover.jpg",
+      "imageUrl": "https://moltly.xyz/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fcover.jpg",
       "notes": "Calm temperament, proven feeder.",
       "pairingStatus": "seeking_female",
       "pairingNotes": "Fresh mature male, last molt 2026-02-03.",
@@ -89,7 +89,7 @@ curl "https://moltly.com/api/public/pairings?status=seeking_female&species=Gramm
         "id": "67c111223344556677889900",
         "name": "arachnokeeper",
         "username": "arachnokeeper",
-        "imageUrl": "https://moltly.com/avatar.png"
+        "imageUrl": "https://moltly.xyz/avatar.png"
       },
       "contact": {
         "method": "discord",
@@ -101,7 +101,7 @@ curl "https://moltly.com/api/public/pairings?status=seeking_female&species=Gramm
           "kind": "attachment",
           "name": "pedipalp-closeup.jpg",
           "type": "image/jpeg",
-          "url": "https://moltly.com/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fpedipalp-closeup.jpg",
+          "url": "https://moltly.xyz/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fpedipalp-closeup.jpg",
           "originalUrl": "https://moltly-uploads.example/molt-uploads/abc/pedipalp-closeup.jpg",
           "addedAt": "2026-03-18T12:10:33.000Z"
         }
@@ -111,21 +111,21 @@ curl "https://moltly.com/api/public/pairings?status=seeking_female&species=Gramm
           "kind": "cover",
           "name": "Nyx",
           "type": "image",
-          "url": "https://moltly.com/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fcover.jpg",
+          "url": "https://moltly.xyz/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fcover.jpg",
           "originalUrl": "https://moltly-uploads.example/molt-uploads/abc/cover.jpg"
         },
         {
           "kind": "attachment",
           "name": "pedipalp-closeup.jpg",
           "type": "image/jpeg",
-          "url": "https://moltly.com/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fpedipalp-closeup.jpg",
+          "url": "https://moltly.xyz/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fpedipalp-closeup.jpg",
           "originalUrl": "https://moltly-uploads.example/molt-uploads/abc/pedipalp-closeup.jpg",
           "addedAt": "2026-03-18T12:10:33.000Z"
         }
       ],
       "urls": {
-        "api": "https://moltly.com/api/public/pairings/67dff0db3e1c6f4d1f7f8abc",
-        "share": "https://moltly.com/?view=specimens&specimen=Nyx&specimenId=67dff0db3e1c6f4d1f7f8abc&owner=67c111223344556677889900&species=Grammostola+pulchra"
+        "api": "https://moltly.xyz/api/public/pairings/67dff0db3e1c6f4d1f7f8abc",
+        "share": "https://moltly.xyz/?view=specimens&specimen=Nyx&specimenId=67dff0db3e1c6f4d1f7f8abc&owner=67c111223344556677889900&species=Grammostola+pulchra"
       }
     }
   ],
@@ -155,7 +155,7 @@ curl "https://moltly.com/api/public/pairings?status=seeking_female&species=Gramm
 ### Example Request
 
 ```bash
-curl "https://moltly.com/api/public/pairings/67dff0db3e1c6f4d1f7f8abc"
+curl "https://moltly.xyz/api/public/pairings/67dff0db3e1c6f4d1f7f8abc"
 ```
 
 ### Example Response
@@ -167,7 +167,7 @@ curl "https://moltly.com/api/public/pairings/67dff0db3e1c6f4d1f7f8abc"
   "specimenName": "Nyx",
   "species": "Grammostola pulchra",
   "sex": "Male",
-  "imageUrl": "https://moltly.com/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fcover.jpg",
+  "imageUrl": "https://moltly.xyz/api/image?url=https%3A%2F%2Fmoltly-uploads.example%2Fmolt-uploads%2Fabc%2Fcover.jpg",
   "notes": "Calm temperament, proven feeder.",
   "pairingStatus": "seeking_female",
   "pairingNotes": "Fresh mature male, last molt 2026-02-03.",
@@ -177,7 +177,7 @@ curl "https://moltly.com/api/public/pairings/67dff0db3e1c6f4d1f7f8abc"
     "id": "67c111223344556677889900",
     "name": "arachnokeeper",
     "username": "arachnokeeper",
-    "imageUrl": "https://moltly.com/avatar.png"
+    "imageUrl": "https://moltly.xyz/avatar.png"
   },
   "contact": {
     "method": "discord",
@@ -187,8 +187,8 @@ curl "https://moltly.com/api/public/pairings/67dff0db3e1c6f4d1f7f8abc"
   "attachments": [],
   "images": [],
   "urls": {
-    "api": "https://moltly.com/api/public/pairings/67dff0db3e1c6f4d1f7f8abc",
-    "share": "https://moltly.com/?view=specimens&specimen=Nyx&specimenId=67dff0db3e1c6f4d1f7f8abc&owner=67c111223344556677889900&species=Grammostola+pulchra"
+    "api": "https://moltly.xyz/api/public/pairings/67dff0db3e1c6f4d1f7f8abc",
+    "share": "https://moltly.xyz/?view=specimens&specimen=Nyx&specimenId=67dff0db3e1c6f4d1f7f8abc&owner=67c111223344556677889900&species=Grammostola+pulchra"
   }
 }
 ```
@@ -276,7 +276,7 @@ Public listings expose these statuses:
 
 When a listing image originates from Moltly-managed object storage, the API may return:
 
-- `url`: a stable Moltly image proxy URL such as `https://moltly.com/api/image?...`
+- `url`: a stable Moltly image proxy URL such as `https://moltly.xyz/api/image?...`
 - `originalUrl`: the underlying storage URL
 
 For external image URLs, `url` may point directly to the original asset and `originalUrl` may be omitted.
@@ -330,25 +330,25 @@ This allows browser-based third-party applications to fetch the API directly.
 ### Fetch All Current Ads
 
 ```bash
-curl "https://moltly.com/api/public/pairings"
+curl "https://moltly.xyz/api/public/pairings"
 ```
 
 ### Find Female Specimens Open to Offers
 
 ```bash
-curl "https://moltly.com/api/public/pairings?sex=Female&status=open_to_offers"
+curl "https://moltly.xyz/api/public/pairings?sex=Female&status=open_to_offers"
 ```
 
 ### Search Across the Feed
 
 ```bash
-curl "https://moltly.com/api/public/pairings?search=grammostola"
+curl "https://moltly.xyz/api/public/pairings?search=grammostola"
 ```
 
 ### Paginate Through the Feed
 
 ```bash
-curl "https://moltly.com/api/public/pairings?limit=20&page=3"
+curl "https://moltly.xyz/api/public/pairings?limit=20&page=3"
 ```
 
 ## Notes

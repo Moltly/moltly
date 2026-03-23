@@ -128,6 +128,20 @@ const toAbsoluteUrl = (origin: string, value?: string | null) => {
   }
 };
 
+const resolvePublicOrigin = (requestOrigin: string) => {
+  const configuredOrigin =
+    process.env.NEXTAUTH_URL ||
+    process.env.APP_URL ||
+    process.env.SITE_URL ||
+    requestOrigin;
+
+  try {
+    return new URL(configuredOrigin).origin;
+  } catch {
+    return requestOrigin;
+  }
+};
+
 const toPublicImage = (
   origin: string,
   image: { kind: "cover" | "attachment"; url?: string; name?: string; type?: string; addedAt?: Date | string | null }
@@ -150,6 +164,7 @@ const toPublicImage = (
 };
 
 export async function getPublicPairingListings(origin: string): Promise<PublicPairingListing[]> {
+  const publicOrigin = resolvePublicOrigin(origin);
   await connectMongoose();
 
   const specimens = (await Specimen.find({
@@ -177,7 +192,7 @@ export async function getPublicPairingListings(origin: string): Promise<PublicPa
           (typeof user.name === "string" && user.name.trim()) ||
           "Moltly user",
         username: typeof user.username === "string" && user.username.trim() ? user.username.trim() : undefined,
-        imageUrl: toAbsoluteUrl(origin, user.image),
+        imageUrl: toAbsoluteUrl(publicOrigin, user.image),
         pairingContact: user.preferences?.pairingContact,
       },
     ])
@@ -191,7 +206,7 @@ export async function getPublicPairingListings(origin: string): Promise<PublicPa
       if (!owner || !contact?.method || !contact?.value) return null;
       if (pairingStatus === "none") return null;
 
-      const coverImage = toPublicImage(origin, {
+      const coverImage = toPublicImage(publicOrigin, {
         kind: "cover",
         name: specimen.name,
         type: "image",
@@ -199,7 +214,7 @@ export async function getPublicPairingListings(origin: string): Promise<PublicPa
       });
       const attachmentImages = (specimen.attachments ?? [])
         .map((attachment) =>
-          toPublicImage(origin, {
+          toPublicImage(publicOrigin, {
             kind: "attachment",
             name: attachment.name,
             type: attachment.type,
@@ -238,7 +253,7 @@ export async function getPublicPairingListings(origin: string): Promise<PublicPa
         attachments: attachmentImages,
         images,
         urls: {
-          api: new URL(`/api/public/pairings/${specimenId}`, origin).toString(),
+          api: new URL(`/api/public/pairings/${specimenId}`, publicOrigin).toString(),
           share: new URL(
             `/?${new URLSearchParams({
               view: "specimens",
@@ -247,7 +262,7 @@ export async function getPublicPairingListings(origin: string): Promise<PublicPa
               owner: owner.id,
               ...(specimen.species ? { species: specimen.species } : {}),
             }).toString()}`,
-            origin
+            publicOrigin
           ).toString(),
         },
       };
