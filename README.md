@@ -96,6 +96,8 @@ To enable species autocomplete using `species.csv` (columns: genus, species, sub
 
 This creates a `species` collection with a `fullName` and `fullNameLC` field and an index optimized for prefix search.
 
+Approved custom species from `species_suggestions` are merged back in after each import, so admin-approved autocomplete entries survive CSV refreshes.
+
 Admin review of unknown species:
 
 - When users enter a species not present in the `species` collection, a pending suggestion is created automatically.
