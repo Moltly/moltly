@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { X, Github, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3, KeyRound, Server } from "lucide-react";
+import { X, FileText, Shield, Coffee, Smartphone, Sparkles, LogOut, ExternalLink, Upload, Download, BarChart3, KeyRound, Server } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { Capacitor } from "@capacitor/core";
 import { useSearchParams } from "next/navigation";
@@ -2060,7 +2060,7 @@ export default function MobileDashboard() {
                     rel="noreferrer"
                     className="group flex items-center justify-between gap-3 p-3 border border-[rgb(var(--border))] rounded-[var(--radius)] hover:bg-[rgb(var(--bg-muted))] transition-colors"
                   >
-                    <span className="flex items-center gap-2"><Github className="w-4 h-4" /> GitHub</span>
+                    <span className="flex items-center gap-2"><ExternalLink className="w-4 h-4" /> GitHub</span>
                     <ExternalLink className="w-4 h-4 text-[rgb(var(--text-subtle))] group-hover:text-[rgb(var(--text))]" />
                   </a>
                   <a
