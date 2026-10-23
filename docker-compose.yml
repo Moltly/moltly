@@ -26,7 +26,10 @@ services:
       - "host.docker.internal:host-gateway"
 
   mongo:
-    image: mongo:8
+    # Pinned to 9.x: mongo 8.x refuses to boot on kernel 6.19-7.0.13 because its
+    # bundled TCMalloc violates the kernel's rseq ABI (SERVER-121912). This host runs
+    # 7.0.0, so 8.x is a non-starter; 9.x ships the fixed allocator.
+    image: mongo:9
     container_name: molt-log-mongo
     restart: unless-stopped
     command: ["mongod", "--port", "13777", "--bind_ip_all"]
